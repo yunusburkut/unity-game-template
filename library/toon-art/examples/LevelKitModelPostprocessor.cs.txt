@@ -1,0 +1,93 @@
+using UnityEditor;
+using UnityEngine;
+
+namespace Mixtrol.Editor.Art
+{
+    /// <summary>
+    /// Pins the import of the Parkur level kit's FBX files under <c>Game/Art/LevelKit</c>, exported by
+    /// <c>Art/LevelKit/build_levelkit.py</c> at Unity scale. Like the props: no rig, no animation, one
+    /// metre is one metre, axis conversion baked, so a mesh keeps Blender X and negates Z and every
+    /// kit prefab stands it up with a child turned Euler(90, 0, 0).
+    /// <para>
+    /// Unlike the props, no mesh compression: modules are laid end to end on the grid, and quantised
+    /// vertices would open millimetre seams between them and put walk surfaces off the grid height.
+    /// Normals are imported, because the script writes weighted normals that keep a big flat face
+    /// flat next to its rounded edge. The imported materials are left alone: they only name the
+    /// palette role of each submesh, and <see cref="LevelKitBuilder"/> gives every renderer the
+    /// shared <c>M_Kit_*</c> materials instead.
+    /// </para>
+    /// <para>
+    /// The kit's textures are pinned here too. <c>T_Kit_Belt</c> (the conveyor's chevrons): sRGB like every
+    /// palette colour, repeating along the belt and clamped across it, so the chevrons' ends never bleed into
+    /// the white edge strips. <c>T_Kit_Palette</c> (the palette atlas, MIX-190): one flat cell per role that
+    /// the meshes sample at its centre, so nearest filtering, no mipmaps and no compression keep every colour
+    /// exact at any distance; its alpha is the role's smoothness and stays as authored.
+    /// </para>
+    /// <para>
+    /// The Harabe look target (<c>Art/Harabe/build_harabe.py</c>, MIX-214) is built by the same helpers into
+    /// <c>Game/Art/Harabe</c> and imports the same way; its atlas is <c>T_Harabe_Palette</c>.
+    /// </para>
+    /// </summary>
+    internal sealed class LevelKitModelPostprocessor : AssetPostprocessor
+    {
+        const string Folder = "Assets/Mixtrol/Game/Art/LevelKit/";
+        const string HarabeFolder = "Assets/Mixtrol/Game/Art/Harabe/";
+        const string PaletteSuffix = "_Palette.png";
+
+        public override uint GetVersion() => 3;
+
+        bool Ours => assetPath.StartsWith(Folder) || assetPath.StartsWith(HarabeFolder);
+
+        void OnPreprocessTexture()
+        {
+            if (!Ours || !assetPath.EndsWith(".png")) return;
+
+            var importer = (TextureImporter)assetImporter;
+            if (assetPath.EndsWith(PaletteSuffix))
+            {
+                importer.textureType = TextureImporterType.Default;
+                importer.sRGBTexture = true;
+                importer.alphaSource = TextureImporterAlphaSource.FromInput;
+                importer.alphaIsTransparency = false;
+                importer.mipmapEnabled = false;
+                importer.wrapMode = TextureWrapMode.Clamp;
+                importer.filterMode = FilterMode.Point;
+                importer.textureCompression = TextureImporterCompression.Uncompressed;
+                importer.npotScale = TextureImporterNPOTScale.None;
+                return;
+            }
+            importer.textureType = TextureImporterType.Default;
+            importer.sRGBTexture = true;
+            importer.alphaSource = TextureImporterAlphaSource.None;
+            importer.mipmapEnabled = true;
+            importer.wrapModeU = TextureWrapMode.Repeat;
+            importer.wrapModeV = TextureWrapMode.Clamp;
+            importer.filterMode = FilterMode.Trilinear;
+            importer.anisoLevel = 4;
+        }
+
+        void OnPreprocessModel()
+        {
+            if (!Ours || !assetPath.EndsWith(".fbx")) return;
+
+            var importer = (ModelImporter)assetImporter;
+            importer.animationType = ModelImporterAnimationType.None;
+            importer.importAnimation = false;
+            importer.globalScale = 1f;
+            importer.useFileScale = true;
+            importer.bakeAxisConversion = true;
+            importer.meshCompression = ModelImporterMeshCompression.Off;
+            importer.isReadable = false;
+            importer.addCollider = false;
+            importer.generateSecondaryUV = false;
+            importer.importBlendShapes = false;
+            importer.importCameras = false;
+            importer.importLights = false;
+            importer.importVisibility = false;
+            importer.importNormals = ModelImporterNormals.Import;
+            importer.importTangents = ModelImporterTangents.None;
+            importer.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
+            importer.materialName = ModelImporterMaterialName.BasedOnMaterialName;
+        }
+    }
+}

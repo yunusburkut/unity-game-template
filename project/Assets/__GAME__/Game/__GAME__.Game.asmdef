@@ -1,0 +1,14 @@
+{
+    "name": "__GAME__.Game",
+    "rootNamespace": "__GAME__.Game",
+    "references": ["__GAME__.Core", "UnityEngine.UI", "Unity.InputSystem"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

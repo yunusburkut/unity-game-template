@@ -1,0 +1,19 @@
+# Unity writes LF; keep it LF on Windows too, so git neither warns nor rewrites YAML line endings
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.psd binary
+*.tga binary
+*.exr binary
+*.fbx binary
+*.blend binary
+*.wav binary
+*.mp3 binary
+*.ogg binary
+*.ttf binary
+*.otf binary
+*.pdf binary
+*.dll binary
+*.so binary
+*.a binary
