@@ -34,6 +34,10 @@ Her oyuna gerekmeyen parçalar `library/` altında durur ve `-Packs` ile eklenir
 | `coop-multiplayer` | FishNet ağ kuralı, co-op mekanik skill'leri, net-auditor ve idea-forge agent'ları, tasarım korpusu ve co-op dokümanları | 2–4 kişilik online co-op |
 | `toon-art` | `__GAME__/Toon` shader'ı, kontur normal pişirici, art-pipeline skill'i (Blender → FBX → prefab) | Blender'dan çizgi film görünümlü 3D |
 | `linear` | linear-scout agent'ı ve CLAUDE.md parçası | İşler Linear'da takip ediliyorsa |
+| `mobile-2d` | Magic Sort'taki 2D paketleri (sprite, tilemap, aseprite, psdimporter, 2D animation), URP 2D Renderer, 2D Editor modu, ortografik kamera + Global Light 2D | Magic Sort gibi sprite tabanlı mobil oyun |
+
+Bir paketin `packages.json` dosyası varsa, içindeki UPM paketleri yeni oyunun `Packages/manifest.json` dosyasına
+eklenir. `[ProjectSetupStep]` ile işaretlenmiş Editor metotları `ProjectSetup`'tan sonra çalışır.
 
 Her paketin README'si ne eklediğini ve kurulumdan sonra elle yapılacakları anlatır; README ve `examples/` oyuna
 kopyalanmaz. `library/reference-docs/` sadece okumak için: frame budget, pazar, Steam, ses, renk teorisi notları.

@@ -61,8 +61,22 @@ Write-Host '2/6 Packs'
 foreach ($pack in $Packs) {
     $source = Join-Path $library $pack
     # merged before the rename below, so the pack's Assets\__GAME__ lands in the template's and both get renamed once
-    robocopy $source $dest /E /XF (Join-Path $source 'README.md') /XD (Join-Path $source 'examples') /NFL /NDL /NJH /NJS /NP | Out-Null
+    robocopy $source $dest /E /XF (Join-Path $source 'README.md') (Join-Path $source 'packages.json') /XD (Join-Path $source 'examples') /NFL /NDL /NJH /NJS /NP | Out-Null
     if ($LASTEXITCODE -ge 8) { throw "robocopy failed copying pack $pack ($LASTEXITCODE)." }
+
+    # a pack's packages.json lists UPM dependencies; insert the missing ones as text so the manifest keeps its layout
+    $packages = Join-Path $source 'packages.json'
+    if (Test-Path -LiteralPath $packages) {
+        $manifestPath = Join-Path $dest 'Packages\manifest.json'
+        $manifest = [IO.File]::ReadAllText($manifestPath)
+        $lines = foreach ($dep in (Get-Content -LiteralPath $packages -Raw | ConvertFrom-Json).dependencies.PSObject.Properties) {
+            if ($manifest -notmatch ('"' + [regex]::Escape($dep.Name) + '"')) { "    `"$($dep.Name)`": `"$($dep.Value)`"," }
+        }
+        if ($lines) {
+            $manifest = ([regex]'"dependencies"\s*:\s*\{\s*\n').Replace($manifest, { param($m) $m.Value + ($lines -join "`n") + "`n" }, 1)
+            [IO.File]::WriteAllText($manifestPath, $manifest, (New-Object System.Text.UTF8Encoding $false))
+        }
+    }
     Write-Host "    added $pack"
 }
 if (-not $Packs) { Write-Host '    none' }

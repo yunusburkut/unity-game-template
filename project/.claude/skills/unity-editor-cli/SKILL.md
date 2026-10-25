@@ -14,7 +14,7 @@ skills (`unity@claude-plugins-official`); the plugin itself stays off because it
 context. The copies do not update: to refresh one, install the plugin's newer version, copy the folder over and keep it
 disabled.
 
-Never hand-edit `.unity`, `.prefab`, `.asset`, `.mat` or `.controller` YAML while an Editor is live: fileIDs and GUIDs
+Never hand-edit `.unity`, `.prefab`, `.asset`, `.mat`, `.controller`, `.overrideController`, `.anim` or `.mask` YAML while an Editor is live: fileIDs and GUIDs
 are easy to get wrong, the running Editor will not see the change, and the write can land in a scene that is not the
 open one. A PreToolUse hook (`.claude/hooks/guard-unity-yaml.ps1`) refuses such an Edit/Write while the Editor holds
 `Temp/UnityLockfile`. Drive the Editor instead.

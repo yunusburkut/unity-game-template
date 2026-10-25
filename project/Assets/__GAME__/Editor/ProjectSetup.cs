@@ -16,11 +16,15 @@ namespace __GAME__.Editor
     /// new-game.ps1 runs it once:
     /// Unity -batchmode -quit -projectPath . -executeMethod __GAME__.Editor.ProjectSetup.Run
     /// </summary>
+    /// <summary>Marks a public static parameterless method that ProjectSetup.Run calls after its own steps.</summary>
+    [System.AttributeUsage(System.AttributeTargets.Method)]
+    public sealed class ProjectSetupStepAttribute : System.Attribute { }
+
     public static class ProjectSetup
     {
-        const string Root = "Assets/__GAME__";
-        const string SettingsFolder = Root + "/Settings";
-        const string ScenePath = Root + "/Scenes/Main.unity";
+        public const string Root = "Assets/__GAME__";
+        public const string SettingsFolder = Root + "/Settings";
+        public const string ScenePath = Root + "/Scenes/Main.unity";
         const string CompanyName = "__COMPANY__";
         const string ProductName = "__GAME__";
 
@@ -44,6 +48,11 @@ namespace __GAME__.Editor
             ConfigureQuality(mobile, pc);
 
             CreateMainScene();
+
+            // packs from library\ add their own steps (mobile-2d swaps in the 2D renderer); they run last
+            foreach (var step in TypeCache.GetMethodsWithAttribute<ProjectSetupStepAttribute>())
+                step.Invoke(null, null);
+
             AssetDatabase.SaveAssets();
             Debug.Log("[ProjectSetup] Done: Mobile and PC quality tiers, Input System only, Main scene in the build.");
         }
