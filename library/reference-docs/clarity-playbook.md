@@ -3,7 +3,7 @@
 **Status:** draft 1, 2026-10-17, written for MIX-301, where three items are still open: the pre-round screen, the
 context hints and the event narration. This is a research and method doc, written in English like
 `difficulty-rhythm.md`. Player-facing strings are Turkish. Decisions stay with `docs/gdd.md` and the user: this doc
-proposes, and §H lists what is still open. The procedure that applies it is `.claude/skills/player-clarity/SKILL.md`.
+proposes, and §H lists what is still open. The procedure that applies it is `~/.claude/skills/player-clarity/SKILL.md`.
 
 **Rule IDs** are **CL01–CL22**. Append new ones and never renumber.
 

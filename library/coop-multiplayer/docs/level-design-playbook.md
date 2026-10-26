@@ -4,7 +4,7 @@ The working document. `reference-teardowns.md` is the evidence and `coop-mechani
 mechanical decision; this is how a level gets drawn.
 
 Two kinds of number appear below. **Sourced** values come from the reference games or from
-`.claude/skills/game-feel/references/` and are cited. **Starting values** are derived from Mixtrol's own
+`~/.claude/skills/game-feel/references/` and are cited. **Starting values** are derived from Mixtrol's own
 geometry — the `LevelPalette` grid is 1.25 m, `CameraFollow` frames the group at 24–40 m — and are
 marked *(starting value)*. Tune those in Play Mode and write the result back into this file. Never quote
 a starting value as if it were evidence.

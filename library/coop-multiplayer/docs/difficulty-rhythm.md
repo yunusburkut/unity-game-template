@@ -21,7 +21,7 @@ When two findings have the same severity, the ranking is `src` > `repo` > `repo-
 | Short name | File |
 |---|---|
 | *playbook* | `docs/level-design-playbook.md` |
-| *LBR* | `.claude/skills/level-beat-review/SKILL.md` |
+| *LBR* | `~/.claude/skills/level-beat-review/SKILL.md` |
 | *GDD* | `docs/gdd.md` |
 | *B1 beats* | `docs/bolum-01-beats.md` |
 | *B3 beats* | `docs/bolum-03-beats.md` |
@@ -1017,7 +1017,7 @@ These agree with the DR rules and need no change:
 | # | File | Section | Change | Blocked on |
 |---|---|---|---|---|
 | 1 | `docs/difficulty-rhythm.md` (new) | Whole file | This draft | Adoption |
-| 2 | `.claude/skills/level-beat-review/SKILL.md` | Frontmatter `description` | Add the triggers "zorluk sırası", "ritim", "rahatlama", "critique / yorumla this level", "is the order right" | — |
+| 2 | `~/.claude/skills/level-beat-review/SKILL.md` | Frontmatter `description` | Add the triggers "zorluk sırası", "ritim", "rahatlama", "critique / yorumla this level", "is the order right" | — |
 | | | `## Biome pacing` (:170) | Replace the bullet with "rule flat, load sawtooth: DR01, DR14" | E1 |
 | | | `## Teaching arc` | Add one line: "RX09 orders the ideas; DR03–DR07 set the load; DR27 places sabotage" | — |
 | | | `## Anti-patterns` | Rows citing DR IDs only: flat load (DR01); tier-2 after the peak (DR08); troll in the finale (DR18); a valley that lifts the swap (DR25) | — |
@@ -1033,7 +1033,7 @@ These agree with the DR rules and need no change:
 | 10 | `docs/bolum-01-beats.md` | `## Segmentler`; `## Ölçülecekler` | Add "Perde" and "Ritim" columns (peak C, question, valley type). Add to the measurement list: clean time, the peak's commit time, attempts per pass and the online partner windows. | §G accepted |
 | 11 | `docs/bolum-02-beats.md`, `docs/bolum-03-beats.md` | Their floor tables | The same columns plus Loss (s), when those levels are critiqued | Later; B3 after E17 |
 | 12 | `CLAUDE.md` `## Skills` | The design-corpus line | Optional: add "difficulty order: docs/difficulty-rhythm.md (DR IDs)" | Optional |
-| 13 | `.claude/skills/game-feel/references/feedback-stack.md` | FP22 row | Note that a tier-2 wipe may carry a short sting or line, and that encouragement lands better than mockery (Foddy18). GDD:256's mocking decoy stands. | User |
+| 13 | `~/.claude/skills/game-feel/references/feedback-stack.md` | FP22 row | Note that a tier-2 wipe may carry a short sting or line, and that encouragement lands better than mockery (Foddy18). GDD:256's mocking decoy stands. | User |
 
 **Agents:** there is no `.claude/agents/`. The skills in rows 2, 5, 6 and 13 are what agents read, so those rows are the "agent" changes.
 

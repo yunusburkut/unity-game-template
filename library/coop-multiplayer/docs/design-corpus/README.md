@@ -12,7 +12,7 @@ folder holds the originals and our cited-by-ID catalogs of them. The game measur
 | `grammar.md` | Interaction patterns, failure chains, recovery types, comedy structures, escalation operators, anti-grief rules, design checks | P, FC, RC, CS, EO, AG, DC |
 | `generator.md` | Mutation operators, the 60-object palette, seed pools, room archetypes, drills | OP, OB, CQ, RQ, RA, MD |
 | `../../.claude/skills/mechanic-forge/` | The procedure: the mechanic card (17 corpus fields + 8 Mixtrol), Pass A–J, 13-axis rubric, protocol anti-patterns, recipes, worked chains | AP, WC, RX |
-| `../../.claude/skills/game-feel/references/feedback-stack.md` | Feel rules, the eight-layer stack, feel patterns, per-action targets, feel anti-patterns | FR, FS, FP, FE, FX |
+| `~/.claude/skills/game-feel/references/feedback-stack.md` | Feel rules, the eight-layer stack, feel patterns, per-action targets, feel anti-patterns | FR, FS, FP, FE, FX |
 | `source/` | The four PDFs | — |
 
 **Cite by ID.** Skills and docs name `P08`, `AG1`, `FP28` — they never restate a catalog row. That is
@@ -98,5 +98,5 @@ table below and the disagreement is raised, never resolved silently.
 | Lay out or review a level | `level-beat-review` | RA, EO, RC, DC rows by ID |
 | Pick how an action feels | `game-feel` | `references/feedback-stack.md` |
 
-Grep by ID across both homes (`rg "^\| P08 " docs/design-corpus .claude/skills`); do not load whole
+Grep by ID across both homes (`rg "^\| P08 " docs/design-corpus .claude/skills ~/.claude/skills`); do not load whole
 catalogs. `mechanic-forge` has a "where to start" table for when you have no ID yet.

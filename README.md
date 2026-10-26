@@ -53,10 +53,24 @@ kopyalanmaz. `library/reference-docs/` sadece okumak için: frame budget, pazar,
 | Telefonda 60 fps, çentik için `SafeAreaFitter`, clamp'li `SimulationStep`, Development Build'de kare süresi CSV'si (`FrameLog`, F3) | `Game/` |
 | CLAUDE.md, DESIGN.md, README, `.gitattributes` (LF), VS Code eklenti önerisi | `project/` |
 | İzinler, Unity YAML koruma hook'u, C# LSP ve context7 eklentileri | `project/.claude/settings.json`, `hooks/` |
-| 20 skill: mimari, performans, debug, review, test, doğrulama, refactor-pass, editor CLI, platformlar, Feel (+ tarifler), game-feel, player-clarity, level-beat-review, launch-review (Steam, Google Play, App Store, itch.io), grill-me, Unity'nin resmi 4 skill'i | `project/.claude/skills/` |
-| 6 salt okunur agent: unity-reviewer, bug-hunter, perf-auditor, clarity-reviewer, design-critic, launch-auditor | `project/.claude/agents/` |
 
-Blender skill'leri globalde (`~/.claude/skills`) olduğu için her oyunda zaten var.
+## Global Claude katmanı
+
+Skill'ler ve agent'lar şablonda değil, globalde durur; böylece şablondan açılmamış oyunlarda da çalışırlar:
+
+| Parça | Nerede |
+|---|---|
+| 20 skill: mimari, performans, debug, review, test, doğrulama, refactor-pass, editor CLI, platformlar, Feel (+ tarifler), game-feel, player-clarity, level-beat-review, launch-review (Steam, Google Play, App Store, itch.io), grill-me, Unity'nin resmi 4 skill'i | `~/.claude/skills/` |
+| 6 salt okunur agent: unity-reviewer, bug-hunter, perf-auditor, clarity-reviewer, design-critic, launch-auditor | `~/.claude/agents/` |
+| `lean-code` kuralı ve sadece Unity projelerinde yüklenen `unity-games` kuralı | `~/.claude/rules/` |
+| Unity YAML koruma hook'u ve git izinleri | `~/.claude/hooks/guard-unity-yaml.ps1`, `~/.claude/settings.json` |
+
+Blender skill'leri de orada. Global skill'ler `__GAME__` yerine `<Game>` yazar (`Assets/<Game>/Core` gibi);
+`unity-games` kuralı bunun bu şablonun düzeni olduğunu, bir projenin farklarını kendi `CLAUDE.md`'sinde yazdığını
+anlatır. `project/.claude/` içindeki izinler, hook ve `lean-code` kuralı hem burada hem globalde durur.
+
+Global kopyalar hiçbir repoda değil: yeni bir bilgisayara `~/.claude/skills`, `agents`, `rules` ve
+`hooks/guard-unity-yaml.ps1` elle kopyalanır. Şablondaki son, yer tutuculu hâlleri `9915c17` commit'indedir.
 
 ## Bilerek alınmayanlar
 

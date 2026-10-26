@@ -14,12 +14,12 @@ once for the ID scheme, the precedence rule and the Mixtrol deltas (the referenc
 rows. IDs live in three places, so search all of them:
 
 ```
-rg "^(\| |- \*\*|\d+\. \*\*)OP27\b" docs/design-corpus .claude/skills   # one row by ID (FE rows are bullets, MD a numbered list)
+rg "^(\| |- \*\*|\d+\. \*\*)OP27\b" docs/design-corpus .claude/skills ~/.claude/skills   # one row by ID (FE rows are bullets, MD a numbered list)
 rg -i "^\| (P|RC|RA)\d+ .*recover" docs/design-corpus      # candidates by keyword when you have no ID yet
 ```
 
 Rows: P, FC, RC, CS, EO, AG, DC in `grammar.md`; OP, OB, CQ, RQ, RA, MD in `generator.md`; FR, FS, FP, FE,
-FX in `.claude/skills/game-feel/references/feedback-stack.md`; AP here; RX, WC in `references/recipes.md`.
+FX in `~/.claude/skills/game-feel/references/feedback-stack.md`; AP here; RX, WC in `references/recipes.md`.
 
 **Where to start when you have no ID:**
 
@@ -135,7 +135,7 @@ the wrong player. If no cheap test exists, the idea is too big — Pass J it.
 When the card survives, convert it without changing its intent (RX26): states and transitions → a Core
 value-type `State` + static `Solver` taking `dt`; tunables → a Config ScriptableObject flattened to a
 `Tuning` struct; authority → field 20; events → field 21, reset at the top of `Step`; presentation →
-the action's row in `.claude/skills/game-feel/references/feedback-stack.md`; reset guarantees → what
+the action's row in `~/.claude/skills/game-feel/references/feedback-stack.md`; reset guarantees → what
 respawn restores (today: players, the cauldron, and the crates and push blocks a `CarryHome` holds —
 never one on a plate); network edge cases → simultaneous input, one-trip lag, disconnect. Then
 `unity-architecture` for placement and `unity-performance` for anything per frame. Tests only if the

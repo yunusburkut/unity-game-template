@@ -277,4 +277,4 @@ See `reference-teardowns.md` for the full source list. The claims specific to th
   [AUTOMATON WEST](https://automaton-media.com/en/news/20211011-3784/)
 - PEAK's stamina-and-afflictions layer over free-form climbing —
   [Game Developer](https://www.gamedeveloper.com/production/how-co-op-climbing-hit-peak-achieved-2-million-sales-for-less-than-200-000-)
-- The 240 ms perceive-decide-act budget — `.claude/skills/game-feel/references/sources.md`
+- The 240 ms perceive-decide-act budget — `~/.claude/skills/game-feel/references/sources.md`
