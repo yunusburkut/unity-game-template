@@ -1,4 +1,5 @@
-# PreToolUse guard for Edit/Write on Unity YAML (.unity, .prefab, .asset, .mat, .controller).
+# PreToolUse guard for Edit/Write on Unity YAML (.unity, .prefab, .asset, .mat, .controller, .mask, .anim,
+# .overrideController).
 # Never hand-edit them while an Editor has this project open: the running Editor does not see the change and
 # overwrites it on its next save. settings.json runs this only for matching extensions (`if`), so other edits
 # never start PowerShell.
@@ -42,7 +43,7 @@ if (-not $editorOpen) {
 }
 
 if ($editorOpen) {
-    Deny "The Unity Editor has this project open, so $path must not be hand-edited: the Editor will not see the change and overwrites it on its next save. Drive the Editor instead (unity-editor-cli: unity command run_script), or ask the user to close Unity first."
+    Deny "The Unity Editor has this project open, so $path must not be hand-edited: the Editor will not see the change and overwrites it on its next save. Drive the Editor instead (unity-editor-cli: unity command script run), or ask the user to close Unity first."
 }
 
 exit 0

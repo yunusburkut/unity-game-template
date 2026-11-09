@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using Unity.Profiling;
@@ -10,12 +11,13 @@ namespace __GAME__.Game
 {
     /// <summary>
     /// Frame-time log for development players (PC and phone): it makes itself, writes one CSV line per
-    /// second to <c>persistentDataPath/frame-log-*.csv</c> and shows the same numbers on F3 or a
-    /// three-finger tap.
+    /// second to <c>persistentDataPath/frame-log-*.csv</c> and shows fps, frame times, GC, draw/SetPass and
+    /// CPU/GPU ms on F3 or a three-finger tap (position and memory are CSV-only).
     /// <para>
     /// A line holds the window's average FPS, p99 and worst frame, how many frames ran past 17 ms, the
     /// scene and camera position at the worst frame (where to go and look), GC bytes per frame, draw
-    /// calls, SetPass calls and, when the player has Frame Timing Stats on, CPU and GPU ms.
+    /// calls, SetPass calls, CPU and GPU ms (gpu reads 0 where the graphics API has no timer queries), and
+    /// system-used and GC-reserved memory in MB.
     /// </para>
     /// The once-a-second string work allocates; the frame after a write is left out of the GC column so
     /// the log does not report its own cost.
@@ -25,7 +27,9 @@ namespace __GAME__.Game
         const float WindowSeconds = 1f;
         const float SlowMs = 17f;
         const int Capacity = 1024;
-        const string Header = "t_s,scene,fps,p99_ms,max_ms,slow_frames,worst_x,worst_y,worst_z,gc_bytes_per_frame,draw_calls,setpass_calls,cpu_ms,gpu_ms";
+        const string Header = "t_s,scene,fps,p99_ms,max_ms,slow_frames,worst_x,worst_y,worst_z,gc_bytes_per_frame,draw_calls,setpass_calls,cpu_ms,gpu_ms,sys_mb,gc_reserved_mb";
+        // a Turkish locale writes 12.5 as "12,5" and shifts every CSV column
+        static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
         readonly float[] _frames = new float[Capacity];
         readonly FrameTiming[] _timing = new FrameTiming[1];
@@ -34,6 +38,8 @@ namespace __GAME__.Game
         ProfilerRecorder _gc;
         ProfilerRecorder _draws;
         ProfilerRecorder _setPass;
+        ProfilerRecorder _sysMem;
+        ProfilerRecorder _gcReserved;
         StreamWriter _file;
         string _scene = "";
         string _overlay = "FrameLog…";
@@ -63,6 +69,8 @@ namespace __GAME__.Game
             _gc = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame");
             _draws = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Draw Calls Count");
             _setPass = ProfilerRecorder.StartNew(ProfilerCategory.Render, "SetPass Calls Count");
+            _sysMem = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "System Used Memory");
+            _gcReserved = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Reserved Memory");
 
             var path = Path.Combine(Application.persistentDataPath, $"frame-log-{DateTime.Now:yyyyMMdd-HHmmss}.csv");
             _file = new StreamWriter(path, false, Encoding.UTF8) { AutoFlush = true };
@@ -79,6 +87,8 @@ namespace __GAME__.Game
             _gc.Dispose();
             _draws.Dispose();
             _setPass.Dispose();
+            _sysMem.Dispose();
+            _gcReserved.Dispose();
             _file?.Dispose();
         }
 
@@ -127,13 +137,15 @@ namespace __GAME__.Game
             }
 
             _line.Clear()
-                .Append(_total.ToString("F1")).Append(',').Append(_scene).Append(',')
-                .Append(fps.ToString("F1")).Append(',').Append(p99.ToString("F1")).Append(',')
-                .Append(_worstMs.ToString("F1")).Append(',').Append(_slow).Append(',')
-                .Append(_worstAt.x.ToString("F1")).Append(',').Append(_worstAt.y.ToString("F1")).Append(',')
-                .Append(_worstAt.z.ToString("F1")).Append(',')
+                .Append(_total.ToString("F1", Inv)).Append(',').Append(_scene).Append(',')
+                .Append(fps.ToString("F1", Inv)).Append(',').Append(p99.ToString("F1", Inv)).Append(',')
+                .Append(_worstMs.ToString("F1", Inv)).Append(',').Append(_slow).Append(',')
+                .Append(_worstAt.x.ToString("F1", Inv)).Append(',').Append(_worstAt.y.ToString("F1", Inv)).Append(',')
+                .Append(_worstAt.z.ToString("F1", Inv)).Append(',')
                 .Append(gcPerFrame).Append(',').Append(_draws.LastValue).Append(',').Append(_setPass.LastValue).Append(',')
-                .Append(cpu.ToString("F1")).Append(',').Append(gpu.ToString("F1"));
+                .Append(cpu.ToString("F1", Inv)).Append(',').Append(gpu.ToString("F1", Inv)).Append(',')
+                .Append((_sysMem.LastValue / 1048576f).ToString("F0", Inv)).Append(',')
+                .Append((_gcReserved.LastValue / 1048576f).ToString("F0", Inv));
             _file.WriteLine(_line.ToString());
 
             if (_show)

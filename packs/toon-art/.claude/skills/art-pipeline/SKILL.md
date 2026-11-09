@@ -26,7 +26,7 @@ outputs that a rebuild overwrites. Fix the script, rebuild, never patch an outpu
    makes the materials and prefabs **in place** (same path, same GUID, so scenes keep their references). It is
    rerunnable: it strips what it made last time first.
 
-`examples/` in the template's `library/toon-art` holds a real script (`city_assets.py`, Pixel Volley), a manifest-writing
+`examples/` in the template's `packs/toon-art` holds a real script (`city_assets.py`, Pixel Volley), a manifest-writing
 kit module (`kit_common.py`, Mixtrol) and a postprocessor (`LevelKitModelPostprocessor.cs.txt`) to copy the shape from.
 
 ## Axes and scale

@@ -1,0 +1,110 @@
+# Tests and builds __GAME__ on GitHub's Linux runners with GameCI (game.ci). Every push to main and every pull
+# request runs the EditMode and PlayMode tests, then builds Windows, Android and WebGL through BuildMenu, the same
+# path the menu and the agent bridge use. A v* tag also pushes the WebGL build to itch.io.
+# Secrets and variables: packs/ci-github/README.md in unity-game-template.
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+  UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+  UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # unity-test-runner posts the results as a check run
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - uses: actions/checkout@v7
+      # Feel is a paid package and never in this repository; a private repo holding the contents of Assets/Feel
+      # brings it in. Without FEEL_REPO set, code that uses MoreMountains does not compile here.
+      - if: ${{ vars.FEEL_REPO != '' }}
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ vars.FEEL_REPO }}
+          token: ${{ secrets.FEEL_REPO_PAT }}
+          path: Assets/Feel
+      # a Library built with Feel holds its compiled code; in a public repo a fork's PR could restore and publish it
+      - if: ${{ vars.FEEL_REPO == '' || github.event.repository.private }}
+        uses: actions/cache@v6
+        with:
+          path: Library
+          key: Library-test-${{ hashFiles('Assets/**', '!Assets/Feel/.git/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: Library-test-
+      - uses: game-ci/unity-test-runner@v4
+        with:
+          testMode: all
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # on Linux the Windows player is Mono; an IL2CPP Windows build needs a Windows runner
+          - targetPlatform: StandaloneWindows64
+            buildMethod: __GAME__.Editor.BuildMenu.Windows
+          - targetPlatform: Android
+            buildMethod: __GAME__.Editor.BuildMenu.Android
+          - targetPlatform: WebGL
+            buildMethod: __GAME__.Editor.BuildMenu.WebGL
+    steps:
+      # the Android image does not fit next to the runner's preinstalled tools
+      - if: matrix.targetPlatform == 'Android'
+        uses: jlumbroso/free-disk-space@v2
+      - uses: actions/checkout@v7
+      - if: ${{ vars.FEEL_REPO != '' }}
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ vars.FEEL_REPO }}
+          token: ${{ secrets.FEEL_REPO_PAT }}
+          path: Assets/Feel
+      - if: ${{ vars.FEEL_REPO == '' || github.event.repository.private }}
+        uses: actions/cache@v6
+        with:
+          path: Library
+          key: Library-${{ matrix.targetPlatform }}-${{ hashFiles('Assets/**', '!Assets/Feel/.git/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: Library-${{ matrix.targetPlatform }}-
+      - uses: game-ci/unity-builder@v6
+        with:
+          targetPlatform: ${{ matrix.targetPlatform }}
+          buildMethod: ${{ matrix.buildMethod }}
+          # BuildMenu writes Builds/<Target> and keeps the version numbers set in Player Settings
+          versioning: None
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: Build-${{ matrix.targetPlatform }}
+          path: |
+            Builds
+            Logs/agent/build.log
+          if-no-files-found: ignore
+      - name: Push WebGL to itch.io
+        if: matrix.targetPlatform == 'WebGL' && startsWith(github.ref, 'refs/tags/') && vars.ITCH_GAME != ''
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+          ITCH_GAME: ${{ vars.ITCH_GAME }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          curl -sSfL -o butler.zip https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
+          unzip -q butler.zip -d butler
+          chmod +x butler/butler
+          butler/butler push Builds/WebGL "$ITCH_GAME:html5" --userversion "$VERSION" --if-changed

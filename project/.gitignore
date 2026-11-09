@@ -13,6 +13,7 @@
 /[Bb]uilds/
 /[Ll]ogs/
 /[Uu]ser[Ss]ettings/
+/.claude/worktrees/
 *.log
 
 # By default unity supports Blender asset imports, *.blend1 blender files do not need to be commited to version control.
@@ -119,3 +120,15 @@ InitTestScene*.unity*
 
 # iOS archives
 *.ipa
+
+# Unity writes scene backups here after a crash
+/[Aa]ssets/_Recovery/
+/[Aa]ssets/_Recovery.meta
+
+# Android expansion files and signing keys: a keystore never goes into the repository
+*.obb
+*.keystore
+*.jks
+
+# JetBrains Rider
+.idea/

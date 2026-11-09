@@ -38,8 +38,10 @@ already-computed state against what was last sent.
 `Game/FrameLog.cs` makes itself in **development players only** (not the Editor) and writes one CSV line per
 second to `persistentDataPath/frame-log-*.csv` (`%USERPROFILE%\AppData\LocalLow\<company>\<product>\`; the path
 is also in the player log). Columns: average fps, p99 and worst frame ms, frames over 17 ms, scene and camera
-x/y at the worst frame, GC bytes per frame, draw calls, SetPass calls, CPU/GPU ms. **F3** shows the same numbers
-on screen. CPU/GPU ms read 0 unless *Player Settings → Other → Frame Timing Stats* is on.
+x/y/z at the worst frame, GC bytes per frame, draw calls, SetPass calls, CPU/GPU ms, system-used and GC-reserved MB.
+**F3** or a three-finger tap shows fps, frame times, GC, draw/SetPass and CPU/GPU ms on screen (not position or
+memory). Development players always collect frame timings; GPU ms reads 0 where the
+graphics API has no timer queries.
 
 To stand in for a Steam Deck on a desktop: run at 1280×800 windowed, cap the GPU (Afterburner power/clock
 limit) and limit the cores (`start /affinity F Mixtrol.exe`, four cores), then walk each level and read the

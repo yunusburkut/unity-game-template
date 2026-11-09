@@ -1,0 +1,15 @@
+{
+    "scopedRegistries": [
+        {
+            "name": "OpenUPM",
+            "url": "https://package.openupm.com",
+            "scopes": [ "com.google" ]
+        }
+    ],
+    "dependencies": {
+        "com.google.play.review": "1.8.4",
+        "com.unity.mobile.notifications": "2.5.0",
+        "com.unity.modules.assetbundle": "1.0.0",
+        "com.unity.modules.unitywebrequestassetbundle": "1.0.0"
+    }
+}

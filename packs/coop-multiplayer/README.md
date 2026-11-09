@@ -14,6 +14,7 @@ Unity Relay, host + client, dedicated server yok) varsayılır. Başka bir ağ k
 | `.claude/agents/net-auditor.md` | Ağ değişikliğini kurallara göre denetler (salt okunur) |
 | `.claude/agents/idea-forge.md` | Korpusu kendi bağlamında çalıştırıp mekanik kartları döndürür |
 | `docs/design-corpus/` | Sosyal sabotaj co-op tasarım korpusu: `grammar.md`, `generator.md` ve 4 kaynak PDF (~1.5 MB) |
+| `Assets/__GAME__/Editor/CoopSetup.cs` | Kurulum adımı: `runInBackground` açık; odağı kaybeden host donmaz, iki build tek makinede test edilir |
 | `docs/*.md` | Co-op mekanik oyun kitabı, referans oyun incelemeleri, bölüm tasarımı, zorluk ritmi, iki makinede ağ testi |
 
 ## Bilmen gerekenler

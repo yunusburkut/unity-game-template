@@ -24,3 +24,13 @@ TODO: the rules in bold-term bullets, written as they are in the code, not as pl
 ## Open questions
 
 TODO
+
+## Decisions
+
+One line each: `YYYY-MM-DD: decision. Why. (PR #n)`
+TODO
+
+## Playtests
+
+One entry each: `YYYY-MM-DD, build tag, who / device`: top 3 observations; what changed.
+TODO

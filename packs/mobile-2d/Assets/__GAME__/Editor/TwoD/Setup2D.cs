@@ -10,7 +10,8 @@ namespace __GAME__.Editor
     /// The mobile-2d pack's setup step, run by ProjectSetup after its own: both URP assets render through one 2D
     /// Renderer (sprites, Light2D, sorting layers), the Editor starts in 2D mode (textures import as sprites, the
     /// Scene view is 2D), and Main gets an orthographic camera and a global 2D light instead of the 3D sun.
-    /// Safe to run again.
+    /// Every run (Set Up Project included) resets both renderer lists to the one 2D renderer, deletes Main's lights
+    /// and resets its camera.
     /// </summary>
     static class Setup2D
     {
@@ -50,18 +51,23 @@ namespace __GAME__.Editor
             }
 
             EditorSettings.defaultBehaviorMode = EditorBehaviorMode.Mode2D;
-            SetUpScene();
-            Debug.Log("[Setup2D] Done: 2D Renderer on both tiers, Editor in 2D mode, Main has an orthographic camera.");
+            if (SetUpScene())
+                Debug.Log("[Setup2D] Done: 2D Renderer on both tiers, Editor in 2D mode, Main has an orthographic camera.");
+            else
+                Debug.LogWarning("[Setup2D] 2D Renderer and 2D mode applied; Main left as it is (missing, or saving the "
+                    + "open scenes was cancelled). Run Set Up Project again to finish it.");
         }
 
-        static void SetUpScene()
+        static bool SetUpScene()
         {
+            // OpenScene(Single) would drop unsaved edits in the open scenes without asking.
+            if (!System.IO.File.Exists(ProjectSetup.ScenePath) || !ProjectSetup.SaveOpenScenesFirst()) return false;
             var scene = EditorSceneManager.OpenScene(ProjectSetup.ScenePath, OpenSceneMode.Single);
 
             foreach (var light in Object.FindObjectsByType<Light>(FindObjectsInactive.Include))
                 Object.DestroyImmediate(light.gameObject);
 
-            var camera = Object.FindFirstObjectByType<Camera>();
+            var camera = Object.FindAnyObjectByType<Camera>();
             if (camera != null)
             {
                 camera.orthographic = true;
@@ -70,13 +76,14 @@ namespace __GAME__.Editor
                 camera.clearFlags = CameraClearFlags.SolidColor;
             }
 
-            if (Object.FindFirstObjectByType<Light2D>() == null)
+            if (Object.FindAnyObjectByType<Light2D>() == null)
             {
                 var light = new GameObject("Global Light 2D").AddComponent<Light2D>();
                 light.lightType = Light2D.LightType.Global;
             }
 
             EditorSceneManager.SaveScene(scene);
+            return true;
         }
     }
 }

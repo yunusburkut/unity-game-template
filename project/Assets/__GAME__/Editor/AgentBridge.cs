@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using UnityEditor;
+using UnityEditor.Build.Player;
 using UnityEditor.Compilation;
 using UnityEditor.TestTools.TestRunner.Api;
 using UnityEngine;
@@ -17,7 +18,8 @@ namespace __GAME__.Editor
     /// Compiler messages are taken from the Console log stream rather than from
     /// CompilationPipeline.assemblyCompilationFinished: on Unity 6.6 that callback was observed not
     /// to deliver messages for a failed assembly, while the log stream always carries them.
-    /// The report is written once compilation settles, so a domain reload cannot race it.
+    /// The report is written once compilation settles, so a domain reload cannot race it, and only after a compile
+    /// really ran (or once per Editor session), so a fresh timestamp always means fresh code.
     /// </summary>
     [InitializeOnLoad]
     internal static class AgentBridge
@@ -29,7 +31,15 @@ namespace __GAME__.Editor
         const string RequestPath = Dir + "/request.txt";
         const string CapturePath = Dir + "/capture.log";
         const string CaptureDir = Dir + "/capture";
+        const string BridgePath = Dir + "/bridge.log";
+        const string PlayerCompilePath = Dir + "/compile-player.log";
+        const string PlayerCompileDir = "Temp/AgentBridgePlayerScripts";
         const string CapturePendingKey = "AgentBridge.CaptureSeconds";
+        const string CompileRanKey = "AgentBridge.CompileRan";
+        const string SessionStartedKey = "AgentBridge.SessionStarted";
+        const string RefreshAckKey = "AgentBridge.RefreshAck";
+        const string PendingBuildKey = "AgentBridge.PendingBuild";
+        const double RefreshSettle = 2.0;
         const float DefaultCaptureSeconds = 3f;
 
         const int ConsoleCapacity = 200;
@@ -42,13 +52,20 @@ namespace __GAME__.Editor
         static readonly object Gate = new object();
         static readonly StringBuilder Builder = new StringBuilder(4096);
         static readonly List<string> CaptureErrors = new List<string>(32);
+        static readonly List<string> PlayerCompileLines = new List<string>(CompileCapacity);
 
         static bool _consoleDirty;
-        static bool _reportPending = true;
+        static bool _reportPending;
+        static volatile bool _compilingPlayer;
+        static volatile bool _compilingEditor;
         static double _nextFlush;
         static double _nextPoll;
+        static double _refreshAckAt;
+        static double _buildNotBefore;
         static TestRunnerApi _testApi;
         static bool _capturing;
+        // a capture's errors start counting before Play Mode starts, so the ones the scene's Awake throws count too
+        static volatile bool _capturePending;
         static bool _runInBackground;
         static double _captureStart;
         static float _captureSeconds;
@@ -62,11 +79,45 @@ namespace __GAME__.Editor
             Application.logMessageReceivedThreaded += OnLogMessage;
             EditorApplication.update += OnEditorUpdate;
 
+            // Callbacks on a TestRunnerApi do not survive a domain reload (a recompile mid-run, or a PlayMode run in a
+            // project with domain reload on), so they are registered on every load rather than when a run starts.
+            _testApi = ScriptableObject.CreateInstance<TestRunnerApi>();
+            _testApi.RegisterCallbacks(new ResultWriter());
+
+            // A domain reload alone (entering Play Mode, say) must not refresh the OK timestamp: report only after a
+            // compile that ran before this reload, or once when the Editor starts. SessionState survives the reload.
+            bool editorStarted = !SessionState.GetBool(SessionStartedKey, false);
+            _reportPending = SessionState.GetBool(CompileRanKey, false) || editorStarted;
+            SessionState.SetBool(SessionStartedKey, true);
+
+            // A restart clears SessionState, so a refresh or build the last session left open would never be answered.
+            if (editorStarted)
+            {
+                if (FirstLineStarts(BridgePath, "REFRESHING"))
+                    WriteAllText(BridgePath, "REFRESHED  " + Timestamp() + "  Editor restarted: see compile.log\n");
+                if (FirstLineStarts(BuildMenu.LogPath, "PENDING"))
+                    WriteAllText(BuildMenu.LogPath, "FAILED  " + Timestamp() + "  Editor restarted before the build finished\n");
+                if (FirstLineStarts(CapturePath, "PENDING"))
+                    WriteAllText(CapturePath, "FAILED  " + Timestamp() + "  Editor restarted before the capture finished\n");
+                if (FirstLineStarts(PlayerCompilePath, "RUNNING"))
+                    WriteAllText(PlayerCompilePath, "FAILED  " + Timestamp() + "  Editor restarted during the check\n");
+                if (FirstLineStarts(TestsPath, "RUNNING"))
+                    WriteAllText(TestsPath, "FAILED  " + Timestamp() + "  Editor restarted during the test run\n");
+            }
+
+            // The reload that enters a capture's Play Mode runs this before the scene wakes up.
+            _capturePending = SessionState.GetFloat(CapturePendingKey, 0f) > 0f;
+
+            // A reload that was no compile (entering Play Mode) inside a refresh's settle time lost its timer; restart it.
+            if (SessionState.GetBool(RefreshAckKey, false) && !SessionState.GetBool(CompileRanKey, false))
+                _refreshAckAt = EditorApplication.timeSinceStartup + RefreshSettle;
+
             // If the Editor cold-started on broken sources, no handler was alive to see the
             // messages. Unity's own log still has them, and this is the only chance to report them.
             if (EditorUtility.scriptCompilationFailed)
             {
                 WriteAllText(CompilePath, "FAILED  " + Timestamp() + "\n" + ScrapeEditorLogErrors());
+                SessionState.EraseBool(CompileRanKey);
                 _reportPending = false;
             }
         }
@@ -75,10 +126,13 @@ namespace __GAME__.Editor
 
         static void OnCompilationStarted(object _)
         {
+            if (_compilingPlayer) return; // a player-script check is not the Editor's compile
+            SessionState.SetBool(CompileRanKey, true);
             lock (Gate)
             {
                 CompileLines.Clear();
                 _reportPending = true;
+                _compilingEditor = true;
             }
         }
 
@@ -110,6 +164,15 @@ namespace __GAME__.Editor
             }
 
             WriteAllText(CompilePath, Builder.ToString());
+            SessionState.EraseBool(CompileRanKey);
+            _compilingEditor = false;
+            if (SessionState.GetBool(RefreshAckKey, false)) AckRefresh("compiled: see compile.log");
+        }
+
+        static void AckRefresh(string outcome)
+        {
+            SessionState.EraseBool(RefreshAckKey);
+            WriteAllText(BridgePath, "REFRESHED  " + Timestamp() + "  " + outcome + "\n");
         }
 
         static bool IsCompilerMessage(string message) =>
@@ -123,7 +186,7 @@ namespace __GAME__.Editor
             if (type != LogType.Error && type != LogType.Exception && type != LogType.Assert && type != LogType.Warning)
                 return;
 
-            if (_capturing && type != LogType.Warning)
+            if ((_capturing || _capturePending) && type != LogType.Warning)
             {
                 lock (Gate)
                 {
@@ -133,12 +196,20 @@ namespace __GAME__.Editor
                 }
             }
 
-            if (IsCompilerMessage(condition))
+            // Only the Editor's own compile and a player-script check report compiler messages; any other one (a
+            // `script run` or `script eval` snippet, say) is an ordinary Console line.
+            if (IsCompilerMessage(condition) && (_compilingPlayer || _compilingEditor))
             {
                 lock (Gate)
                 {
+                    if (_compilingPlayer) // a player-script check reports on its own, not as the Editor's compile
+                    {
+                        if (!PlayerCompileLines.Contains(condition) && PlayerCompileLines.Count < CompileCapacity)
+                            PlayerCompileLines.Add(condition);
+                        return;
+                    }
                     if (CompileLines.Contains(condition)) return; // Unity repeats each message per target
-                    if (CompileLines.Count == CompileCapacity) CompileLines.RemoveAt(0);
+                    if (CompileLines.Count == CompileCapacity) return; // keep the first ones, usually the cause
                     CompileLines.Add(condition);
                     _reportPending = true;
                 }
@@ -187,6 +258,30 @@ namespace __GAME__.Editor
             double now = EditorApplication.timeSinceStartup;
             TickCapture(now);
 
+            // A queued build (SessionState, so the compile its refresh starts cannot lose it) waits out that compile.
+            // Until it starts, request.txt is left alone, so "wait until request.txt is gone" also waits for the build.
+            string pendingBuild = SessionState.GetString(PendingBuildKey, "");
+            if (pendingBuild.Length > 0 && EditorApplication.isPlaying)
+            {
+                SessionState.EraseString(PendingBuildKey);
+                pendingBuild = "";
+                WriteAllText(BuildMenu.LogPath, "SKIPPED  " + Timestamp() + "  Play Mode started before the build\n");
+            }
+            if (pendingBuild.Length > 0 && now >= _buildNotBefore && !EditorApplication.isUpdating &&
+                !EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                SessionState.EraseString(PendingBuildKey);
+                StartBuild(pendingBuild);
+                return;
+            }
+
+            // A refresh whose compile has not started within the settle time changed no script.
+            if (_refreshAckAt > 0 && now >= _refreshAckAt)
+            {
+                _refreshAckAt = 0;
+                if (SessionState.GetBool(RefreshAckKey, false)) AckRefresh("no script changes");
+            }
+
             if (_consoleDirty && now >= _nextFlush)
             {
                 _nextFlush = now + FlushInterval;
@@ -196,7 +291,7 @@ namespace __GAME__.Editor
             if (now < _nextPoll) return;
             _nextPoll = now + PollInterval;
 
-            if (EditorApplication.isUpdating || !File.Exists(RequestPath)) return;
+            if (pendingBuild.Length > 0 || EditorApplication.isUpdating || !File.Exists(RequestPath)) return;
 
             string request;
             try
@@ -214,6 +309,40 @@ namespace __GAME__.Editor
 
         static void HandleRequest(string request)
         {
+            if (request.Equals("refresh", StringComparison.OrdinalIgnoreCase))
+            {
+                // Auto Refresh waits for focus; a scripted refresh imports changed files without it. Their compile can
+                // start a few frames later, so the ack waits: the compile report answers it (in SessionState, since a
+                // clean compile reloads the domain), or the settle time runs out with no compile.
+                // In Play Mode only "Recompile After Finished Playing" (Preferences > General > Script Changes While
+                // Playing, 1) holds the compile until Play ends; Unity's default (0) would reload the domain mid-session.
+                if (EditorApplication.isPlaying)
+                {
+                    if (EditorPrefs.GetInt("ScriptCompilationDuringPlay", 0) == 1)
+                    {
+                        AssetDatabase.Refresh();
+                        WriteAllText(BridgePath, "REFRESHED  " + Timestamp() + "  in Play Mode: compiles after Play ends\n");
+                    }
+                    else
+                        WriteAllText(BridgePath, "SKIPPED  " + Timestamp() + "  in Play Mode: refresh again after Play ends\n");
+                    return;
+                }
+                WriteAllText(BridgePath, "REFRESHING  " + Timestamp() + "\n");
+                SessionState.SetBool(RefreshAckKey, true);
+                AssetDatabase.Refresh();
+                // Timed from the end of the import, so a slow one does not use up the wait for its compile.
+                _refreshAckAt = EditorApplication.timeSinceStartup + RefreshSettle;
+                return;
+            }
+
+            if (request.StartsWith("compile ", StringComparison.OrdinalIgnoreCase))
+            {
+                // Run straight from the tick: it switches no platform, and delayCall was seen not to fire in an
+                // unfocused Editor.
+                CompilePlayerScripts(request.Substring("compile ".Length).Trim().ToLowerInvariant());
+                return;
+            }
+
             if (request.StartsWith("run-tests", StringComparison.OrdinalIgnoreCase))
             {
                 bool playMode = request.IndexOf("playmode", StringComparison.OrdinalIgnoreCase) >= 0;
@@ -227,15 +356,110 @@ namespace __GAME__.Editor
                 return;
             }
 
-            if (request.StartsWith("build ", StringComparison.OrdinalIgnoreCase) &&
-                BuildMenu.TryParse(request.Substring(6), out BuildTarget target))
+            // "build <target> [dev]"
+            string[] words = request.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
+            if (words.Length >= 2 && words.Length <= 3 && words[0].Equals("build", StringComparison.OrdinalIgnoreCase) &&
+                BuildMenu.TryParse(words[1], out _, out _) &&
+                (words.Length == 2 || words[2].Equals("dev", StringComparison.OrdinalIgnoreCase)))
             {
-                // a build switches platforms and reimports; never start one from inside the update tick
-                EditorApplication.delayCall += () => BuildMenu.Build(target);
+                if (EditorApplication.isPlayingOrWillChangePlaymode)
+                {
+                    WriteAllText(BuildMenu.LogPath, "SKIPPED  " + Timestamp() + "  in Play Mode: Unity cannot build while playing\n");
+                    return;
+                }
+                // Import first, so files written while the Editor was unfocused are in the build; the tick starts it
+                // once the import's compile has settled (not through delayCall, which was seen not to fire in an
+                // unfocused Editor). PENDING tells a queued build from a lost request.
+                string build = words[1].ToLowerInvariant() + (words.Length == 3 ? " dev" : "");
+                WriteAllText(BuildMenu.LogPath, "PENDING  build " + build + "  " + Timestamp() + "\n");
+                SessionState.SetString(PendingBuildKey, build);
+                AssetDatabase.Refresh();
+                _buildNotBefore = EditorApplication.timeSinceStartup + RefreshSettle;
                 return;
             }
 
-            WriteAllText(TestsPath, "Unknown request: '" + request + "'. Supported: run-tests [playmode], play-capture [seconds], build windows|android|ios|webgl\n");
+            WriteAllText(BridgePath, "Unknown request: '" + request + "'  " + Timestamp() + "\nSupported: refresh, "
+                + "compile ios|android, run-tests [playmode], play-capture [seconds], "
+                + "build windows|android|aab|ios|webgl [dev]\n");
+        }
+
+        /// <summary>Runs a queued "target [dev]" build; build.log always ends up replacing its PENDING line.</summary>
+        static void StartBuild(string build)
+        {
+            string[] words = build.Split(' ');
+            if (!BuildMenu.TryParse(words[0], out BuildTarget target, out bool appBundle)) return;
+            try
+            {
+                BuildMenu.Build(target, appBundle, words.Length > 1, askToSave: false);
+            }
+            catch (Exception e)
+            {
+                WriteAllText(BuildMenu.LogPath, "FAILED  " + Timestamp() + "  " + e.Message + "\n");
+            }
+        }
+
+        // ---- player-script check ----
+        // "compile ios|android": compiles the player scripts for that target into Temp/ without switching the active
+        // target, so code behind UNITY_IOS / UNITY_ANDROID is type-checked while the Editor stays on Windows. The
+        // compiler's messages arrive on the log stream, which OnLogMessage diverts here.
+
+        static void CompilePlayerScripts(string platform)
+        {
+            BuildTarget target;
+            BuildTargetGroup group;
+            if (platform == "ios") { target = BuildTarget.iOS; group = BuildTargetGroup.iOS; }
+            else if (platform == "android") { target = BuildTarget.Android; group = BuildTargetGroup.Android; }
+            else
+            {
+                WriteAllText(PlayerCompilePath, "Unknown platform '" + platform + "'  " + Timestamp() + "  use ios or android\n");
+                return;
+            }
+
+            if (!BuildPipeline.IsBuildTargetSupported(group, target))
+            {
+                WriteAllText(PlayerCompilePath, "UNSUPPORTED  " + platform + "  the platform module is not installed  "
+                    + Timestamp() + "\n");
+                return;
+            }
+
+            WriteAllText(PlayerCompilePath, "RUNNING  " + platform + "  " + Timestamp() + "\n");
+            // the player compile takes the script set the AssetDatabase knows; files added or deleted while the Editor
+            // was unfocused are not in it until an import. In Play Mode the import is skipped unless the prefs hold
+            // its compile until Play ends (see refresh).
+            if (!EditorApplication.isPlaying || EditorPrefs.GetInt("ScriptCompilationDuringPlay", 0) == 1)
+                AssetDatabase.Refresh();
+            lock (Gate) PlayerCompileLines.Clear();
+
+            ScriptCompilationResult result;
+            _compilingPlayer = true;
+            try
+            {
+                if (Directory.Exists(PlayerCompileDir)) Directory.Delete(PlayerCompileDir, true);
+                result = PlayerBuildInterface.CompilePlayerScripts(
+                    new ScriptCompilationSettings { target = target, group = group }, PlayerCompileDir);
+            }
+            finally
+            {
+                _compilingPlayer = false;
+            }
+
+            var sb = new StringBuilder(1024);
+            lock (Gate)
+            {
+                int errors = 0;
+                foreach (string line in PlayerCompileLines)
+                    if (line.IndexOf("): error ", StringComparison.Ordinal) >= 0) errors++;
+
+                // An empty result is the failure signal Unity's own build pipeline uses; errors may still be unlogged.
+                bool failed = errors > 0 || result.assemblies == null || result.assemblies.Count == 0;
+                sb.Append(failed ? "FAILED  " : "OK  ").Append(platform).Append("  ")
+                  .Append(errors).Append(" error(s), ").Append(PlayerCompileLines.Count - errors).Append(" warning(s), ")
+                  .Append(result.assemblies == null ? 0 : result.assemblies.Count).Append(" assemblies  ")
+                  .Append(Timestamp()).Append('\n');
+                if (failed && errors == 0) sb.Append("No compiler message was logged; see console.log\n");
+                foreach (string line in PlayerCompileLines) sb.Append(line).Append('\n');
+            }
+            WriteAllText(PlayerCompilePath, sb.ToString());
         }
 
         // ---- play-mode capture ----
@@ -255,6 +479,8 @@ namespace __GAME__.Editor
             float seconds = float.TryParse(argument, System.Globalization.NumberStyles.Float,
                 System.Globalization.CultureInfo.InvariantCulture, out float parsed) ? parsed : DefaultCaptureSeconds;
             SessionState.SetFloat(CapturePendingKey, Mathf.Clamp(seconds, 1f, 30f));
+            lock (Gate) CaptureErrors.Clear();
+            _capturePending = true;
             WriteAllText(CapturePath, "PENDING  " + Timestamp() + "\n");
             AssetDatabase.Refresh();
         }
@@ -268,6 +494,7 @@ namespace __GAME__.Editor
                 if (EditorUtility.scriptCompilationFailed)
                 {
                     SessionState.EraseFloat(CapturePendingKey);
+                    _capturePending = false;
                     WriteAllText(CapturePath, "COMPILE FAILED  " + Timestamp() + "  see compile.log\n");
                     return;
                 }
@@ -286,7 +513,7 @@ namespace __GAME__.Editor
                 _captureStart = now;
                 _captureSeconds = pending;
                 _shotsTaken = 0;
-                lock (Gate) CaptureErrors.Clear();
+                // the errors kept since the request stay: they include the ones thrown while the scene woke up
                 _capturing = true;
                 return;
             }
@@ -296,6 +523,7 @@ namespace __GAME__.Editor
             if (!EditorApplication.isPlaying)
             {
                 _capturing = false; // the user left Play Mode first
+                _capturePending = false;
                 Application.runInBackground = _runInBackground;
                 WriteCaptureReport("STOPPED");
                 return;
@@ -311,6 +539,7 @@ namespace __GAME__.Editor
             if (_shotsTaken == 3 && elapsed >= _captureSeconds + 0.5) // the last screenshot is written at frame end
             {
                 _capturing = false;
+                _capturePending = false;
                 WriteCaptureReport(null);
                 Application.runInBackground = _runInBackground;
                 EditorApplication.isPlaying = false;
@@ -342,12 +571,6 @@ namespace __GAME__.Editor
 
         static void RunTests(TestMode mode)
         {
-            if (_testApi == null)
-            {
-                _testApi = ScriptableObject.CreateInstance<TestRunnerApi>();
-                _testApi.RegisterCallbacks(new ResultWriter());
-            }
-
             WriteAllText(TestsPath, "RUNNING " + mode + "  " + Timestamp() + "\n");
             _testApi.Execute(new ExecutionSettings(new Filter { testMode = mode }));
         }
@@ -424,7 +647,20 @@ namespace __GAME__.Editor
             return sb.ToString();
         }
 
-        static string Timestamp() => DateTime.Now.ToString("HH:mm:ss");
+        internal static string Timestamp() => DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+
+        static bool FirstLineStarts(string path, string prefix)
+        {
+            try
+            {
+                using (var reader = new StreamReader(path))
+                    return (reader.ReadLine() ?? "").StartsWith(prefix, StringComparison.Ordinal);
+            }
+            catch (IOException)
+            {
+                return false; // missing or locked: nothing left open
+            }
+        }
 
         static void WriteAllText(string path, string contents)
         {
