@@ -53,7 +53,8 @@ exact path is in logcat as `FrameLog: ...`), Windows
 - **Play Mode domain and scene reload are both off.** Every mutable `static` needs a
   `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]` reset, or it survives into the
   next Play session and only breaks on the second run.
-- `Assets/Feel` is a vendored paid package, gitignored, and dwarfs our code: scope searches to `Assets/__GAME__`.
+- `Assets/Feel` is a vendored paid package (committed, so the repo stays private) that dwarfs our code: never edit
+  it, and scope searches to `Assets/__GAME__`.
   Feel's feedbacks compile into `MoreMountains.Tools`; reference that from `__GAME__.Game` the first time a feedback
   is used (`feel-authoring`).
 - Phones run at `Application.targetFrameRate` (60, set in `AppStartup`), not vSync. Two quality levels exist: Mobile

@@ -4,8 +4,8 @@
 
 .DESCRIPTION
     Copies project\ to <Path>\<Name>, adds the opt-in packs from packs\ named in -Packs, replaces __GAME__ /
-    __COMPANY__ in file names and contents, copies Feel from another local project (it is a paid Asset Store package
-    and never committed), runs ProjectSetup once in batch mode (URP Mobile + PC tiers, Input System only, Main
+    __COMPANY__ in file names and contents, copies Feel from another local project (a paid Asset Store package,
+    committed because game repos are private), runs ProjectSetup once in batch mode (URP Mobile + PC tiers, Input System only, Main
     scene) and makes the first commit.
 
 .EXAMPLE

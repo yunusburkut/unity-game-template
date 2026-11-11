@@ -6,8 +6,9 @@ The plan, the rules and the architecture are in [DESIGN.md](DESIGN.md).
 
 ## Open
 
-Unity 6000.6.0f1, URP. Feel by More Mountains is a paid Asset Store package and is not in the repository: import it
-from the Asset Store into `Assets/Feel` first. Then open `Assets/__GAME__/Scenes/Main.unity` and press Play.
+Unity 6000.6.0f1, URP. Feel by More Mountains is a paid Asset Store package committed under `Assets/Feel`, so this
+repository must stay private (`.gitignore` says what to do before making it public). Open
+`Assets/__GAME__/Scenes/Main.unity` and press Play.
 
 **GameKit > Set Up Project** reapplies the player and platform settings (Input System only, Main scene in the
 build); the URP assets, quality levels, company, product and bundle id are created once and then left to the game.

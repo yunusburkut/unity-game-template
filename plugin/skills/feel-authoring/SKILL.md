@@ -5,7 +5,8 @@ description: Wiring the Feel asset (MMF_Player, feedbacks, shakers, springs, Nic
 
 # Using Feel
 
-Feel (More Mountains) lives at `Assets/Feel`, gitignored because it is a paid package; it includes Nice Vibrations.
+Feel (More Mountains) lives at `Assets/Feel`, a vendored paid package (committed in private game repos, gitignored in
+older ones); it includes Nice Vibrations.
 The full code-facing API is `references/feel-api.md`.
 
 ## Step zero: the assembly reference

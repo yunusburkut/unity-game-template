@@ -109,10 +109,11 @@ InitTestScene*.unity*
 # Unity Performance Testing package writes these into Assets/ during a build
 /[Aa]ssets/Resources/PerformanceTestRun*
 
-# Feel (More Mountains) is a paid Asset Store package: never commit it to a public repo.
-# new-game.ps1 copies it from another local project; otherwise import it from the Asset Store.
-/[Aa]ssets/Feel/
-/[Aa]ssets/Feel.meta
+# Feel (More Mountains) is a paid Asset Store package. It IS committed, so a clone or CI compiles without an Asset
+# Store import, which is only allowed while this repo is private. Making the repo public: uncomment these two lines and
+# remove Assets/Feel from the history first.
+# /[Aa]ssets/Feel/
+# /[Aa]ssets/Feel.meta
 
 # Blender script outputs
 /Tools/Blender/**/__pycache__/

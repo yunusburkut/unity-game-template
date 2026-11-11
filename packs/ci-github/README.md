@@ -17,13 +17,11 @@ Mac'te derlenir.
 |---|---|---|
 | `UNITY_LICENSE` | secret | Personal lisans `.ulf` dosyasının içeriği ([game.ci/docs/github/activation](https://game.ci/docs/github/activation)) |
 | `UNITY_EMAIL`, `UNITY_PASSWORD` | secret | Unity hesabı |
-| `FEEL_REPO` | variable | Feel'i tutan **private** repo, `kullanici/feel-vendor` (kökünde `Assets/Feel`'in içeriği) |
-| `FEEL_REPO_PAT` | secret | O repoyu okuyabilen fine-grained token (Contents: read) |
 | `ITCH_GAME` | variable | `kullanici/oyun` (küçük harf); boşsa itch adımı atlanır |
 | `BUTLER_API_KEY` | secret | itch.io > Settings > API keys |
 
-Feel ücretli bir Asset Store paketi: **public bir repoya asla koyma.** Oyun kodu henüz `MoreMountains` kullanmıyorsa
-`FEEL_REPO` gerekmez. İlk itch push'undan sonra itch sayfasında html5 kanalını bir kez "Playable in browser" yap.
+Feel oyunun repo'sunda commit'li durur, checkout onu da getirir; bu yüzden repo **private kalmalı**. Library cache'i de
+derlenmiş Feel'i tutar. İlk itch push'undan sonra itch sayfasında html5 kanalını bir kez "Playable in browser" yap.
 
 Android'in Play Store'a gidecek imzalı AAB'si CI'da değil, yerelde alınır (**GameKit > Build > Android (AAB, Google Play)**):
 keystore repoya girmez.

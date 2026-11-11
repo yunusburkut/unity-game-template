@@ -31,21 +31,12 @@ jobs:
       contents: read
       checks: write
     steps:
+      # Feel is committed under Assets/Feel (the repo is private), so this checkout brings it
       - uses: actions/checkout@v7
-      # Feel is a paid package and never in this repository; a private repo holding the contents of Assets/Feel
-      # brings it in. Without FEEL_REPO set, code that uses MoreMountains does not compile here.
-      - if: ${{ vars.FEEL_REPO != '' }}
-        uses: actions/checkout@v7
-        with:
-          repository: ${{ vars.FEEL_REPO }}
-          token: ${{ secrets.FEEL_REPO_PAT }}
-          path: Assets/Feel
-      # a Library built with Feel holds its compiled code; in a public repo a fork's PR could restore and publish it
-      - if: ${{ vars.FEEL_REPO == '' || github.event.repository.private }}
-        uses: actions/cache@v6
+      - uses: actions/cache@v6
         with:
           path: Library
-          key: Library-test-${{ hashFiles('Assets/**', '!Assets/Feel/.git/**', 'Packages/**', 'ProjectSettings/**') }}
+          key: Library-test-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
           restore-keys: Library-test-
       - uses: game-ci/unity-test-runner@v4
         with:
@@ -71,17 +62,10 @@ jobs:
       - if: matrix.targetPlatform == 'Android'
         uses: jlumbroso/free-disk-space@v2
       - uses: actions/checkout@v7
-      - if: ${{ vars.FEEL_REPO != '' }}
-        uses: actions/checkout@v7
-        with:
-          repository: ${{ vars.FEEL_REPO }}
-          token: ${{ secrets.FEEL_REPO_PAT }}
-          path: Assets/Feel
-      - if: ${{ vars.FEEL_REPO == '' || github.event.repository.private }}
-        uses: actions/cache@v6
+      - uses: actions/cache@v6
         with:
           path: Library
-          key: Library-${{ matrix.targetPlatform }}-${{ hashFiles('Assets/**', '!Assets/Feel/.git/**', 'Packages/**', 'ProjectSettings/**') }}
+          key: Library-${{ matrix.targetPlatform }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
           restore-keys: Library-${{ matrix.targetPlatform }}-
       - uses: game-ci/unity-builder@v6
         with:
