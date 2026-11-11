@@ -59,7 +59,7 @@ oyuna göre eklenecek paketler (`packages.md`) ve 2026 mağaza kuralları (`ship
 | CLAUDE.md, DESIGN.md (kararlar ve playtest kaydı dahil), CLAUDE.md'ye import edilen `PLAN.md` (şu anki iş, sıradakiler, bekleyen Play Mode kontrolleri), README, `.editorconfig`, VS Code eklenti önerisi | `project/` |
 | Branch + PR akışı: PR şablonu, `area: özet` + `Verified:` commit biçimi; her `git push` onay ister, `gh pr merge` yasak | `project/.github/`, `project/.claude/settings.json` |
 | Git: LF, Unity Smart Merge (`.gitattributes` + `new-game.ps1` sürücüyü kaydeder), eksik `.meta`'yı reddeden pre-commit hook, isteğe bağlı LFS satırları | `project/.gitattributes`, `.githooks/` |
-| İzinler, Unity YAML koruma hook'u, C# LSP ve context7 eklentileri | `project/.claude/settings.json`, `hooks/` |
+| İzinler, C# LSP ve context7 eklentileri; hook'lar: Unity YAML koruma (Edit/Write ve Bash/PowerShell yazmaları), her `.cs` düzenlemesinden sonra `refresh`, derleme hatası varken turu bir kez durduran Stop self-check | `project/.claude/settings.json`, `hooks/` |
 
 ## Global Claude katmanı
 
@@ -71,14 +71,15 @@ Skill'ler ve agent'lar şablonda değil, globalde durur; böylece şablondan aç
 | 7 salt okunur agent: unity-reviewer, bug-hunter, perf-auditor, clarity-reviewer, design-critic, launch-auditor ve Sonnet'te çalışan `Explore` | `~/.claude/agents/` |
 | Görev yönlendirici: her yeni istemi S / M / L diye boyutlar (S doğrudan, M tek oturum + gerekirse bir reviewer, L önce öneri), `orchestrate` skill'i L şekillerini ve agent brief'ini tutar; workflow sadece kullanıcı isteyince | `~/.claude/hooks/enhance-prompt.ps1`, `~/.claude/skills/orchestrate/` |
 | `lean-code` kuralı ve sadece Unity projelerinde yüklenen `unity-games` kuralı | `~/.claude/rules/` |
-| Unity YAML koruma hook'u ve git izinleri | `~/.claude/hooks/guard-unity-yaml.ps1`, `~/.claude/settings.json` |
+| Şablondan açılmamış oyunlar için YAML koruma, `refresh` ve Stop self-check hook'larının yedeği; git izinleri | `~/.claude/hooks/`, `~/.claude/settings.json` |
 
 Blender skill'leri de orada. Global skill'ler `__GAME__` yerine `<Game>` yazar (`Assets/<Game>/Core` gibi);
 `unity-games` kuralı bunun bu şablonun düzeni olduğunu, bir projenin farklarını kendi `CLAUDE.md`'sinde yazdığını
-anlatır. `project/.claude/` içindeki izinler ve YAML hook'u globaldekilerle aynı değil: her `git push`'un onay
-istemesi, `git branch -d/-f/-M` onayları (globalde sadece `-D` var) ve `gh pr merge` yasağı sadece şablondan açılan
-oyunlarda var; global
-YAML hook'u Bash/PowerShell yazmalarını da yakalar, projedeki sadece Edit/Write'ı.
+anlatır. `project/.claude/` içindeki izinler globaldekilerle aynı değil: her `git push`'un onay istemesi,
+`git branch -d/-f/-M` onayları (globalde sadece `-D` var) ve `gh pr merge` yasağı sadece şablondan açılan oyunlarda
+var. Unity hook'ları şablonla gelir; globaldeki kopyalar, projede `.claude/hooks/self-check.ps1` varsa kendiliğinden
+çekilir, böylece aynı hook iki kez çalışmaz. Proje ve global `.ps1` dosyaları birebir aynıdır; birini değiştirirsen
+ötekine kopyala.
 
 Global kopyalar hiçbir repoda değil: yeni bir bilgisayara `~/.claude/skills`, `agents`, `rules` ve `hooks`
 (`guard-unity-yaml.ps1`, `enhance-prompt.ps1`, `self-check.ps1`, `adhd-mode.ps1`) elle kopyalanır, ardından

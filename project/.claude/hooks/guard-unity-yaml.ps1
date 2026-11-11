@@ -1,8 +1,12 @@
-# PreToolUse guard for Edit/Write on Unity YAML (.unity, .prefab, .asset, .mat, .controller, .mask, .anim,
-# .overrideController).
-# Never hand-edit them while an Editor has this project open: the running Editor does not see the change and
-# overwrites it on its next save. settings.json runs this only for matching extensions (`if`), so other edits
-# never start PowerShell.
+# PreToolUse guard for hand edits of Unity YAML (.unity, .prefab, .asset, .mat, .controller, .overrideController,
+# .anim, .mask). Never hand-edit them while an Editor has this project open: the running Editor does not see the change
+# and overwrites it on its next save. settings.json runs this only for matching extensions (`if`), so other edits and
+# shell commands never start PowerShell.
+#
+# Edit/Write are checked by file_path. Bash/PowerShell commands are checked by a heuristic: a write verb (redirect,
+# sed -i, tee, Set-Content, Copy-Item, ...) in a command that names a YAML file inside the project. It catches the usual
+# one-liners, not a script file that writes YAML on its own, and it also stops a copy whose source is project YAML; a
+# hard block in every case would need permission deny rules, which would also block edits with the Editor closed.
 
 $stdin = [Console]::OpenStandardInput()
 $buffer = New-Object IO.MemoryStream
@@ -15,7 +19,31 @@ try {
     exit 1
 }
 
-$path = [string]$payload.tool_input.file_path
+# Not followed by a word character or a dot, so package ids like com.unity.pipeline do not count as a .unity file.
+$yaml = '\.(unity|prefab|asset|mat|controller|overrideController|anim|mask)(?![\w.])'
+$tool = [string]$payload.tool_name
+$root = if ($env:CLAUDE_PROJECT_DIR) { $env:CLAUDE_PROJECT_DIR } else { [string]$payload.cwd }
+
+# A project that ships its own hooks (games from unity-game-template) runs them itself; a global copy steps aside.
+$own = Join-Path $root '.claude\hooks'
+if ((Test-Path (Join-Path $own 'self-check.ps1')) -and
+    -not [IO.Path]::GetFullPath($PSCommandPath).StartsWith([IO.Path]::GetFullPath($own), 'OrdinalIgnoreCase')) { exit 0 }
+
+if ($tool -eq 'Bash' -or $tool -eq 'PowerShell') {
+    $command = [string]$payload.tool_input.command
+    $redirect = ">{1,2}\s*[`"']?[^\s`"'|;&]*$yaml"
+    $verb = '(^|[\s;|&(])(sed\s+(-\w+\s+)*-i|perl\s+-\w*i|tee|truncate|cp|mv|Set-Content|Add-Content|Clear-Content|Out-File|Copy-Item|Move-Item|New-Item)\b|WriteAll(Text|Lines|Bytes)'
+    $writes = $command -match $redirect -or ($command -match $verb -and $command -match $yaml)
+    if (-not $writes) { exit 0 }
+
+    # A command whose YAML paths are all absolute and outside the project (a scratch copy) is not this Editor's.
+    $paths = [regex]::Matches($command, "[^\s`"'|;&>(]+$yaml") | ForEach-Object { ($_.Value -replace '^/([a-zA-Z])/', '$1:/') -replace '/', '\' }
+    $inside = @($paths | Where-Object { -not [IO.Path]::IsPathRooted($_) -or $_.StartsWith($root, 'OrdinalIgnoreCase') })
+    if ($paths -and $inside.Count -eq 0) { exit 0 }
+    $path = 'a Unity YAML file'
+} else {
+    $path = [string]$payload.tool_input.file_path
+}
 
 function Deny([string]$reason) {
     @{ hookSpecificOutput = @{
@@ -26,7 +54,6 @@ function Deny([string]$reason) {
     exit 0
 }
 
-$root = if ($env:CLAUDE_PROJECT_DIR) { $env:CLAUDE_PROJECT_DIR } else { [string]$payload.cwd }
 $lock = Join-Path $root 'Temp\UnityLockfile'
 $editorOpen = $false
 
