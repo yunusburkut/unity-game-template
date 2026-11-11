@@ -124,6 +124,11 @@ claude plugin install gamekit@unity-game-template
 | Ortak Unity kodu | `packages/com.yunusburkut.gamekit/` | `package.json` sürümünü artır, `gamekit-vX.Y.Z` tag'i at ve push et; oyunun `Packages/manifest.json` içindeki `#gamekit-v...` kısmını yeni tag yap |
 | İskelet, CLAUDE.md, ayarlar | `project/`, `packs/` | Yeni oyunlar hemen alır. Mevcut oyunda Claude'a `/gamekit:sync-template` de: oyunun son eşitlendiği template commit'inden beri değişenleri listeler, seçtiklerini patch olarak uygular (oyunun değiştirdiği yerler `.rej` olur, elle birleşir), GameKit tag'ini son sürüme çeker ve `template: sync to unity-game-template@<sha>` commit'i atar |
 
+`project/`, `packs/`, `packages/` veya `new-game.ps1` değişince `.\test-template.ps1` çalıştır (yaklaşık 2-5 dk):
+`%TEMP%`'te gerçek bir oyun açar, 0 derleme hatası, Main sahnesi, sync işareti ve GameKit kaynağını kontrol eder, sonra
+siler. `-Packs mobile-2d` değişen paketi, `-Tests` oyunun EditMode ve PlayMode testlerini de çalıştırır. Bu repoda
+Claude'un uyduğu kurallar kökteki `CLAUDE.md`'de.
+
 GameKit'i tag atmadan denemek için: `.\new-game.ps1 -Name Deneme -LocalGameKit` (oyun paketi bu checkout'tan
 `file:` ile alır). Mevcut bir oyunda aynısı: manifest'teki GameKit satırını
 `"file:C:/GitHub/unity-game-template/packages/com.yunusburkut.gamekit"` yap, deneme bitince tag'e geri al.
