@@ -1,0 +1,12 @@
+{
+  "name": "unity-game-template",
+  "owner": { "name": "yunusburkut" },
+  "description": "The Claude Code plugin behind unity-game-template games.",
+  "plugins": [
+    {
+      "name": "gamekit",
+      "source": "./plugin",
+      "description": "Unity skills, review agents and hooks for games made from unity-game-template."
+    }
+  ]
+}

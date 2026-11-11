@@ -1,0 +1,5 @@
+{
+  "name": "gamekit",
+  "description": "Claude Code layer for games made from unity-game-template: Unity, Feel, game-feel, clarity, level and launch skills, read-only review agents, and hooks (Unity YAML guard, refresh after .cs edits, compile self-check on Stop).",
+  "author": { "name": "yunusburkut" }
+}

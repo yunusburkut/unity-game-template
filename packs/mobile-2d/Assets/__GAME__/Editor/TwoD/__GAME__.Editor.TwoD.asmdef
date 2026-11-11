@@ -1,0 +1,19 @@
+{
+    "name": "__GAME__.Editor.TwoD",
+    "rootNamespace": "__GAME__.Editor",
+    "references": [
+        "GameKit.Editor",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.RenderPipelines.Universal.2D.Runtime"
+    ],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

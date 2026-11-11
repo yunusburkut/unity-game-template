@@ -1,0 +1,109 @@
+#!/bin/bash
+#
+# Refuses a commit that adds an asset without its .meta file, or a .meta without its asset (a missing .meta
+# makes Unity mint a new GUID on the next machine and breaks every reference to the asset).
+# new-game.ps1 enables it with: git config core.hooksPath .githooks
+#
+# From https://github.com/doitian/unity-git-hooks (scripts/pre-commit), unchanged below this header.
+#
+# MIT License
+#
+# Copyright (c) 2021 Ian Yang (@doitian), S. Tarık Çetin (@starikcetin), Alexey (@vangogih)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+ASSETS_DIR="$(git config --get unity3d.assets-dir || echo "Assets")"
+
+if git rev-parse --verify HEAD >/dev/null 2>&1
+then
+	against=HEAD
+else
+	# Initial commit: diff against an empty tree object
+	against=4b825dc642cb6eb9a060e54bf8d69288fbee4904
+fi
+
+# Redirect output to stderr.
+exec 1>&2
+
+git -c diff.renames=false diff --cached --name-only --diff-filter=A -z $against -- "$ASSETS_DIR" | while read -d $'\0' f; do
+	ext="${f##*.}"
+	base="${f%.*}"
+	filename="$(basename "$f")"
+
+	if [ "$ext" = "meta" ]; then
+		if [ $(git ls-files --cached -- "$base" | wc -l) = 0 ]; then
+			cat <<EOF
+Error: Redudant meta file. Meta file '$f' is added, but '$base' is not in the git index.
+Please add '$base' to git as well.
+EOF
+			exit 1
+		fi
+	elif [ "${filename##.*}" != '' ]; then
+		p="$f"
+		while [ "$p" != "$ASSETS_DIR" ]; do
+			if [ $(git ls-files --cached -- "$p.meta" | wc -l) = 0 ]; then
+				cat <<EOF
+Error: Missing meta file. Asset '$f' is added, but '$p.meta' is not in the git index.
+Please add '$p.meta' to git as well by typing the following:
+git add '$p.meta'
+EOF
+				exit 1
+			fi
+			p="${p%/*}"
+		done
+	fi
+done
+
+ret="$?"
+if [ "$ret" != 0 ]; then
+	exit "$ret"
+fi
+
+git -c diff.renames=false diff --cached --name-only --diff-filter=D -z $against -- "$ASSETS_DIR" | while read -d $'\0' f; do
+	ext="${f##*.}"
+	base="${f%.*}"
+
+	if [ "$ext" = "meta" ]; then
+		if [ $(git ls-files --cached -- "$base" | wc -l) != 0 ]; then
+			cat <<EOF
+Error: Missing meta file. Meta file '$f' is removed, but '$base' is still in the git index.
+Please revert the meta file or remove the asset file.
+EOF
+			exit 1
+		fi
+	else
+		p="$f"
+		while [ "$p" != "$ASSETS_DIR" ]; do
+			if [ $(git ls-files --cached -- "$p" | wc -l) = 0 ] && [ $(git ls-files --cached -- "$p.meta" | wc -l) != 0 ]; then
+				cat <<EOF
+Error: Redudant meta file. Asset '$f' is removed, but '$p.meta' is still in the git index.
+Please remove '$p.meta' from git as well by typing the following: 
+git rm '$p.meta'
+EOF
+				exit 1
+			fi
+			p="${p%/*}"
+		done
+	fi
+done
+
+ret="$?"
+if [ "$ret" != 0 ]; then
+	exit "$ret"
+fi
