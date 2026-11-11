@@ -25,7 +25,7 @@ Mac'te derlenir.
 Feel ücretli bir Asset Store paketi: **public bir repoya asla koyma.** Oyun kodu henüz `MoreMountains` kullanmıyorsa
 `FEEL_REPO` gerekmez. İlk itch push'undan sonra itch sayfasında html5 kanalını bir kez "Playable in browser" yap.
 
-Android'in Play Store'a gidecek imzalı AAB'si CI'da değil, yerelde alınır (**<Oyun> > Build > Android (AAB, Google Play)**):
+Android'in Play Store'a gidecek imzalı AAB'si CI'da değil, yerelde alınır (**GameKit > Build > Android (AAB, Google Play)**):
 keystore repoya girmez.
 
 ## CLAUDE.md'ye eklenecek satır

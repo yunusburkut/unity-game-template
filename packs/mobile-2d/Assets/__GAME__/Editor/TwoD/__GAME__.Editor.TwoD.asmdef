@@ -2,7 +2,7 @@
     "name": "__GAME__.Editor.TwoD",
     "rootNamespace": "__GAME__.Editor",
     "references": [
-        "__GAME__.Editor",
+        "GameKit.Editor",
         "Unity.RenderPipelines.Core.Runtime",
         "Unity.RenderPipelines.Universal.Runtime",
         "Unity.RenderPipelines.Universal.2D.Runtime"

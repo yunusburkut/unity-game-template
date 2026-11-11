@@ -7,7 +7,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
-namespace __GAME__.Game
+namespace GameKit
 {
     /// <summary>
     /// Frame-time log for development players (PC and phone): it makes itself, writes one CSV line per

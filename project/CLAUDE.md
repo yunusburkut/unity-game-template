@@ -20,8 +20,12 @@ parameter. No `MonoBehaviour`, `GameObject`, `Physics`, `Time`, `Input` or scene
 `__GAME__.Game` is the Unity glue (input, views, scene wiring, Feel). `__GAME__.Editor` is tooling. The EditMode tests
 reference Core alone. This split is the whole architecture: do not add layers beneath it.
 
+Shared tooling is the GameKit package (`Packages/manifest.json`, `com.yunusburkut.gamekit` from unity-game-template,
+pinned to a `gamekit-vX.Y.Z` tag): `AgentBridge`, `BuildMenu`, `ProjectSetup` (`GameKit.Editor`), `FrameLog`,
+`SafeAreaFitter` (`GameKit`). It is read-only here: a fix to it goes to the template, then the tag in the manifest moves.
+
 `Ease` / `Easing` in Core and `EasingTests` are the worked example of a Core type and its test. `SimulationStep.Delta`
-(Game) is the clamped `dt` every Update-driven simulation uses. `FrameLog` (Game) writes a frame-time CSV in every
+(Game) is the clamped `dt` every Update-driven simulation uses. `FrameLog` (GameKit) writes a frame-time CSV in every
 Development Build (`unity-performance`). To fetch it (in Git Bash prefix adb with `MSYS_NO_PATHCONV=1`, or the
 device path is rewritten to a Windows one): Android `adb pull /sdcard/Android/data/<bundle id>/files/` (or
 `adb exec-out run-as <bundle id> cat /sdcard/Android/data/<bundle id>/files/<name>.csv` where that is blocked; the
@@ -66,7 +70,7 @@ exact path is in logcat as `FrameLog: ...`), Windows
 
 ## Agent bridge
 
-`Assets/__GAME__/Editor/AgentBridge.cs` mirrors the Editor into `Logs/agent/`: `compile.log` (`OK` or `0 error(s),
+GameKit's `AgentBridge` mirrors the Editor into `Logs/agent/`: `compile.log` (`OK` or `0 error(s),
 N warning(s)` plus a timestamp means clean; a stale timestamp means no compile has run since the edit), `console.log` (last 200 errors and
 warnings), `tests.log`, `build.log`, `capture.log`, `compile-player.log`, and `bridge.log` (answers to `refresh` and
 to unknown requests). Requests go into `Logs/agent/request.txt`, one per write:
@@ -101,7 +105,7 @@ scene in the build list ends `FAILED ... unsaved scene(s)`: ask me to save, neve
 
 Compile state, tests, capture and builds go through `request.txt`; scene, prefab, component and asset edits and
 hierarchy queries go through `unity command` (`unity-editor-cli`). New Editor automation is a `[CliCommand]` static
-method in `__GAME__.Editor` (its asmdef already references `Unity.Pipeline.Attributes`), not a new request verb. No MCP server.
+method in `__GAME__.Editor` (its asmdef already references `Unity.Pipeline.Attributes`), not a new request verb. No Unity MCP server.
 
 ## Working agreement
 

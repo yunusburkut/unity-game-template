@@ -6,7 +6,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
-namespace __GAME__.Editor
+namespace GameKit.Editor
 {
     /// <summary>Marks a public static parameterless method that ProjectSetup.Run calls after its own steps.</summary>
     [System.AttributeUsage(System.AttributeTargets.Method)]
@@ -19,20 +19,32 @@ namespace __GAME__.Editor
     /// the URP assets and the quality levels are written only the first time, so later tuning survives (a pack's
     /// [ProjectSetupStep] may reapply its own settings; mobile-2d resets the renderer lists).
     /// new-game.ps1 runs it once:
-    /// Unity -batchmode -quit -projectPath . -executeMethod __GAME__.Editor.ProjectSetup.Run
+    /// Unity -batchmode -quit -projectPath . -executeMethod GameKit.Editor.ProjectSetup.Run -gameCompany &lt;company&gt;
     /// </summary>
     public static class ProjectSetup
     {
-        public const string Root = "Assets/__GAME__";
-        public const string SettingsFolder = Root + "/Settings";
-        public const string ScenePath = Root + "/Scenes/Main.unity";
-        const string CompanyName = "__COMPANY__";
-        const string ProductName = "__GAME__";
+        /// <summary>The game's folder, Assets/&lt;Game&gt;: the one holding Core/&lt;Game&gt;.Core.asmdef (the template layout).</summary>
+        public static string Root
+        {
+            get
+            {
+                foreach (string dir in Directory.GetDirectories("Assets"))
+                {
+                    string game = Path.GetFileName(dir);
+                    if (File.Exists(Path.Combine(dir, "Core", game + ".Core.asmdef"))) return "Assets/" + game;
+                }
+                throw new System.InvalidOperationException(
+                    "GameKit expects the unity-game-template layout: no Assets/<Game>/Core/<Game>.Core.asmdef found.");
+            }
+        }
+
+        public static string SettingsFolder => Root + "/Settings";
+        public static string ScenePath => Root + "/Scenes/Main.unity";
 
         const int MobileLevel = 0;
         const int PcLevel = 1;
 
-        [MenuItem("__GAME__/Set Up Project")]
+        [MenuItem("GameKit/Set Up Project")]
         public static void Run()
         {
             Directory.CreateDirectory(SettingsFolder);
@@ -67,13 +79,23 @@ namespace __GAME__.Editor
             // only on a fresh project: a rerun must not undo a renamed product or a store-registered bundle id
             if (PlayerSettings.companyName == "DefaultCompany")
             {
-                PlayerSettings.companyName = CompanyName;
-                PlayerSettings.productName = ProductName;
+                string company = CommandLineValue("-gameCompany");
+                if (company == null)
+                {
+                    Debug.LogWarning("[ProjectSetup] Company, product and bundle id not set: run with -gameCompany <name> "
+                        + "(new-game.ps1 does) or set them in Player Settings.");
+                }
+                else
+                {
+                    string product = Path.GetFileName(Root);
+                    PlayerSettings.companyName = company;
+                    PlayerSettings.productName = product;
 
-                string id = "com." + CompanyName.ToLowerInvariant() + "." + ProductName.ToLowerInvariant();
-                PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Standalone, id);
-                PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, id);
-                PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, id);
+                    string id = "com." + company.ToLowerInvariant() + "." + product.ToLowerInvariant();
+                    PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Standalone, id);
+                    PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, id);
+                    PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, id);
+                }
             }
 
             PlayerSettings.colorSpace = ColorSpace.Linear;
@@ -99,6 +121,13 @@ namespace __GAME__.Editor
             if (Directory.Exists("Assets/Feel/NiceVibrations"))
                 foreach (var target in new[] { NamedBuildTarget.Standalone, NamedBuildTarget.Android, NamedBuildTarget.iOS, NamedBuildTarget.WebGL })
                     AddDefine(target, "MOREMOUNTAINS_NICEVIBRATIONS_INSTALLED");
+        }
+
+        static string CommandLineValue(string name)
+        {
+            string[] args = System.Environment.GetCommandLineArgs();
+            int i = System.Array.IndexOf(args, name);
+            return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
         }
 
         /// <summary>Adds a scripting define for one target, once. Packs call it from their own setup steps.</summary>

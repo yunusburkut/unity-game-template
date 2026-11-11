@@ -36,10 +36,14 @@ param(
     # Unity.exe. Default: the Hub install that matches project\ProjectSettings\ProjectVersion.txt.
     [string]$Unity,
 
-    # Skip the batch-mode ProjectSetup run (run "<Name> > Set Up Project" from the menu later).
+    # Skip the batch-mode ProjectSetup run (run "GameKit > Set Up Project" from the menu later).
     [switch]$NoSetup,
 
-    [switch]$NoGit
+    [switch]$NoGit,
+
+    # Point the game at this checkout's packages\com.yunusburkut.gamekit (file:) instead of the tagged git URL, to try
+    # GameKit changes before tagging them.
+    [switch]$LocalGameKit
 )
 
 $ErrorActionPreference = 'Stop'
@@ -129,6 +133,14 @@ Get-ChildItem -LiteralPath $dest -Recurse -File -Force |
         }
     }
 
+if ($LocalGameKit) {
+    $manifestPath = Join-Path $dest 'Packages\manifest.json'
+    $local = 'file:' + (Join-Path $PSScriptRoot 'packages\com.yunusburkut.gamekit').Replace('\', '/')
+    $manifest = [IO.File]::ReadAllText($manifestPath) -replace '("com\.yunusburkut\.gamekit":\s*)"[^"]*"', "`$1`"$local`""
+    [IO.File]::WriteAllText($manifestPath, $manifest, $utf8)
+    Write-Host "    GameKit from $local"
+}
+
 Write-Host '3/6 Feel'
 if (-not $FeelFrom) {
     $FeelFrom = Get-ChildItem -LiteralPath $Path -Directory -ErrorAction SilentlyContinue |
@@ -152,14 +164,14 @@ if (-not $NoSetup) {
         New-Item -ItemType Directory -Force (Split-Path $log) | Out-Null
         $run = Start-Process -FilePath $Unity -Wait -PassThru -NoNewWindow -ArgumentList @(
             '-batchmode', '-quit', '-projectPath', "`"$dest`"",
-            '-executeMethod', "$Name.Editor.ProjectSetup.Run", '-logFile', "`"$log`"")
+            '-executeMethod', "GameKit.Editor.ProjectSetup.Run", '-gameCompany', $Company, '-logFile', "`"$log`"")
         if ($run.ExitCode -ne 0) { throw "ProjectSetup failed (exit $($run.ExitCode)). See $log" }
         Write-Host "    done, log: $log"
     } else {
-        Write-Warning "Unity not found at $Unity. Open the project in Unity and run '$Name > Set Up Project'."
+        Write-Warning "Unity not found at $Unity. Open the project in Unity and run 'GameKit > Set Up Project'."
     }
 } else {
-    Write-Host "    skipped: run '$Name > Set Up Project' from the menu once Unity has opened the project."
+    Write-Host "    skipped: run 'GameKit > Set Up Project' from the menu once Unity has opened the project."
 }
 
 Write-Host '5/6 Git'

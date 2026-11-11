@@ -47,45 +47,56 @@ Her paketin README'si ne eklediğini ve kurulumdan sonra elle yapılacakları an
 kopyalanmaz. `packs/reference-docs/` sadece okumak için: frame budget, pazar, Steam, ses, renk teorisi notları,
 oyuna göre eklenecek paketler (`packages.md`) ve 2026 mağaza kuralları (`shipping-2026.md`).
 
-## İçinde ne var
+## Üç parça
 
-| Parça | Nerede |
+| Parça | Nerede | Oyuna nasıl gider | Güncelleme |
+|---|---|---|---|
+| **Kopya:** iskelet, CLAUDE.md, DESIGN.md, PLAN.md, ayarlar, git dosyaları | `project/`, `packs/` | `new-game.ps1` kopyalar, oyunun olur | Gitmez; oyun kendi yolunda gelişir |
+| **GameKit paketi:** ortak Unity kodu | `packages/com.yunusburkut.gamekit/` | `Packages/manifest.json` içinde git URL + tag | Oyunda tag'i değiştir |
+| **gamekit plugin'i:** skill'ler, agent'lar, hook'lar | `plugin/` (marketplace: `.claude-plugin/`) | `enabledPlugins` | Kendiliğinden (`autoUpdate`) |
+
+### Kopya (`project/`)
+
+| İçerik | Nerede |
 |---|---|
-| Core / Game / Editor / Tests assembly ayrımı, `Easing` örneği ve testleri, Main sahnesini hatasız çalıştıran PlayMode testi | `project/Assets/__GAME__/` |
-| Mobil + PC kurulumu: URP Mobile ve PC kalite seviyeleri, sadece Input System, Linear, IL2CPP ARM64, Android target API 36 ve "game" kategorisi, Nice Vibrations define'ı, Main sahnesi. Tekrar çalıştırmak şirket/ürün adını, bundle id'yi, URP asset'lerini ve kalite seviyelerini korur; diğer ayarları yeniden uygular (`mobile-2d` paketi varsa onun adımı da: renderer listesi, `Main` kamerası ve ışıklar) | `Editor/ProjectSetup.cs` |
-| Windows / Android APK / Google Play AAB / iOS / WebGL build menüsü, Development Build, itch.io için Brotli WebGL | `Editor/BuildMenu.cs` |
-| Claude için derleme, konsol, test, build logları; odak gerektirmeyen `refresh`, platform kodunu denetleyen `compile ios/android`, `play-capture` (Play Mode'a girip 3 ekran görüntüsü + hatalar) | `Editor/AgentBridge.cs` |
-| Telefonda 60 fps, çentik için `SafeAreaFitter`, clamp'li `SimulationStep`, Development Build'de kare süresi CSV'si (`FrameLog`, F3) | `Game/` |
-| CLAUDE.md, DESIGN.md (kararlar ve playtest kaydı dahil), CLAUDE.md'ye import edilen `PLAN.md` (şu anki iş, sıradakiler, bekleyen Play Mode kontrolleri), README, `.editorconfig`, VS Code eklenti önerisi | `project/` |
+| Core / Game / Editor / Tests assembly ayrımı, `Easing` örneği ve testleri, Main sahnesini hatasız çalıştıran PlayMode testi, telefonda 60 fps (`AppStartup`), clamp'li `SimulationStep` | `project/Assets/__GAME__/` |
+| CLAUDE.md, DESIGN.md (kararlar ve playtest kaydı dahil), CLAUDE.md'ye import edilen `PLAN.md`, README, `.editorconfig`, VS Code eklenti önerisi, `lean-code` kuralı | `project/` |
 | Branch + PR akışı: PR şablonu, `area: özet` + `Verified:` commit biçimi; her `git push` onay ister, `gh pr merge` yasak | `project/.github/`, `project/.claude/settings.json` |
 | Git: LF, Unity Smart Merge (`.gitattributes` + `new-game.ps1` sürücüyü kaydeder), eksik `.meta`'yı reddeden pre-commit hook, isteğe bağlı LFS satırları | `project/.gitattributes`, `.githooks/` |
-| İzinler, C# LSP ve context7 eklentileri; hook'lar: Unity YAML koruma (Edit/Write ve Bash/PowerShell yazmaları), her `.cs` düzenlemesinden sonra `refresh`, derleme hatası varken turu bir kez durduran Stop self-check | `project/.claude/settings.json`, `hooks/` |
+| İzinler; C# LSP, context7 ve gamekit eklentileri | `project/.claude/settings.json` |
 
-## Global Claude katmanı
+### GameKit paketi (`com.yunusburkut.gamekit`)
 
-Skill'ler ve agent'lar şablonda değil, globalde durur; böylece şablondan açılmamış oyunlarda da çalışırlar:
-
-| Parça | Nerede |
+| İçerik | Dosya |
 |---|---|
-| 20 skill: mimari, performans, debug, review, test, doğrulama, refactor-pass, editor CLI, platformlar, Feel (+ tarifler), game-feel, player-clarity, level-beat-review, launch-review (Steam, Google Play, App Store, itch.io), grill-me, Unity'nin resmi 4 skill'i | `~/.claude/skills/` |
-| 7 salt okunur agent: unity-reviewer, bug-hunter, perf-auditor, clarity-reviewer, design-critic, launch-auditor ve Sonnet'te çalışan `Explore` | `~/.claude/agents/` |
-| Görev yönlendirici: her yeni istemi S / M / L diye boyutlar (S doğrudan, M tek oturum + gerekirse bir reviewer, L önce öneri), `orchestrate` skill'i L şekillerini ve agent brief'ini tutar; workflow sadece kullanıcı isteyince | `~/.claude/hooks/enhance-prompt.ps1`, `~/.claude/skills/orchestrate/` |
-| `lean-code` kuralı ve sadece Unity projelerinde yüklenen `unity-games` kuralı | `~/.claude/rules/` |
-| Şablondan açılmamış oyunlar için YAML koruma, `refresh` ve Stop self-check hook'larının yedeği; git izinleri | `~/.claude/hooks/`, `~/.claude/settings.json` |
+| **GameKit > Set Up Project:** URP Mobile ve PC kalite seviyeleri, sadece Input System, Linear, IL2CPP ARM64, Android target API 36 ve "game" kategorisi, Nice Vibrations define'ı, Main sahnesi. Oyun klasörünü `Assets/<Game>/Core/<Game>.Core.asmdef`'ten bulur. Tekrar çalıştırmak şirket/ürün adını, bundle id'yi, URP asset'lerini ve kalite seviyelerini korur; pack'lerin `[ProjectSetupStep]` metotlarını da çalıştırır | `Editor/ProjectSetup.cs` |
+| **GameKit > Build:** Windows / Android APK / Google Play AAB / iOS / WebGL, Development Build, itch.io için Brotli WebGL | `Editor/BuildMenu.cs` |
+| Claude için derleme, konsol, test, build logları (`Logs/agent/`); odak gerektirmeyen `refresh`, `compile ios/android`, `play-capture` | `Editor/AgentBridge.cs` |
+| Çentik için `SafeAreaFitter`; Development Build'de kare süresi CSV'si (`FrameLog`, F3) | `Runtime/` |
 
-Blender skill'leri de orada. Global skill'ler `__GAME__` yerine `<Game>` yazar (`Assets/<Game>/Core` gibi);
-`unity-games` kuralı bunun bu şablonun düzeni olduğunu, bir projenin farklarını kendi `CLAUDE.md`'sinde yazdığını
-anlatır. `project/.claude/` içindeki izinler globaldekilerle aynı değil: her `git push`'un onay istemesi,
-`git branch -d/-f/-M` onayları (globalde sadece `-D` var) ve `gh pr merge` yasağı sadece şablondan açılan oyunlarda
-var. Unity hook'ları şablonla gelir; globaldeki kopyalar, projede `.claude/hooks/self-check.ps1` varsa kendiliğinden
-çekilir, böylece aynı hook iki kez çalışmaz. Proje ve global `.ps1` dosyaları birebir aynıdır; birini değiştirirsen
-ötekine kopyala.
+### gamekit plugin'i
 
-Global kopyalar hiçbir repoda değil: yeni bir bilgisayara `~/.claude/skills`, `agents`, `rules` ve `hooks`
-(`guard-unity-yaml.ps1`, `enhance-prompt.ps1`, `self-check.ps1`, `adhd-mode.ps1`) elle kopyalanır, ardından
-`~/.claude/settings.json` içindeki `hooks` bloğu da taşınır (içindeki `C:\Users\<ad>` yollarını düzelt). Unity
-skill'lerinin ve agent'larının şablondaki son, yer tutuculu hâlleri `9915c17` commit'indedir; yönlendirici,
-`orchestrate` ve `Explore` sonradan eklendi ve orada yok.
+| İçerik | Nerede |
+|---|---|
+| 19 skill: mimari, performans, debug, review, test, doğrulama, refactor-pass, editor CLI, platformlar, Feel (+ tarifler), game-feel, player-clarity, level-beat-review, launch-review, Unity'nin resmi 4 skill'i | `plugin/skills/` |
+| 6 salt okunur agent: unity-reviewer, bug-hunter, perf-auditor, clarity-reviewer, design-critic, launch-auditor | `plugin/agents/` |
+| Hook'lar: Unity YAML koruma (Edit/Write ve Bash/PowerShell yazmaları), her `.cs` düzenlemesinden sonra `refresh`, derleme hatası varken turu bir kez durduran Stop self-check | `plugin/hooks/` |
+
+Plugin'de `version` bilerek yok: her commit yeni sürüm sayılır, `autoUpdate` ile oyunlara kendiliğinden gelir.
+Plugin'ler kural dosyası taşıyamaz; `unity-games` kuralı `~/.claude/rules/` altında kalır.
+
+## Global Claude katmanı (`~/.claude`, repoda değil)
+
+Oyuna özgü olmayan kişisel parçalar: görev yönlendirici (`hooks/enhance-prompt.ps1` + `orchestrate` skill'i),
+`grill-me`, Sonnet'te çalışan `Explore` agent'ı, ADHD modu, `lean-code` ve `unity-games` kuralları, Blender
+skill'leri. Kullanıcı ayarında gamekit plugin'i açıktır, böylece şablondan açılmamış oyunlar da onu alır.
+
+Yeni bir bilgisayarda: `gh auth login` ve `gh auth setup-git` (repo private), sonra
+
+```powershell
+claude plugin marketplace add yunusburkut/unity-game-template
+claude plugin install gamekit@unity-game-template
+```
 
 ## Bilerek alınmayanlar
 
@@ -105,6 +116,16 @@ skill'lerinin ve agent'larının şablondaki son, yer tutuculu hâlleri `9915c17
 
 ## Template'i güncellemek
 
-Bir oyunda işe yarayan bir skill, agent ya da genel kural çıkarsa, onu projeden bağımsız hale getirip `~/.claude/`
-altına koy (bütün oyunlar hemen alır). Şablona özgü kod, ayar ve proje kuralları `project/` altına gider; mevcut
-oyunlar etkilenmez, sadece bundan sonra açılanlar alır.
+| Değişen | Nereye | Oyunlara nasıl gider |
+|---|---|---|
+| Skill, agent, hook | `plugin/` | `main`'e girince kendiliğinden (`autoUpdate`; hemen istersen `claude plugin update gamekit@unity-game-template`) |
+| Ortak Unity kodu | `packages/com.yunusburkut.gamekit/` | `package.json` sürümünü artır, `gamekit-vX.Y.Z` tag'i at ve push et; oyunun `Packages/manifest.json` içindeki `#gamekit-v...` kısmını yeni tag yap |
+| İskelet, CLAUDE.md, ayarlar | `project/` | Sadece bundan sonra açılan oyunlar alır; mevcut bir oyuna gerekirse elle taşı |
+
+GameKit'i tag atmadan denemek için: `.\new-game.ps1 -Name Deneme -LocalGameKit` (oyun paketi bu checkout'tan
+`file:` ile alır). Mevcut bir oyunda aynısı: manifest'teki GameKit satırını
+`"file:C:/GitHub/unity-game-template/packages/com.yunusburkut.gamekit"` yap, deneme bitince tag'e geri al.
+
+Eski oyunlar (bu düzenden önce açılanlar) kendi `AgentBridge` / `BuildMenu` kopyalarını taşır; GameKit'e geçmek
+script GUID'lerini değiştirir (sahnedeki `SafeAreaFitter` "Missing Script" olur), o yüzden her biri ayrı ve elle
+taşınır. Plugin'i ise kullanıcı ayarından zaten alırlar.

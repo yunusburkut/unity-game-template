@@ -9,20 +9,20 @@ The plan, the rules and the architecture are in [DESIGN.md](DESIGN.md).
 Unity 6000.6.0f1, URP. Feel by More Mountains is a paid Asset Store package and is not in the repository: import it
 from the Asset Store into `Assets/Feel` first. Then open `Assets/__GAME__/Scenes/Main.unity` and press Play.
 
-**__GAME__ > Set Up Project** reapplies the player and platform settings (Input System only, Main scene in the
+**GameKit > Set Up Project** reapplies the player and platform settings (Input System only, Main scene in the
 build); the URP assets, quality levels, company, product and bundle id are created once and then left to the game.
 A pack's setup step may reapply its own settings (mobile-2d resets the URP renderer lists, Main's lights and camera). From the command line:
 
 ```
-Unity -batchmode -quit -projectPath . -executeMethod __GAME__.Editor.ProjectSetup.Run
+Unity -batchmode -quit -projectPath . -executeMethod GameKit.Editor.ProjectSetup.Run -gameCompany __COMPANY__
 ```
 
 ## Build
 
-**__GAME__ > Build > Windows / Android (APK) / Android (AAB, Google Play) / iOS / WebGL**, or with the Editor closed:
+**GameKit > Build > Windows / Android (APK) / Android (AAB, Google Play) / iOS / WebGL**, or with the Editor closed:
 
 ```
-Unity -batchmode -quit -projectPath . -buildTarget Android -executeMethod __GAME__.Editor.BuildMenu.Android
+Unity -batchmode -quit -projectPath . -buildTarget Android -executeMethod GameKit.Editor.BuildMenu.Android
 ```
 
 The result lands in `Logs/agent/build.log`, the build in `Builds/`. **Development Build** in File > Build Profiles

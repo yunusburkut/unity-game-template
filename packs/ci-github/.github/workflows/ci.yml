@@ -61,11 +61,11 @@ jobs:
         include:
           # on Linux the Windows player is Mono; an IL2CPP Windows build needs a Windows runner
           - targetPlatform: StandaloneWindows64
-            buildMethod: __GAME__.Editor.BuildMenu.Windows
+            buildMethod: GameKit.Editor.BuildMenu.Windows
           - targetPlatform: Android
-            buildMethod: __GAME__.Editor.BuildMenu.Android
+            buildMethod: GameKit.Editor.BuildMenu.Android
           - targetPlatform: WebGL
-            buildMethod: __GAME__.Editor.BuildMenu.WebGL
+            buildMethod: GameKit.Editor.BuildMenu.WebGL
     steps:
       # the Android image does not fit next to the runner's preinstalled tools
       - if: matrix.targetPlatform == 'Android'

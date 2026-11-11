@@ -12,7 +12,7 @@ Magic Sort gibi 2D (sprite tabanlı) oyunlar için. Paket eklenince:
 
 Mobil kurulumun geri kalanı (dokunmatik giriş, safe area, 60 fps, kalite seviyeleri) template'ten gelir.
 
-Elle yapılacak bir şey yok. **<Oyun> > Set Up Project**'i tekrar çalıştırmak bu adımı da yeniden uygular: URP
+Elle yapılacak bir şey yok. **GameKit > Set Up Project**'i tekrar çalıştırmak bu adımı da yeniden uygular: URP
 asset'lerinin renderer listesi tek 2D renderer'a döner, `Main` sahnesindeki ışıklar silinir ve kamera yeniden
 ortografik size 5'e, (0, 0, -10)'a ayarlanır. Bunları değiştirdiysen önce commit et. Açık sahnede kaydedilmemiş
 değişiklik varsa Unity önce kaydetmeyi sorar; iptal edersen `Main` sahnesine dokunulmaz.

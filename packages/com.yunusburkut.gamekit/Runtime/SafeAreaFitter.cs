@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace __GAME__.Game
+namespace GameKit
 {
     /// <summary>
     /// Fits its RectTransform to <see cref="Screen.safeArea"/>, so HUD and buttons stay clear of notches,

@@ -24,11 +24,6 @@ $yaml = '\.(unity|prefab|asset|mat|controller|overrideController|anim|mask)(?![\
 $tool = [string]$payload.tool_name
 $root = if ($env:CLAUDE_PROJECT_DIR) { $env:CLAUDE_PROJECT_DIR } else { [string]$payload.cwd }
 
-# A project that ships its own hooks (games from unity-game-template) runs them itself; a global copy steps aside.
-$own = Join-Path $root '.claude\hooks'
-if ((Test-Path (Join-Path $own 'self-check.ps1')) -and
-    -not [IO.Path]::GetFullPath($PSCommandPath).StartsWith([IO.Path]::GetFullPath($own), 'OrdinalIgnoreCase')) { exit 0 }
-
 if ($tool -eq 'Bash' -or $tool -eq 'PowerShell') {
     $command = [string]$payload.tool_input.command
     $redirect = ">{1,2}\s*[`"']?[^\s`"'|;&]*$yaml"

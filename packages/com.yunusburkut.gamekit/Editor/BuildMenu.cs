@@ -10,12 +10,12 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
-namespace __GAME__.Editor
+namespace GameKit.Editor
 {
     /// <summary>
     /// One build entry per target, writing its result to Logs/agent/build.log so an agent can read it.
     /// From the menu, from AgentBridge (write "build android" or "build aab dev" into Logs/agent/request.txt), or with
-    /// the Editor closed: Unity -batchmode -quit -projectPath . -buildTarget Android -executeMethod __GAME__.Editor.BuildMenu.Android
+    /// the Editor closed: Unity -batchmode -quit -projectPath . -buildTarget Android -executeMethod GameKit.Editor.BuildMenu.Android
     /// (-buildTarget opens the project on that target, so the batch build skips a platform switch).
     /// In the Editor the active platform is switched back afterwards, so a build never leaves it on another target.
     /// File > Build Profiles > Development Build makes every entry here a development build (profiler attached).
@@ -24,11 +24,11 @@ namespace __GAME__.Editor
     {
         internal const string LogPath = "Logs/agent/build.log";
 
-        [MenuItem("__GAME__/Build/Windows")] public static void Windows() => Build(BuildTarget.StandaloneWindows64);
-        [MenuItem("__GAME__/Build/Android (APK)")] public static void Android() => Build(BuildTarget.Android);
-        [MenuItem("__GAME__/Build/Android (AAB, Google Play)")] public static void AndroidBundle() => Build(BuildTarget.Android, appBundle: true);
-        [MenuItem("__GAME__/Build/iOS (Xcode project)")] public static void IOS() => Build(BuildTarget.iOS);
-        [MenuItem("__GAME__/Build/WebGL")] public static void WebGL() => Build(BuildTarget.WebGL);
+        [MenuItem("GameKit/Build/Windows")] public static void Windows() => Build(BuildTarget.StandaloneWindows64);
+        [MenuItem("GameKit/Build/Android (APK)")] public static void Android() => Build(BuildTarget.Android);
+        [MenuItem("GameKit/Build/Android (AAB, Google Play)")] public static void AndroidBundle() => Build(BuildTarget.Android, appBundle: true);
+        [MenuItem("GameKit/Build/iOS (Xcode project)")] public static void IOS() => Build(BuildTarget.iOS);
+        [MenuItem("GameKit/Build/WebGL")] public static void WebGL() => Build(BuildTarget.WebGL);
 
         public static bool TryParse(string name, out BuildTarget target, out bool appBundle)
         {

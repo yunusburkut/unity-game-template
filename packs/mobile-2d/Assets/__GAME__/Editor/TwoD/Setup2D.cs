@@ -1,3 +1,4 @@
+using GameKit.Editor;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -15,7 +16,7 @@ namespace __GAME__.Editor
     /// </summary>
     static class Setup2D
     {
-        const string RendererPath = ProjectSetup.SettingsFolder + "/URP_2D_Renderer.asset";
+        static string RendererPath => ProjectSetup.SettingsFolder + "/URP_2D_Renderer.asset";
         const string UrpPackage = "Packages/com.unity.render-pipelines.universal";
 
         [ProjectSetupStep]

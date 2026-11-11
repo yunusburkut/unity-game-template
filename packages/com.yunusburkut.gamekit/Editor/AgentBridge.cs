@@ -8,7 +8,7 @@ using UnityEditor.Compilation;
 using UnityEditor.TestTools.TestRunner.Api;
 using UnityEngine;
 
-namespace __GAME__.Editor
+namespace GameKit.Editor
 {
     /// <summary>
     /// Mirrors compile results, Console errors and test results into small, parseable files under

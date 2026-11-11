@@ -1,3 +1,4 @@
+using GameKit.Editor;
 using UnityEditor.Build;
 
 namespace __GAME__.Editor

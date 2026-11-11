@@ -1,4 +1,4 @@
-# Stop hook: the self-check before Claude ends a turn. In a project with the AgentBridge (Logs/agent/compile.log),
+# Stop hook (gamekit plugin): the self-check before Claude ends a turn. In a project with the AgentBridge (Logs/agent/compile.log),
 # it waits for a pending refresh to finish and refuses the stop once if the last compile has errors, so Claude fixes
 # them before handing over. Everywhere else it does nothing.
 # Ceiling: it judges the whole project's last compile, not only this turn's edits, so broken code left from an earlier
@@ -8,11 +8,6 @@ $hook = [Console]::In.ReadToEnd() | ConvertFrom-Json
 if ($hook.stop_hook_active) { exit 0 }
 
 $dir = if ($env:CLAUDE_PROJECT_DIR) { $env:CLAUDE_PROJECT_DIR } else { $hook.cwd }
-
-# A project that ships its own hooks (games from unity-game-template) runs them itself; a global copy steps aside.
-$own = Join-Path $dir '.claude\hooks'
-if ((Test-Path (Join-Path $own 'self-check.ps1')) -and
-    -not [IO.Path]::GetFullPath($PSCommandPath).StartsWith([IO.Path]::GetFullPath($own), 'OrdinalIgnoreCase')) { exit 0 }
 $agent = Join-Path $dir 'Logs\agent'
 $compileLog = Join-Path $agent 'compile.log'
 if (-not (Test-Path $compileLog)) { exit 0 }
