@@ -16,6 +16,9 @@
 
 .EXAMPLE
     .\new-game.ps1 -Name SkyHopper -Path D:\Games -NoSetup
+
+.EXAMPLE
+    .\new-game.ps1 -Name SkyHopper -GitHub
 #>
 param(
     [Parameter(Mandatory)]
@@ -41,6 +44,9 @@ param(
 
     [switch]$NoGit,
 
+    # After the first commit, create a private GitHub repo named <Name> under the gh account and push main to it.
+    [switch]$GitHub,
+
     # Point the game at this checkout's packages\com.yunusburkut.gamekit (file:) instead of the tagged git URL, to try
     # GameKit changes before tagging them.
     [switch]$LocalGameKit
@@ -53,6 +59,9 @@ $dest = Join-Path $Path $Name
 # absolute: [IO.File] calls resolve a relative path against the process directory, which cd does not change
 $dest = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($dest)
 if (Test-Path -LiteralPath $dest) { throw "$dest already exists." }
+# checked before the copy and the Unity run, not after minutes of work
+if ($GitHub -and $NoGit) { throw '-GitHub pushes the first commit; it cannot be combined with -NoGit.' }
+if ($GitHub -and -not (Get-Command gh -ErrorAction SilentlyContinue)) { throw '-GitHub needs the GitHub CLI (gh), logged in.' }
 
 # reference-docs is reading material, not a pack
 $available = Get-ChildItem -LiteralPath $packRoot -Directory | Where-Object Name -ne 'reference-docs' | ForEach-Object Name
@@ -196,8 +205,17 @@ if (-not $NoGit) {
     if ($LASTEXITCODE -ne 0) { throw "git commit failed ($LASTEXITCODE)." }
     # enabled after the first commit: with -NoSetup a pack's scripts have no .meta yet, and the hook would refuse it
     git -C $dest config core.hooksPath .githooks
-    $ErrorActionPreference = 'Stop'
     Write-Host '    first commit made on main; the .meta pre-commit hook is on'
+    if ($GitHub) {
+        # a failure here leaves a complete local game, so warn with the retry instead of throwing
+        gh repo create $Name --private --source $dest --remote origin --push
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "GitHub repo not created; the game is ready locally. Retry: gh repo create $Name --private --source `"$dest`" --remote origin --push"
+        } else {
+            Write-Host "    pushed main to a private GitHub repo: $Name"
+        }
+    }
+    $ErrorActionPreference = 'Stop'
 }
 
 Write-Host "6/6 Ready: $dest"

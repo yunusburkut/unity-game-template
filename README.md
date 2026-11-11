@@ -19,7 +19,8 @@ projeden bağımsız hale getirilip buraya taşındı.
 Sonra: Unity Hub > Add > Add project from disk, ardından o klasörde Claude Code'u aç. İlk iş olarak `CLAUDE.md` ve
 `DESIGN.md` içindeki TODO satırlarını doldur (ya da `/grill-me` ile Claude'a sordur).
 
-Parametreler: `-Path D:\Games`, `-Company ad`, `-Packs a,b`, `-FeelFrom C:\GitHub\PixelVolley`, `-NoSetup`, `-NoGit`.
+Parametreler: `-Path D:\Games`, `-Company ad`, `-Packs a,b`, `-FeelFrom C:\GitHub\PixelVolley`, `-NoSetup`, `-NoGit`,
+`-GitHub` (ilk commit'ten sonra `gh` ile `<Name>` adında private repo açar ve `main`'i push eder; `gh auth login` gerekir).
 
 ## Paketler
 
