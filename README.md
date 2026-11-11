@@ -53,7 +53,7 @@ oyuna göre eklenecek paketler (`packages.md`) ve 2026 mağaza kuralları (`ship
 
 | Parça | Nerede | Oyuna nasıl gider | Güncelleme |
 |---|---|---|---|
-| **Kopya:** iskelet, CLAUDE.md, DESIGN.md, PLAN.md, ayarlar, git dosyaları | `project/`, `packs/` | `new-game.ps1` kopyalar, oyunun olur | Gitmez; oyun kendi yolunda gelişir |
+| **Kopya:** iskelet, CLAUDE.md, DESIGN.md, PLAN.md, ayarlar, git dosyaları | `project/`, `packs/` | `new-game.ps1` kopyalar, oyunun olur | Oyunda `/gamekit:sync-template`, seçerek |
 | **GameKit paketi:** ortak Unity kodu | `packages/com.yunusburkut.gamekit/` | `Packages/manifest.json` içinde git URL + tag | Oyunda tag'i değiştir |
 | **gamekit plugin'i:** skill'ler, agent'lar, hook'lar | `plugin/` (marketplace: `.claude-plugin/`) | `enabledPlugins` | Kendiliğinden (`autoUpdate`) |
 
@@ -80,7 +80,7 @@ oyuna göre eklenecek paketler (`packages.md`) ve 2026 mağaza kuralları (`ship
 
 | İçerik | Nerede |
 |---|---|
-| 19 skill: mimari, performans, debug, review, test, doğrulama, refactor-pass, editor CLI, platformlar, Feel (+ tarifler), game-feel, player-clarity, level-beat-review, launch-review, Unity'nin resmi 4 skill'i | `plugin/skills/` |
+| 20 skill: mimari, performans, debug, review, test, doğrulama, refactor-pass, editor CLI, platformlar, Feel (+ tarifler), game-feel, player-clarity, level-beat-review, launch-review, sync-template, Unity'nin resmi 4 skill'i | `plugin/skills/` |
 | 6 salt okunur agent: unity-reviewer, bug-hunter, perf-auditor, clarity-reviewer, design-critic, launch-auditor | `plugin/agents/` |
 | Hook'lar: Unity YAML koruma (Edit/Write ve Bash/PowerShell yazmaları), her `.cs` düzenlemesinden sonra `refresh`, derleme hatası varken turu bir kez durduran Stop self-check | `plugin/hooks/` |
 
@@ -122,7 +122,7 @@ claude plugin install gamekit@unity-game-template
 |---|---|---|
 | Skill, agent, hook | `plugin/` | `main`'e girince kendiliğinden (`autoUpdate`; hemen istersen `claude plugin update gamekit@unity-game-template`) |
 | Ortak Unity kodu | `packages/com.yunusburkut.gamekit/` | `package.json` sürümünü artır, `gamekit-vX.Y.Z` tag'i at ve push et; oyunun `Packages/manifest.json` içindeki `#gamekit-v...` kısmını yeni tag yap |
-| İskelet, CLAUDE.md, ayarlar | `project/` | Sadece bundan sonra açılan oyunlar alır; mevcut bir oyuna gerekirse elle taşı |
+| İskelet, CLAUDE.md, ayarlar | `project/`, `packs/` | Yeni oyunlar hemen alır. Mevcut oyunda Claude'a `/gamekit:sync-template` de: oyunun son eşitlendiği template commit'inden beri değişenleri listeler, seçtiklerini patch olarak uygular (oyunun değiştirdiği yerler `.rej` olur, elle birleşir), GameKit tag'ini son sürüme çeker ve `template: sync to unity-game-template@<sha>` commit'i atar |
 
 GameKit'i tag atmadan denemek için: `.\new-game.ps1 -Name Deneme -LocalGameKit` (oyun paketi bu checkout'tan
 `file:` ile alır). Mevcut bir oyunda aynısı: manifest'teki GameKit satırını

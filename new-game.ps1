@@ -201,7 +201,9 @@ if (-not $NoGit) {
     }
     git -C $dest add -A
     git -C $dest update-index --chmod=+x .githooks/pre-commit
-    git -C $dest commit -q -m "Start $Name from unity-game-template"
+    # the template commit is the sync point gamekit:sync-template starts from
+    $templateSha = git -C $PSScriptRoot rev-parse --short HEAD
+    git -C $dest commit -q -m "Start $Name from unity-game-template@$templateSha"
     if ($LASTEXITCODE -ne 0) { throw "git commit failed ($LASTEXITCODE)." }
     # enabled after the first commit: with -NoSetup a pack's scripts have no .meta yet, and the hook would refuse it
     git -C $dest config core.hooksPath .githooks
