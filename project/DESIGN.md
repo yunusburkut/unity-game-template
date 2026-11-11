@@ -27,7 +27,7 @@ TODO
 
 ## Decisions
 
-One line each: `YYYY-MM-DD: decision. Why. (PR #n)`
+One line each: `YYYY-MM-DD: decision. Why.`
 TODO
 
 ## Playtests

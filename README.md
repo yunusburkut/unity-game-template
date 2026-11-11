@@ -61,7 +61,7 @@ oyuna göre eklenecek paketler (`packages.md`) ve 2026 mağaza kuralları (`ship
 |---|---|
 | Core / Game / Editor / Tests assembly ayrımı, `Easing` örneği ve testleri, Main sahnesini hatasız çalıştıran PlayMode testi, telefonda 60 fps (`AppStartup`), clamp'li `SimulationStep` | `project/Assets/__GAME__/` |
 | CLAUDE.md, DESIGN.md (kararlar ve playtest kaydı dahil), CLAUDE.md'ye import edilen `PLAN.md`, README, `.editorconfig`, VS Code eklenti önerisi, `lean-code` kuralı | `project/` |
-| Branch + PR akışı: PR şablonu, `area: özet` + `Verified:` commit biçimi; her `git push` onay ister, `gh pr merge` yasak | `project/.github/`, `project/.claude/settings.json` |
+| Tek dal akışı: her iş `main`'de, `area: özet` + `Verified:` commit biçimi, özellik bitince `unity-reviewer`; her `git push` onay ister | `project/CLAUDE.md`, `project/.claude/settings.json` |
 | Git: LF, Unity Smart Merge (`.gitattributes` + `new-game.ps1` sürücüyü kaydeder), eksik `.meta`'yı reddeden pre-commit hook, isteğe bağlı LFS satırları | `project/.gitattributes`, `.githooks/` |
 | İzinler; C# LSP, context7 ve gamekit eklentileri | `project/.claude/settings.json` |
 

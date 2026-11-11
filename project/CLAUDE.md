@@ -118,9 +118,8 @@ When a task ends, update PLAN.md (Now, Next, Pending Play Mode checks) in the sa
 A rule or architecture decision made in chat goes into DESIGN.md Decisions in the same commit. When I report a
 playtest, log it under DESIGN.md Playtests before fixing anything; bugs from it go to PLAN.md Known issues.
 
-Work on a branch per feature (`feat/<slug>`, `fix/<slug>`) and commit after each step that compiles. When the feature
-is ready, run `unity-reviewer` on the branch diff, then `gh pr create --body-file` following
-`.github/pull_request_template.md` with its verdict; leave the Play Mode boxes for me. Never merge.
+Work straight on `main`: no feature branches, no PRs. Commit after each step that compiles. When a feature is done,
+run `unity-reviewer` on its commits and fix what it finds before handing me the Play Mode checks.
 
 When compacting, keep the files changed and the pending Play Mode checklist.
 

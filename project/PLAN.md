@@ -2,7 +2,7 @@
 <!-- Under 40 lines. Done items leave this file in the same commit; git log is the history. -->
 
 ## Now
-TODO: the one task in progress, and its branch.
+TODO: the one task in progress.
 
 ## Next
 TODO: at most 5 items.
