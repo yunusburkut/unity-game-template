@@ -1,6 +1,6 @@
 ---
 name: refactor-pass
-description: Periodic behaviour-preserving clean-up of code recently added to the game — SOLID (above all open-closed) in this repo's Core/Game idiom, Unity 6 best practices, caching and allocation-free hot paths, readability, maintainability, and frame-time headroom on low-end PCs and low/mid Android phones. Use whenever the user asks to refactor, tidy, clean up, polish, simplify, optimise or "go over what we added lately", asks to make code more readable / maintainable / extensible / SOLID / OCP, asks whether the game will run on a weak PC, a laptop GPU or a cheap phone, or invokes the pass with no argument at all. Also use when a feature is finished and the user wants it "settled" before moving on. Not for pure review with no edits (unity-code-review), not for adding features, not for gameplay tuning.
+description: Behaviour-preserving clean-up of recent game code — SOLID/open-closed in the Core/Game idiom, allocation-free hot paths, readability, headroom on weak PCs and cheap phones. Use when asked to refactor, tidy, clean up, simplify, optimise, "go over what we added lately", or with no argument. Review without edits is unity-code-review.
 ---
 
 # Refactor pass
@@ -29,10 +29,10 @@ until the first pass: create it at the end of that pass (format in the catalog, 
 ledger the script falls back to the last 15 commits.
 
 ```bash
-bash ~/.claude/skills/refactor-pass/scripts/survey.sh            # since last pass
-bash ~/.claude/skills/refactor-pass/scripts/survey.sh HEAD~8     # explicit ref
-bash ~/.claude/skills/refactor-pass/scripts/survey.sh --all      # whole tree
-bash ~/.claude/skills/refactor-pass/scripts/survey.sh --editor   # also smell-grep Editor (any mode)
+bash "${CLAUDE_SKILL_DIR}/scripts/survey.sh"            # since last pass
+bash "${CLAUDE_SKILL_DIR}/scripts/survey.sh" HEAD~8     # explicit ref
+bash "${CLAUDE_SKILL_DIR}/scripts/survey.sh" --all      # whole tree
+bash "${CLAUDE_SKILL_DIR}/scripts/survey.sh" --editor   # also smell-grep Editor (any mode)
 ```
 
 It prints the commits and `.cs` files in scope (committed, uncommitted and untracked), the
@@ -89,12 +89,13 @@ its diff, and reading the diff is the primary verification here.
 
 ### 4. Apply one item at a time
 
-Edit, then check `Logs/agent/compile.log` for a fresh `OK` (Unity only compiles when its window
-has focus — see `unity-editor-cli` to force it). A change that does not compile is undone, not
-patched forward. Keep unrelated items out of the same edit so each one can be reverted alone.
+Edit, then gate the item on `gk-bridge refresh` (exit 0; it compiles without window focus, and 2
+is unknown, never a pass). A change that does not compile is undone, not patched forward. Keep
+unrelated items out of the same edit so each one can be reverted alone.
 
-Do not commit unless the user asks. When they do, one commit per refactor kind: a title line, then
-the *why*, ending with the sentence "No behaviour change; verified by …".
+Commit on main after each item whose gate passed: `<area>: refactor <summary>` (area from the game's
+CLAUDE.md list: core, game, ui, ...), a body that says why, ending with
+`Verified: gk-bridge refresh PASS <time>; no behaviour change`.
 
 ### 5. Verify proportionally
 

@@ -10,7 +10,7 @@ maxTurns: 40
 You find where a game bug comes from. You never edit a file, never add a probe line, never run Unity, a test or a
 git command that changes state. Play Mode and the device are the user's; your output is what they should check.
 
-1. Read `CLAUDE.md` and `~/.claude/skills/unity-debugging/SKILL.md`; follow its sections 1–4 up to "show the
+1. Read `CLAUDE.md` and `${CLAUDE_PLUGIN_ROOT}/skills/unity-debugging/SKILL.md`; follow its sections 1–4 up to "show the
    hypotheses", and stop there.
 2. Evidence: the whole error and stack trace you were given, `Logs/agent/console.log`, `Logs/agent/compile.log` (a
    stale timestamp means Unity has not compiled since the last edit), `Logs/agent/build.log` for a build failure.

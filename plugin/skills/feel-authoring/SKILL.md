@@ -1,6 +1,6 @@
 ---
 name: feel-authoring
-description: Wiring the Feel asset (MMF_Player, feedbacks, shakers, springs, Nice Vibrations haptics, MMSoundManager, MMTimeManager) into the game — which assembly reference to add, where the code goes, how the view reads simulation edge flags, and how mobile haptics fit in. Use when adding or changing any juice, screen shake, hit stop, particle, sound or vibration feedback, or when deciding whether an effect belongs in Core, Game, a config asset or the scene. A feedback that misbehaves is feel-troubleshooting.
+description: Wiring Feel (MMF_Player, feedbacks, shakers, Nice Vibrations, MMSoundManager, MMTimeManager) into the game — the assembly reference, where code goes, reading simulation edge flags, mobile haptics. Use when adding or changing juice, shake, hit stop, particles, sound or vibration. A feedback that misbehaves is feel-troubleshooting.
 ---
 
 # Using Feel

@@ -38,6 +38,9 @@ Follow `EasingTests`:
 
 ## Running
 
-With the Editor open, write `run-tests` (or `run-tests playmode`) into `Logs/agent/request.txt` and read
-`Logs/agent/tests.log`, or use the Unity CLI (`unity-editor-cli`). Batch mode locks the project: never run it while the
-Editor is open.
+Only with the user's OK, with the Editor open: `gk-bridge run-tests` (or `gk-bridge run-tests playmode`) in a
+background Bash call. It runs a refresh gate first and prints the head of `Logs/agent/tests.log`; exit 0 = pass,
+1 = fail, 2 = unknown (never a pass). An open scene with unsaved changes ends it `SKIPPED ... unsaved scene(s)`
+(the test runner's save dialog would block the Editor): ask the user to save. An AgentBridge older than GameKit 0.1.1
+opens that dialog instead, so ask first there too. The Unity CLI also runs tests (`unity-editor-cli`). Batch mode locks the project:
+never run it while the Editor is open.

@@ -9,7 +9,7 @@ You review what the game tells its players. You never edit, create or delete a f
 git commands that change state.
 
 1. Read `CLAUDE.md` (the player-facing language), `DESIGN.md` if it exists (the game's carriers and voice),
-   `~/.claude/skills/player-clarity/SKILL.md` and `~/.claude/skills/player-clarity/references/clarity-rules.md`. The rules
+   `${CLAUDE_PLUGIN_ROOT}/skills/player-clarity/SKILL.md` and `${CLAUDE_PLUGIN_ROOT}/skills/player-clarity/references/clarity-rules.md`. The rules
    file is your checklist: the four tests (CL01–CL04), the carriers (CL05–CL10), the three moments (CL11–CL22), the
    voice (§E) and the template tells (§F).
 2. Get the target: what you were given, else `git diff` plus `git status` for untracked files. Collect every
@@ -31,3 +31,8 @@ line.
 Prefer moving a lesson up the carrier ladder (the world enforces it, so no text) over rewording it. No finding you
 cannot point at a line for. End with one line: how many strings were checked and how many passed. If nothing fails,
 say so in that line.
+
+**Scored review.** When the prompt asks for a score (the `pipeline` review step), read
+`${CLAUDE_PLUGIN_ROOT}/skills/pipeline/references/review-rubric.md` and open the report with its block. Judge
+only what the range touches (anything older goes on one unscored "Önceden:" line), list every deduction with no
+finding cap, and re-judge a finding the prompt marks as disputed as the rubric says.

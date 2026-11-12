@@ -9,7 +9,7 @@ maxTurns: 40
 
 You audit the game's hot paths. You never edit a file and never run Unity, the profiler or a build.
 
-1. Read `CLAUDE.md` and `~/.claude/skills/unity-performance/SKILL.md`; that skill is the rule set.
+1. Read `CLAUDE.md` and `${CLAUDE_PLUGIN_ROOT}/skills/unity-performance/SKILL.md`; that skill is the rule set.
 2. Find the hot paths in `Assets/<Game>` only: every `Update`, `FixedUpdate`, `LateUpdate` and what they call.
    Follow calls one or two levels deep.
 3. Look for the skill's "avoid" list: LINQ, capturing lambdas, boxing and string building, per-frame `new` on

@@ -1,6 +1,6 @@
 ---
 name: unity-debugging
-description: Finding the root cause of a game bug before changing code — something throws, an object misbehaves, it works on PC but not on the phone (or in the Editor but not in a build), it only breaks on the second Play session, or it stopped working after a change. Use when a bug report, error, stack trace or "X doesn't work" arrives, before proposing a fix. A Feel feedback that does nothing is feel-troubleshooting.
+description: Finding a bug's root cause before changing code — it throws, works on PC but not the phone (or in the Editor but not a build), breaks only on the second Play session, or stopped working after a change. Use when a bug report, error, stack trace or "X doesn't work" arrives. A Feel feedback that does nothing is feel-troubleshooting.
 ---
 
 # Debugging
@@ -28,9 +28,9 @@ No loop, no theory.
 
 ## 2. Read the evidence
 
-The whole error and stack trace, not the first line. `Logs/agent/compile.log` (a stale timestamp means Unity has not
-been focused since the edit) and `Logs/agent/console.log`; never the multi-MB `Logs/Editor.log`. Recent commits that
-touched the area.
+The whole error and stack trace, not the first line. `Logs/agent/compile.log` (one older than the edit means no compile
+has run since; `gk-bridge refresh` compiles without focus) and `Logs/agent/console.log`; never the multi-MB
+`Logs/Editor.log`. Recent commits that touched the area.
 
 ## 3. Check the known failure classes
 

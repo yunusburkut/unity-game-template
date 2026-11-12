@@ -1,6 +1,6 @@
 ---
 name: level-beat-review
-description: Laying out or critiquing a game level, a level pack or a level order before it is built, or reviewing a built one ("bölümü yorumla", "level eleştir", "zorluk sırası", "zorluk eğrisi", "nefes", "çok mu uzun", "sıkıcı mı") — difficulty rhythm (the sawtooth, valleys after peaks, where new mechanics and checkpoints sit, trolls), segment and level length, checkpoint placement, failure tiers and how much a failure costs, the teaching arc, beat construction, difficulty modes, replay levers, camera and readability, and world pacing. Use when designing a level, segment or level pack, when asked "is this level too long", "where do checkpoints go", "how much should a failure cost", "is this section boring", "how do we make it harder", "why would anyone replay this", when playtesters quit or stopped reacting, when adding a hazard or obstacle, or before building any level geometry so the beats are chosen rather than discovered.
+description: Laying out or critiquing a level, level pack or level order ("bölümü yorumla", "level eleştir", "zorluk eğrisi", "sıkıcı mı") — difficulty rhythm, length, checkpoints, failure cost, teaching arc, beats, replay levers. Use when designing a level, adding a hazard, when playtesters quit, or before building level geometry.
 ---
 
 # Reviewing a game level before it exists

@@ -18,7 +18,7 @@ projeden bağımsız hale getirilip buraya taşındı.
 5. `main` dalında ilk commit atılır; Unity Smart Merge sürücüsü ve `.meta` pre-commit hook'u açılır.
 
 Sonra: Unity Hub > Add > Add project from disk, ardından o klasörde Claude Code'u aç. İlk iş olarak `CLAUDE.md` ve
-`DESIGN.md` içindeki TODO satırlarını doldur (ya da `/grill-me` ile Claude'a sordur).
+`DESIGN.md` içindeki TODO satırlarını doldur (ya da `/grill-me` ile Claude'a sordur). Claude ile nasıl çalışılır: oyundaki `REHBER.md`.
 
 Parametreler: `-Path D:\Games`, `-Company ad`, `-Packs a,b`, `-FeelFrom C:\GitHub\PixelVolley`, `-NoSetup`, `-NoGit`,
 `-GitHub` (ilk commit'ten sonra `gh` ile `<Name>` adında private repo açar ve `main`'i push eder; `gh auth login` gerekir).
@@ -63,7 +63,7 @@ oyuna göre eklenecek paketler (`packages.md`) ve 2026 mağaza kuralları (`ship
 |---|---|
 | Core / Game / Editor / Tests assembly ayrımı, `Easing` örneği ve testleri, Main sahnesini hatasız çalıştıran PlayMode testi, telefonda 60 fps (`AppStartup`), clamp'li `SimulationStep` | `project/Assets/__GAME__/` |
 | CLAUDE.md, DESIGN.md (kararlar ve playtest kaydı dahil), CLAUDE.md'ye import edilen `PLAN.md`, README, `.editorconfig`, VS Code eklenti önerisi, `lean-code` kuralı | `project/` |
-| Tek dal akışı: her iş `main`'de, `area: özet` + `Verified:` commit biçimi, özellik bitince `unity-reviewer`; her `git push` onay ister | `project/CLAUDE.md`, `project/.claude/settings.json` |
+| Tek dal akışı: her iş `main`'de, `area: özet` + `Verified:` commit biçimi, M/L işte puanlı review (her reviewer ≥9/10); her `git push` onay ister | `project/CLAUDE.md`, `project/.claude/settings.json` |
 | Git: LF, Unity Smart Merge (`.gitattributes` + `new-game.ps1` sürücüyü kaydeder), eksik `.meta`'yı reddeden pre-commit hook, isteğe bağlı LFS satırları | `project/.gitattributes`, `.githooks/` |
 | İzinler; C# LSP, context7 ve gamekit eklentileri | `project/.claude/settings.json` |
 
@@ -80,16 +80,22 @@ oyuna göre eklenecek paketler (`packages.md`) ve 2026 mağaza kuralları (`ship
 
 | İçerik | Nerede |
 |---|---|
-| 20 skill: mimari, performans, debug, review, test, doğrulama, refactor-pass, editor CLI, platformlar, Feel (+ tarifler), game-feel, player-clarity, level-beat-review, launch-review, sync-template, Unity'nin resmi 4 skill'i | `plugin/skills/` |
-| 6 salt okunur agent: unity-reviewer, bug-hunter, perf-auditor, clarity-reviewer, design-critic, launch-auditor | `plugin/agents/` |
-| Hook'lar: Unity YAML koruma (Edit/Write ve Bash/PowerShell yazmaları), her `.cs` düzenlemesinden sonra `refresh`, derleme hatası varken turu bir kez durduran Stop self-check | `plugin/hooks/` |
+| `pipeline` skill'i: istem → PLAN.md'de spec kartı → plan → her birimde derleme kapısı → doğrulama → 10 üzerinden puanlı review (her reviewer ≥9) → teslim | `plugin/skills/pipeline/` |
+| 20 skill daha: mimari, performans, debug, review, test, doğrulama, refactor-pass, editor CLI, platformlar, Feel (+ tarifler), game-feel, player-clarity, level-beat-review, launch-review, sync-template, Unity'nin resmi 4 skill'i | `plugin/skills/` |
+| 8 agent: scout (bağlam), builder (tek birim: yaz, kapı, commit), unity-reviewer, bug-hunter, perf-auditor, clarity-reviewer, design-critic, launch-auditor | `plugin/agents/` |
+| `gk-bridge` komutu: AgentBridge isteğini gönderir, bekler, `PASS`/`FAIL`/`UNKNOWN` (exit 0/1/2) döner | `plugin/bin/` |
+| `/gamekit:feature [istek]` workflow'u: kartı (yoksa önce yazar) gözetimsiz yapar, yalnız istenince | `plugin/workflows/` |
+| Hook'lar: görev yönlendirici (S/M/L), Unity YAML koruma, `.cs`/`.asmdef`/`.asmref` düzenlemesinden ve `git rm`/`git mv`'den sonra `refresh`, derleme hatası ya da derlenmemiş script varken turun bitmesini bir kez engelleyen Stop self-check | `plugin/hooks/` |
+
+Oyunda kullanım rehberi: [`project/REHBER.md`](project/REHBER.md) (yeni oyunlara kopyalanır; eski oyunlara `/gamekit:sync-template` getirir).
 
 Plugin'de `version` bilerek yok: her commit yeni sürüm sayılır, `autoUpdate` ile oyunlara kendiliğinden gelir.
 Plugin'ler kural dosyası taşıyamaz; `unity-games` kuralı `~/.claude/rules/` altında kalır.
 
 ## Global Claude katmanı (`~/.claude`, repoda değil)
 
-Oyuna özgü olmayan kişisel parçalar: görev yönlendirici (`hooks/enhance-prompt.ps1` + `orchestrate` skill'i),
+Oyuna özgü olmayan kişisel parçalar: görev yönlendirici (`hooks/enhance-prompt.ps1` + `orchestrate` skill'i; Unity
+projesinde susar, yerine gamekit'in yönlendiricisi çalışır),
 `grill-me`, Sonnet'te çalışan `Explore` agent'ı, ADHD modu, `lean-code` ve `unity-games` kuralları, Blender
 skill'leri. Kullanıcı ayarında gamekit plugin'i açıktır, böylece şablondan açılmamış oyunlar da onu alır.
 
@@ -133,6 +139,6 @@ GameKit'i tag atmadan denemek için: `.\new-game.ps1 -Name Deneme -LocalGameKit`
 `file:` ile alır). Mevcut bir oyunda aynısı: manifest'teki GameKit satırını
 `"file:C:/GitHub/unity-game-template/packages/com.yunusburkut.gamekit"` yap, deneme bitince tag'e geri al.
 
-Eski oyunlar (bu düzenden önce açılanlar) kendi `AgentBridge` / `BuildMenu` kopyalarını taşır; GameKit'e geçmek
-script GUID'lerini değiştirir (sahnedeki `SafeAreaFitter` "Missing Script" olur), o yüzden her biri ayrı ve elle
-taşınır. Plugin'i ise kullanıcı ayarından zaten alırlar.
+Eski oyunlar (bu düzenden önce açılanlar) kendi `AgentBridge` / `BuildMenu` kopyalarını taşır. Geçiş için oyunda
+`/gamekit:sync-template GameKit'e geçir` yaz: kopyaları siler, sahnenin GUID ile kullandığı bileşeni (`SafeAreaFitter` gibi;
+taşınırsa "Missing Script" olur) bırakıp söyler. Plugin'i ise kullanıcı ayarından zaten alırlar.

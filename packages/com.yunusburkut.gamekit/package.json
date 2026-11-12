@@ -1,6 +1,6 @@
 {
   "name": "com.yunusburkut.gamekit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "displayName": "GameKit",
   "description": "Shared tooling for games made from unity-game-template: the agent bridge (Logs/agent), the build menu, project setup, FrameLog and SafeAreaFitter.",
   "unity": "6000.6",

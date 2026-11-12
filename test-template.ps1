@@ -47,6 +47,9 @@ Check ($text -match '\[ProjectSetup\] Done:') 'ProjectSetup done'
 Check (Test-Path -LiteralPath (Join-Path $game "Assets\$name\Scenes\Main.unity")) 'Main.unity created'
 Check ((git -C $game log -1 --format=%s) -match 'unity-game-template@[0-9a-f]{7}') 'start commit has the sync marker'
 Check ((Get-Content -LiteralPath (Join-Path $game 'Packages\manifest.json') -Raw) -match '"com\.yunusburkut\.gamekit":\s*"file:') 'GameKit from this checkout'
+# the plugin's hooks and gk-bridge treat bridge.log as "this bridge knows refresh"; it must exist before any refresh
+$bridge = Join-Path $game 'Logs\agent\bridge.log'
+Check ((Test-Path -LiteralPath $bridge) -and (Get-Content -LiteralPath $bridge -TotalCount 1) -match '^READY') 'AgentBridge wrote bridge.log READY'
 if (Test-Path -LiteralPath (Join-Path $game 'Assets\Feel')) {
     Check ([bool](git -C $game ls-files 'Assets/Feel/*.cs' | Select-Object -First 1)) 'Feel committed'
 }

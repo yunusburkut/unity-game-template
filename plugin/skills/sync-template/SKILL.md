@@ -1,6 +1,6 @@
 ---
 name: sync-template
-description: Bringing unity-game-template updates into a game that was made from it — the copied skeleton (`project/`, the packs the game has) and the GameKit package tag. Use when the user says "template'i güncelle", "template güncellemesini al", "sync template", "template'te ne değişti", "GameKit'i güncelle", or after changing the template and wanting a game to catch up. The gamekit plugin (skills, agents, hooks) updates itself and needs no sync.
+description: Bringing unity-game-template updates into a game that was made from it — the copied skeleton (`project/`, the packs the game has) and the GameKit package tag. Use when the user says "template'i güncelle", "template güncellemesini al", "sync template", "template'te ne değişti", "GameKit'i güncelle", "GameKit'e geçir" (a game made before GameKit), or after changing the template and wanting a game to catch up. The gamekit plugin (skills, agents, hooks) updates itself and needs no sync.
 ---
 
 # Syncing a game with the template
@@ -10,7 +10,8 @@ on their own: this skill finds them, applies the ones that fit, and moves the Ga
 game, so nothing is overwritten wholesale: every hunk is a patch against what the game has now, and the user picks.
 
 Run from the game's root, in Bash, on `main` with a clean working tree (`git status --short` empty; otherwise stop
-and ask). Unity may stay open; it reimports after the patch.
+and ask). Unity may stay open; it reimports after the patch. With the argument `GameKit'e geçir`, run only the last
+section.
 
 ## 1. Facts
 
@@ -43,7 +44,7 @@ One line per template commit: its subject, and **take / skip / partly** with the
 - A pack change: take only for packs the game has (the pack's files exist in the game under their mapped paths).
 - A game without `com.yunusburkut.gamekit` in `Packages/manifest.json` (made before GameKit): skip hunks that point at
   `GameKit.Editor`, `GameKit > ...` menus or the package; it keeps its own `AgentBridge` / `BuildMenu`, and moving to
-  the package changes script GUIDs (scenes show "Missing Script"), which is a separate, manual migration.
+  the package is a separate step (the last section), only on request.
 
 Wait for the user's go before step 3.
 
@@ -78,8 +79,10 @@ Then, in order:
    ```
    A `file:` GameKit entry is a local experiment: leave it and say so. Read the template's
    `git log <old tag>..$TAG -- packages/com.yunusburkut.gamekit` for anything the game must change with it.
-4. **Compile:** queue `refresh` through the agent bridge (`unity-editor-cli`), or ask the user to focus Unity, and
-   wait for `Logs/agent/compile.log` newer than the patch with 0 errors. Fix errors that the sync caused.
+4. **Compile:** a moved tag needs a package resolve, which a scripted refresh does not run (probed on 6000.6): ask
+   the user to focus Unity and wait until `Packages/packages-lock.json` is newer than `Packages/manifest.json`. Then
+   `gk-bridge refresh` in Bash must PASS; fix errors that the sync caused. Exit 2 (Editor closed, Play Mode, a bridge
+   that does not know refresh): record `Verified: compile unverified (<reason>)` instead.
 
 ## 4. Record
 
@@ -90,8 +93,22 @@ template: sync to unity-game-template@<HEAD_T>
 
 Took: <subjects>. Skipped: <subjects and why>. GameKit <old> -> <new>.
 
-Verified: compile.log OK at <time>; Play Mode pending
+Verified: gk-bridge refresh PASS <time>; Play Mode pending
 ```
 
 The marker `unity-game-template@<sha>` in the subject is what step 1 reads next time; keep it exact even when every
 commit was skipped. Hand the user the Play Mode checks for what changed behaviour (`implementation-verification`).
+
+## Moving a game made before GameKit to the package
+
+Only when the user asks (`GameKit'e geçir`), as its own commit after a commit of everything else:
+
+1. Add the GameKit line from the template's `project/Packages/manifest.json`, at the newest tag (step 3's `TAG=`),
+   to the game's manifest; the game's Editor asmdef gets `GameKit.Editor` in its references.
+2. Delete the game's own copies of what GameKit ships (`AgentBridge`, `BuildMenu`, `ProjectSetup`, `FrameLog`,
+   `SafeAreaFitter`): two bridges would both answer `request.txt`, two FrameLogs both write. Keep a copy whose
+   `.cs.meta` guid a scene or prefab uses (`grep -rl <guid> Assets --include=*.unity --include=*.prefab`): moving it
+   shows "Missing Script", so it stays and the user hears which.
+3. Ask the user to focus Unity (the old bridge cannot refresh), then `gk-bridge refresh` must PASS.
+4. Take the template's CLAUDE.md "Agent bridge" section into the game's, and commit `tools: move to the GameKit
+   package` with the gate's `Verified:` line.

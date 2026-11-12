@@ -457,20 +457,62 @@
                                  ],
                   "PostToolUse":  [
                                       {
-                                          "matcher":  "Edit|Write",
+                                          "matcher":  "Edit|Write|Bash|PowerShell",
                                           "hooks":  [
+                                                        {
+                                                            "type":  "command",
+                                                            "if":  "Bash(git rm *)",
+                                                            "shell":  "bash",
+                                                            "command":  "d=\"${CLAUDE_PROJECT_DIR:-.}/Logs/agent\"; [ -f \"$d/bridge.log\" ] && [ ! -s \"$d/request.txt\" ] && printf 'refresh\\n' > \"$d/request.txt\"; exit 0",
+                                                            "timeout":  5
+                                                        },
+                                                        {
+                                                            "type":  "command",
+                                                            "if":  "Bash(git mv *)",
+                                                            "shell":  "bash",
+                                                            "command":  "d=\"${CLAUDE_PROJECT_DIR:-.}/Logs/agent\"; [ -f \"$d/bridge.log\" ] && [ ! -s \"$d/request.txt\" ] && printf 'refresh\\n' > \"$d/request.txt\"; exit 0",
+                                                            "timeout":  5
+                                                        },
+                                                        {
+                                                            "type":  "command",
+                                                            "if":  "PowerShell(git rm *)",
+                                                            "shell":  "bash",
+                                                            "command":  "d=\"${CLAUDE_PROJECT_DIR:-.}/Logs/agent\"; [ -f \"$d/bridge.log\" ] && [ ! -s \"$d/request.txt\" ] && printf 'refresh\\n' > \"$d/request.txt\"; exit 0",
+                                                            "timeout":  5
+                                                        },
+                                                        {
+                                                            "type":  "command",
+                                                            "if":  "PowerShell(git mv *)",
+                                                            "shell":  "bash",
+                                                            "command":  "d=\"${CLAUDE_PROJECT_DIR:-.}/Logs/agent\"; [ -f \"$d/bridge.log\" ] && [ ! -s \"$d/request.txt\" ] && printf 'refresh\\n' > \"$d/request.txt\"; exit 0",
+                                                            "timeout":  5
+                                                        },
                                                         {
                                                             "type":  "command",
                                                             "if":  "Edit(*.cs)",
                                                             "shell":  "bash",
-                                                            "command":  "d=\"${CLAUDE_PROJECT_DIR:-.}/Logs/agent\"; [ -f \"$d/compile.log\" ] && [ ! -s \"$d/request.txt\" ] && printf 'refresh\\n' > \"$d/request.txt\"; exit 0",
+                                                            "command":  "d=\"${CLAUDE_PROJECT_DIR:-.}/Logs/agent\"; [ -f \"$d/bridge.log\" ] && [ ! -s \"$d/request.txt\" ] && printf 'refresh\\n' > \"$d/request.txt\"; exit 0",
+                                                            "timeout":  5
+                                                        },
+                                                        {
+                                                            "type":  "command",
+                                                            "if":  "Edit(*.asm*)",
+                                                            "shell":  "bash",
+                                                            "command":  "d=\"${CLAUDE_PROJECT_DIR:-.}/Logs/agent\"; [ -f \"$d/bridge.log\" ] && [ ! -s \"$d/request.txt\" ] && printf 'refresh\\n' > \"$d/request.txt\"; exit 0",
                                                             "timeout":  5
                                                         },
                                                         {
                                                             "type":  "command",
                                                             "if":  "Write(*.cs)",
                                                             "shell":  "bash",
-                                                            "command":  "d=\"${CLAUDE_PROJECT_DIR:-.}/Logs/agent\"; [ -f \"$d/compile.log\" ] && [ ! -s \"$d/request.txt\" ] && printf 'refresh\\n' > \"$d/request.txt\"; exit 0",
+                                                            "command":  "d=\"${CLAUDE_PROJECT_DIR:-.}/Logs/agent\"; [ -f \"$d/bridge.log\" ] && [ ! -s \"$d/request.txt\" ] && printf 'refresh\\n' > \"$d/request.txt\"; exit 0",
+                                                            "timeout":  5
+                                                        },
+                                                        {
+                                                            "type":  "command",
+                                                            "if":  "Write(*.asm*)",
+                                                            "shell":  "bash",
+                                                            "command":  "d=\"${CLAUDE_PROJECT_DIR:-.}/Logs/agent\"; [ -f \"$d/bridge.log\" ] && [ ! -s \"$d/request.txt\" ] && printf 'refresh\\n' > \"$d/request.txt\"; exit 0",
                                                             "timeout":  5
                                                         }
                                                     ]
@@ -494,6 +536,25 @@
                                                  }
                                              ]
                                }
-                           ]
+                           ],
+                  "UserPromptSubmit":  [
+                                           {
+                                               "hooks":  [
+                                                             {
+                                                                 "type":  "command",
+                                                                 "command":  "powershell.exe",
+                                                                 "args":  [
+                                                                              "-NoProfile",
+                                                                              "-NonInteractive",
+                                                                              "-ExecutionPolicy",
+                                                                              "Bypass",
+                                                                              "-File",
+                                                                              "${CLAUDE_PLUGIN_ROOT}/hooks/route.ps1"
+                                                                          ],
+                                                                 "timeout":  10
+                                                             }
+                                                         ]
+                                           }
+                                       ]
               }
 }

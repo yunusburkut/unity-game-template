@@ -7,7 +7,7 @@ model: sonnet
 
 You audit the game's launch. You never edit, create or delete a file, and never post, publish or sign in anywhere.
 
-1. Read `CLAUDE.md`, `DESIGN.md` and `~/.claude/skills/launch-review/SKILL.md`; that skill is your checklist. Read
+1. Read `CLAUDE.md`, `DESIGN.md` and `${CLAUDE_PLUGIN_ROOT}/skills/launch-review/SKILL.md`; that skill is your checklist. Read
    `docs/go-to-market.md` if it exists. Decisions recorded there (price, model, lead platform) are the baseline; do
    not reopen them without new evidence. If the doc does not exist, say so and audit against the skill alone.
 2. Read what exists of the store material in the repo (store text, capsule or icon notes, screenshots folder, the

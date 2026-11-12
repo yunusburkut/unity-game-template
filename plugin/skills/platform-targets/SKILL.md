@@ -1,6 +1,6 @@
 ---
 name: platform-targets
-description: Making the game work the same on PC (Windows, keyboard + mouse) and mobile (Android, iOS, touch), and on WebGL — input through the Input System's Pointer, uGUI scaling and the safe area, orientation and aspect ratios, the Mobile and PC quality tiers, frame rate, app lifecycle (pause, focus, back button), and building each target. Use when adding input, any UI, a screen or menu, a settings option, a build, or anything that might behave differently on a phone.
+description: Making the game work the same on PC (keyboard + mouse), mobile (touch) and WebGL — Pointer input, uGUI scaling and safe area, orientation, quality tiers, frame rate, app lifecycle (pause, back button), building each target. Use when adding input, any UI, a screen, a settings option, a build, or anything that may differ on a phone.
 ---
 
 # PC and mobile from one project
@@ -51,19 +51,21 @@ PC the game runs windowed and resizable; layout must follow `Screen.width`/`heig
 - `OnApplicationPause(true)` is the last reliable moment on a phone: save there, not in `OnApplicationQuit` (iOS
   rarely calls it, Android kills the process).
 - Pause the game on focus loss on both targets.
-- Android back button arrives as `Keyboard.current.escapeKey`: treat it like Esc (back / pause menu).
+- Android back button arrives as `Keyboard.current.escapeKey`: treat it like Esc (back / pause menu). On Android 16
+  the back gesture may not arrive as `Keyboard.current.escapeKey`; test back navigation on a phone before relying on it.
 - Never `Application.Quit()` on iOS; hide the quit button there.
 
 ## Building
 
-**GameKit > Build > Windows / Android / iOS / WebGL**, or write `build android` into `Logs/agent/request.txt` and read
-`Logs/agent/build.log`. A build switches platforms and reimports, which takes minutes: ask before starting one.
+**GameKit > Build > Windows / Android / iOS / WebGL**, or `gk-bridge build windows|android|aab|ios|webgl [dev]` in a
+background Bash call (it prints the head of `Logs/agent/build.log`; exit 0 is the only pass). A build switches platforms
+and reimports, which takes minutes: ask before starting one.
 
 - Android needs the Android Build Support module (with OpenJDK and SDK/NDK) in Unity Hub; `BuildMenu` reports when it is
   missing. IL2CPP, ARM64 only. Store releases need a keystore, which is the user's to create and keep out of git.
 - iOS produces an Xcode project in `Builds/iOS`; it is signed and built on a Mac.
-- WebGL uses the itch.io size pass from Magic Sort and Pixel Volley (uncompressed files, the Responsive template, high
-  stripping, disk-size LTO).
+- WebGL uses the itch.io size pass from Magic Sort and Pixel Volley (Brotli compression with `decompressionFallback`
+  off, which itch.io serves; the Responsive template, high stripping, disk-size LTO).
 
 ## Platform code
 

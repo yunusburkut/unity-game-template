@@ -39,6 +39,7 @@ namespace GameKit.Editor
         const string SessionStartedKey = "AgentBridge.SessionStarted";
         const string RefreshAckKey = "AgentBridge.RefreshAck";
         const string PendingBuildKey = "AgentBridge.PendingBuild";
+        const string PlayerCheckedKey = "AgentBridge.PlayerChecked";
         const double RefreshSettle = 2.0;
         const float DefaultCaptureSeconds = 3f;
 
@@ -73,7 +74,14 @@ namespace GameKit.Editor
 
         static AgentBridge()
         {
+            // An Asset Import Worker loads this assembly too, with a fresh SessionState: it would take requests and
+            // close the main Editor's open refresh, build or test run as "Editor restarted".
+            if (AssetDatabase.IsAssetImportWorkerProcess()) return;
             Directory.CreateDirectory(Dir);
+            // bridge.log marks a bridge that knows refresh: gk-bridge and the plugin's hooks look for it, so a fresh
+            // game needs it before its first refresh
+            if (!File.Exists(BridgePath))
+                WriteAllText(BridgePath, "READY  " + Timestamp() + "  send refresh to import and compile\n");
 
             CompilationPipeline.compilationStarted += OnCompilationStarted;
             Application.logMessageReceivedThreaded += OnLogMessage;
@@ -114,7 +122,7 @@ namespace GameKit.Editor
 
             // If the Editor cold-started on broken sources, no handler was alive to see the
             // messages. Unity's own log still has them, and this is the only chance to report them.
-            if (EditorUtility.scriptCompilationFailed)
+            if (FlagIsEditors && EditorUtility.scriptCompilationFailed)
             {
                 WriteAllText(CompilePath, "FAILED  " + Timestamp() + "\n" + ScrapeEditorLogErrors());
                 SessionState.EraseBool(CompileRanKey);
@@ -128,6 +136,7 @@ namespace GameKit.Editor
         {
             if (_compilingPlayer) return; // a player-script check is not the Editor's compile
             SessionState.SetBool(CompileRanKey, true);
+            SessionState.EraseBool(PlayerCheckedKey); // this compile overwrites the flag a check left
             lock (Gate)
             {
                 CompileLines.Clear();
@@ -164,6 +173,7 @@ namespace GameKit.Editor
             }
 
             WriteAllText(CompilePath, Builder.ToString());
+            ReportSilentFailure();
             SessionState.EraseBool(CompileRanKey);
             _compilingEditor = false;
             if (SessionState.GetBool(RefreshAckKey, false)) AckRefresh("compiled: see compile.log");
@@ -174,6 +184,22 @@ namespace GameKit.Editor
             SessionState.EraseBool(RefreshAckKey);
             WriteAllText(BridgePath, "REFRESHED  " + Timestamp() + "  " + outcome + "\n");
         }
+
+        // An assembly-level failure (cyclic asmdef references, a duplicate assembly name) logs no "): error CS" line
+        // and can stop the compile before it starts, so a clean compile.log would hide it; Unity's flag still knows.
+        static void ReportSilentFailure()
+        {
+            if (!FlagIsEditors || !EditorUtility.scriptCompilationFailed || !CompileLogClean()) return;
+            WriteAllText(CompilePath, "FAILED  " + Timestamp() + "  compile failed without a CS error: see console.log\n");
+        }
+
+        // Unity's flag holds the last compile's result, and a player-script check is a compile too (probed on 6000.6:
+        // a failed `compile android` sets it, a passed one clears it, the next Editor compile overwrites it; a failed
+        // BuildPlayer leaves it unset). A check that flipped it requests that compile, which runs with no script changed
+        // too (probed on 6000.6: started, reloaded, flag back); until it starts, compile.log is the Editor's state.
+        static bool FlagIsEditors => !SessionState.GetBool(PlayerCheckedKey, false);
+
+        static bool CompileLogClean() => FirstLineStarts(CompilePath, "OK") || FirstLineStarts(CompilePath, "0 error(s)");
 
         static bool IsCompilerMessage(string message) =>
             message.IndexOf("): error CS", StringComparison.Ordinal) >= 0 ||
@@ -267,8 +293,10 @@ namespace GameKit.Editor
                 pendingBuild = "";
                 WriteAllText(BuildMenu.LogPath, "SKIPPED  " + Timestamp() + "  Play Mode started before the build\n");
             }
+            // FlagIsEditors: BuildMenu reads Unity's flag, so a build waits for the Editor compile a player-script check
+            // requested (it starts within seconds; probed on 6000.6).
             if (pendingBuild.Length > 0 && now >= _buildNotBefore && !EditorApplication.isUpdating &&
-                !EditorApplication.isPlayingOrWillChangePlaymode)
+                !EditorApplication.isPlayingOrWillChangePlaymode && FlagIsEditors)
             {
                 SessionState.EraseString(PendingBuildKey);
                 StartBuild(pendingBuild);
@@ -279,7 +307,11 @@ namespace GameKit.Editor
             if (_refreshAckAt > 0 && now >= _refreshAckAt)
             {
                 _refreshAckAt = 0;
-                if (SessionState.GetBool(RefreshAckKey, false)) AckRefresh("no script changes");
+                if (SessionState.GetBool(RefreshAckKey, false))
+                {
+                    ReportSilentFailure();
+                    AckRefresh("no script changes");
+                }
             }
 
             if (_consoleDirty && now >= _nextFlush)
@@ -291,13 +323,19 @@ namespace GameKit.Editor
             if (now < _nextPoll) return;
             _nextPoll = now + PollInterval;
 
-            if (pendingBuild.Length > 0 || EditorApplication.isUpdating || !File.Exists(RequestPath)) return;
+            // A refresh's settle time holds the next request too, until its compile starts or the time runs out (the
+            // timer always clears itself above, so nothing waits on it for good).
+            if (pendingBuild.Length > 0 || _refreshAckAt > 0 || EditorApplication.isUpdating || !File.Exists(RequestPath) ||
+                TestRunOpen()) return;
 
             string request;
             try
             {
                 request = File.ReadAllText(RequestPath).Trim();
+                // read between a writer's truncate and its write: retry next poll; a file a crash left empty is dropped
+                if (request.Length == 0 && (DateTime.Now - File.GetLastWriteTime(RequestPath)).TotalSeconds < 5) return;
                 File.Delete(RequestPath);
+                if (request.Length == 0) return;
             }
             catch (IOException)
             {
@@ -422,15 +460,22 @@ namespace GameKit.Editor
                 return;
             }
 
-            WriteAllText(PlayerCompilePath, "RUNNING  " + platform + "  " + Timestamp() + "\n");
             // the player compile takes the script set the AssetDatabase knows; files added or deleted while the Editor
-            // was unfocused are not in it until an import. In Play Mode the import is skipped unless the prefs hold
-            // its compile until Play ends (see refresh).
-            if (!EditorApplication.isPlaying || EditorPrefs.GetInt("ScriptCompilationDuringPlay", 0) == 1)
-                AssetDatabase.Refresh();
+            // was unfocused are not in it until an import. In Play Mode that import would reload the domain unless the
+            // prefs hold its compile until Play ends (see refresh), so without them the check is not run at all.
+            if (EditorApplication.isPlaying && EditorPrefs.GetInt("ScriptCompilationDuringPlay", 0) != 1)
+            {
+                WriteAllText(PlayerCompilePath, "SKIPPED  " + platform + "  in Play Mode: compile again after Play ends  "
+                    + Timestamp() + "\n");
+                return;
+            }
+            WriteAllText(PlayerCompilePath, "RUNNING  " + platform + "  " + Timestamp() + "\n");
+            AssetDatabase.Refresh();
             lock (Gate) PlayerCompileLines.Clear();
 
-            ScriptCompilationResult result;
+            ScriptCompilationResult result = default;
+            string error = null;
+            bool editorFailed = EditorUtility.scriptCompilationFailed;
             _compilingPlayer = true;
             try
             {
@@ -438,9 +483,24 @@ namespace GameKit.Editor
                 result = PlayerBuildInterface.CompilePlayerScripts(
                     new ScriptCompilationSettings { target = target, group = group }, PlayerCompileDir);
             }
+            catch (Exception e) // a locked file in Temp/: answer now, not with RUNNING until the Editor restarts
+            {
+                error = e.Message;
+            }
             finally
             {
                 _compilingPlayer = false;
+            }
+            // BuildMenu and Unity's own Play button read the flag too: an Editor compile gives it back to the Editor.
+            if (EditorUtility.scriptCompilationFailed != editorFailed)
+            {
+                SessionState.SetBool(PlayerCheckedKey, true);
+                CompilationPipeline.RequestScriptCompilation();
+            }
+            if (error != null) // not FAILED: the code was never checked, so gk-bridge reads it as UNKNOWN
+            {
+                WriteAllText(PlayerCompilePath, "ERROR  " + platform + "  " + error + "  " + Timestamp() + "\n");
+                return;
             }
 
             var sb = new StringBuilder(1024);
@@ -491,7 +551,7 @@ namespace GameKit.Editor
 
             if (pending > 0f && !EditorApplication.isPlayingOrWillChangePlaymode)
             {
-                if (EditorUtility.scriptCompilationFailed)
+                if (FlagIsEditors ? EditorUtility.scriptCompilationFailed : !CompileLogClean())
                 {
                     SessionState.EraseFloat(CapturePendingKey);
                     _capturePending = false;
@@ -571,20 +631,48 @@ namespace GameKit.Editor
 
         static void RunTests(TestMode mode)
         {
+            // The test runner asks to save dirty scenes first; in an unfocused Editor no one answers that dialog, and
+            // its Cancel ends the run with no callback (tests.log would stay RUNNING), so every run refuses instead.
+            var unsaved = new List<string>();
+            for (int i = 0; i < UnityEditor.SceneManagement.EditorSceneManager.sceneCount; i++)
+            {
+                var open = UnityEditor.SceneManagement.EditorSceneManager.GetSceneAt(i);
+                if (open.isDirty) unsaved.Add(string.IsNullOrEmpty(open.path) ? "(untitled)" : open.path);
+            }
+            if (unsaved.Count > 0)
+            {
+                string skipped = "unsaved scene(s): " + string.Join(", ", unsaved) + "; save them first";
+                WriteAllText(TestsPath, "SKIPPED  " + Timestamp() + "  " + skipped + "\n");
+                Debug.LogWarning("[AgentBridge] tests not run, " + skipped);
+                return;
+            }
             WriteAllText(TestsPath, "RUNNING " + mode + "  " + Timestamp() + "\n");
             _testApi.Execute(new ExecutionSettings(new Filter { testMode = mode }));
         }
 
-        class ResultWriter : ICallbacks
+        // A request taken under a running test job (a refresh queued by an edit, a capture) would recompile or enter Play
+        // Mode mid-run, so requests wait in request.txt until RunFinished or OnError rewrites tests.log. Ceiling: a run
+        // cancelled from the Test Runner window gets no callback (UTF's TestRunnerApi.IsRunActive is internal), so it
+        // holds them for 10 minutes (gk-bridge's run-tests deadline); a restart turns its RUNNING into FAILED.
+        static bool TestRunOpen() =>
+            FirstLineStarts(TestsPath, "RUNNING") && File.GetLastWriteTime(TestsPath) > DateTime.Now.AddMinutes(-10);
+
+        class ResultWriter : IErrorCallbacks
         {
             public void RunStarted(ITestAdaptor testsToRun) { }
             public void TestStarted(ITestAdaptor test) { }
             public void TestFinished(ITestResultAdaptor result) { }
 
+            // A build error or a failing IPrebuildSetup ends the run here, and RunFinished never comes.
+            public void OnError(string message) =>
+                WriteAllText(TestsPath, "FAILED  " + Timestamp() + "  " + message + "\n");
+
             public void RunFinished(ITestResultAdaptor result)
             {
+                // One [Ignore]d test marks the whole suite Skipped (NUnit); UTF's own window calls that Passed too.
+                bool clean = result.FailCount == 0 && result.PassCount > 0 && result.TestStatus == TestStatus.Skipped;
                 var sb = new StringBuilder(2048);
-                sb.Append(result.TestStatus).Append("  ")
+                sb.Append(clean ? TestStatus.Passed : result.TestStatus).Append("  ")
                   .Append(result.PassCount).Append(" passed, ")
                   .Append(result.FailCount).Append(" failed, ")
                   .Append(result.SkipCount).Append(" skipped  ")

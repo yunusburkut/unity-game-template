@@ -45,8 +45,8 @@ exact path is in logcat as `FrameLog: ...`), Windows
 - The package manifest is deliberately small. Ask before adding a package or a framework (DI container, event bus,
   pooling, save system, Addressables).
 - Commits: `area: imperative summary` (area = core | game | ui | input | build | art | design | tools); the body says
-  why and ends with `Verified: compile.log OK; Play Mode pending` (or what was checked), plus `Refs: #12` when one
-  exists.
+  why and ends with `Verified: gk-bridge refresh PASS <time>; Play Mode pending` (or what was checked; an UNKNOWN gate
+  is `Verified: compile unverified (<reason>)`), plus `Refs: #12` when one exists.
 
 ## Gotchas
 
@@ -60,12 +60,12 @@ exact path is in logcat as `FrameLog: ...`), Windows
 - Phones run at `Application.targetFrameRate` (60, set in `AppStartup`), not vSync. Two quality levels exist: Mobile
   (0, phones and WebGL) and PC (1), each with its own URP asset under `Assets/__GAME__/Settings`. Tune those, do not
   add per-object platform branches.
-- The Editor compiles only when its window regains focus or on a `refresh` request (Agent bridge below).
+- The Editor compiles only when its window regains focus or on `gk-bridge refresh` (Agent bridge below).
 - Android builds target API 36. On Android 16 the back gesture may not arrive as `Keyboard.current.escapeKey`; test
   back navigation on a phone before relying on it.
 - Never hand-edit `.unity`, `.prefab` or `.asset` YAML while the Editor is running (a PreToolUse hook enforces it);
   drive the Editor instead (`unity-editor-cli`). Commit before Editor-driven scene or prefab changes: `/rewind` cannot
-  undo what the Editor wrote, and after a rewind write `refresh` yourself.
+  undo what the Editor wrote, and after a rewind run `gk-bridge refresh`.
 - One checkout writes code. A worktree or parallel session has no Library or Feel and its compile results come from
   this checkout's `Logs/agent`, so parallel agents only read.
 
@@ -74,13 +74,15 @@ exact path is in logcat as `FrameLog: ...`), Windows
 GameKit's `AgentBridge` mirrors the Editor into `Logs/agent/`: `compile.log` (`OK` or `0 error(s),
 N warning(s)` plus a timestamp means clean; a stale timestamp means no compile has run since the edit), `console.log` (last 200 errors and
 warnings), `tests.log`, `build.log`, `capture.log`, `compile-player.log`, and `bridge.log` (answers to `refresh` and
-to unknown requests). Requests go into `Logs/agent/request.txt`, one per write:
+to unknown requests). Send a request with `gk-bridge <request>` in Bash (gamekit plugin): it waits for the Editor's
+answer and prints `PASS`, `FAIL` or `UNKNOWN` with the log head. Exit 0 = pass, 1 = fail, 2 = unknown (no Editor,
+Play Mode, busy, timeout), and unknown is never a pass. Requests (it writes them to `Logs/agent/request.txt`):
 
 - `refresh`: import changed files and compile without focusing Unity. `bridge.log` says `REFRESHING`, then
   `REFRESHED ... compiled: see compile.log` or `REFRESHED ... no script changes`. In Play Mode it answers only
   `REFRESHED ... in Play Mode: compiles after Play ends` (Preferences > General > Script Changes While Playing set to
   Recompile After Finished Playing; `compile.log` updates once Play Mode exits) or `SKIPPED ...` (any other setting:
-  nothing was imported, so write `refresh` again after Play Mode ends).
+  nothing was imported, so run `gk-bridge refresh` again after Play Mode ends).
 - `compile ios` / `compile android`: type-check the code behind `UNITY_IOS` / `UNITY_ANDROID` without switching
   platforms; the result is in `compile-player.log`.
 - `run-tests`, `run-tests playmode`.
@@ -90,37 +92,35 @@ to unknown requests). Requests go into `Logs/agent/request.txt`, one per write:
 
 Read these, never the multi-MB `Logs/Editor.log`.
 
-Wait on a long request (`build`, `run-tests`, `play-capture`, `compile ios|android`) with Monitor, never sleep or
-re-read. One request at a time: wait until `request.txt` is gone (a hook may have queued a `refresh` there), take the
-time, then write, e.g. (one line):
+Run `build` and `run-tests` (ask first) in a background Bash call; until it reports, edit no script and send no other
+request (gk-bridge answers UNKNOWN meanwhile). A restarted Editor closes a build, test run, capture
+or `compile` it left open as `FAILED ... Editor restarted`. A build imports changed files first and ends `SKIPPED` if
+Play Mode starts before it. A build with an unsaved scene in the build list ends `FAILED ... unsaved scene(s)`: ask me
+to save, never save a scene you did not change. A scene or asset you changed through `unity command` you save and
+commit with that change.
 
-```bash
-until [ ! -e Logs/agent/request.txt ]; do sleep 1; done; f=Logs/agent/tests.log; t=$(date +%s); echo run-tests > Logs/agent/request.txt; until [ "$(stat -c %Y "$f" 2>/dev/null || echo 0)" -ge "$t" ] && ! head -1 "$f" | grep -qE '^(RUNNING|PENDING)'; do sleep 2; done; head -20 "$f"
-```
-
-Give builds a 20-minute deadline, other requests 10 minutes. A restarted Editor closes a build, test run, capture or
-`compile` it left open as `FAILED ... Editor restarted`, and an open refresh as `REFRESHED ... Editor restarted`. A build request imports
-changed files first; `build.log` says `PENDING` from the moment it is accepted, and `SKIPPED` if Play Mode is on or
-starts before the build does. While a build is pending the next `request.txt` stays unread. A build with an unsaved
-scene in the build list ends `FAILED ... unsaved scene(s)`: ask me to save, never save the scene yourself.
-
-Compile state, tests, capture and builds go through `request.txt`; scene, prefab, component and asset edits and
+Compile state, tests, capture and builds go through `gk-bridge`; scene, prefab, component and asset edits and
 hierarchy queries go through `unity command` (`unity-editor-cli`). New Editor automation is a `[CliCommand]` static
 method in `__GAME__.Editor` (its asmdef already references `Unity.Pipeline.Attributes`), not a new request verb. No Unity MCP server.
 
 ## Working agreement
 
-Fast iteration. For a normal change: inspect the affected code, implement it, sanity-check the diff and
-`Logs/agent/compile.log`, then say what to verify in Play Mode, on PC and, when input, UI or performance changed, on a
-phone. Gameplay verification is mine. Do not run the test suite, batch-mode Unity or a build as a routine completion
+The task router sizes each task S, M or L. S: inspect the affected code, implement it, `gk-bridge refresh`, commit,
+then say what to verify in Play Mode, on PC and, when input, UI or performance changed, on a phone. M and L run the
+`gamekit:pipeline` skill: the prompt becomes a spec card in PLAN.md Now, then plan, build with a gate per unit, verify,
+a scored review until every reviewer gives 9/10, and the handoff. `/gamekit:feature` runs it unattended, only when I
+ask. `review et` or `puanla` runs only its review loop (score, fix, re-score until 9); `devam` continues the card in PLAN.md Now; `kabul` hands
+off a reviewed card that stayed below 9 (or whose handoff stopped), its open findings under Known issues; `kartı
+Next'e taşı` parks the card. Gameplay
+verification is mine. Do not run the test suite, batch-mode Unity or a build as a routine completion
 step, and do not write tests for every small change; ask first (`unity-testing`).
 
 When a task ends, update PLAN.md (Now, Next, Pending Play Mode checks) in the same commit; done items leave the file.
+A Play Mode check I report as passing leaves Pending; one I report as failing becomes a Known issue.
 A rule or architecture decision made in chat goes into DESIGN.md Decisions in the same commit. When I report a
 playtest, log it under DESIGN.md Playtests before fixing anything; bugs from it go to PLAN.md Known issues.
 
-Work straight on `main`: no feature branches, no PRs. Commit after each step that compiles. When a feature is done,
-run `unity-reviewer` on its commits and fix what it finds before handing me the Play Mode checks.
+Work straight on `main`: no feature branches, no PRs. Commit after each step that compiles.
 
 When compacting, keep the files changed and the pending Play Mode checklist.
 

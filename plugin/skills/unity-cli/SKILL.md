@@ -1,6 +1,6 @@
 ---
 name: unity-cli
-description: Use when interacting with Unity CLI from the terminal, or to control a running/connected Unity Editor from the command line — create or modify GameObjects, edit scenes and assets, inspect the hierarchy, and run C# in a live Editor instead of hand-editing scene or asset files. Also install, upgrade or uninstall editors, create, list or open projects, manage modules, manage licenses, check auth status, read logs, browse Unity releases, build/test projects, configure the Unity MCP server for AI agents, or run any other Unity CLI operation.
+description: Use when using the Unity CLI or controlling a running Unity Editor from the command line — GameObjects, scenes, assets, the hierarchy, running C# in a live Editor instead of hand-editing scene or asset files. Also editor installs, projects, modules, licenses, auth, logs, releases, build/test, and Unity MCP server setup.
 allowed-tools:
   - Bash
 ---

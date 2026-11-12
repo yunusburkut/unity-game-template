@@ -1,6 +1,6 @@
 ---
 name: launch-review
-description: Auditing the game's store presence and launch plan on Steam, Google Play, the App Store and itch.io — price and business model (premium, IAP, ads), tags and categories, capsule art, icon and screenshots, short description, ASO keywords, demo or playtest scope, Next Fest, soft launch, ratings prompts, review-guideline pitfalls, creator outreach, short-form clip pipeline, wishlist and retention targets, and which store-algorithm claims are actually true. Use when working on a store page, capsule, icon, trailer or screenshots, when asked "what should we charge", "free or paid", "ads or IAP", "which tags", "do we need a demo", "when do we soft launch", "how many wishlists do we need", "will Apple reject this", when planning launch timing or a festival, or when someone repeats a store visibility rumour that should be checked.
+description: Auditing store pages and launch plans on Steam, Google Play, the App Store and itch.io — price, model, tags, capsule, icon, screenshots, trailer, ASO, demo, Next Fest, soft launch, review risks, creator outreach, wishlists. Use when asked "what should we charge", "free or paid", "will Apple reject this", or to check a store rumour.
 ---
 
 # Auditing the launch

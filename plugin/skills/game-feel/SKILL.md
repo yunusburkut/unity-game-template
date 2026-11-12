@@ -1,6 +1,6 @@
 ---
 name: game-feel
-description: Deciding how a game action should feel and picking the actual numbers — the feedback hierarchy (which layer and channel carries an event, how loud relative to the rest), durations, intensities, forgiveness windows, easing, shake, hit stop, squash and stretch, camera lag, audio timing, VFX, SFX and haptics choice, and attribution cues in multiplayer. Use when something feels floaty, mushy, weightless, too slow or too twitchy ("his yok", "tok değil", "yavaş hissettiriyor", "juice ekle"), when adding juice, VFX, SFX, vibration or polish to any player verb, pickup, hit, UI tap, win or failure, when a failure or a save is hard to read, when tuning coyote time or an input buffer, when asked "how long should this be" or "how much shake", or before writing any feedback so the values are chosen rather than guessed. Wiring the chosen feedback in Feel is feel-authoring.
+description: Deciding how an action should feel and picking the numbers — feedback hierarchy, durations, forgiveness windows, easing, shake, hit stop, camera, audio, VFX, haptics. Use when it feels floaty or slow ("his yok", "tok değil", "juice ekle"), when adding polish, or before writing any feedback. Wiring it in Feel is feel-authoring.
 ---
 
 # Choosing how the game feels

@@ -1,5 +1,5 @@
 {
   "name": "gamekit",
-  "description": "Claude Code layer for games made from unity-game-template: Unity, Feel, game-feel, clarity, level and launch skills, read-only review agents, and hooks (Unity YAML guard, refresh after .cs edits, compile self-check on Stop).",
+  "description": "Claude Code layer for games made from unity-game-template: a task router and the pipeline skill (spec card, gated build, scored review until 9/10), the gk-bridge compile gate, the /gamekit:feature workflow, Unity, Feel, game-feel, clarity, level and launch skills, scout, builder and review agents, and hooks (Unity YAML guard, refresh after script edits, compile self-check on Stop).",
   "author": { "name": "yunusburkut" }
 }

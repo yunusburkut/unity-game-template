@@ -223,6 +223,7 @@ if (-not $NoGit) {
 Write-Host "6/6 Ready: $dest"
 Write-Host '    Open it in Unity Hub (Add > Add project from disk), then start Claude Code in that folder.'
 Write-Host '    Fill in the TODO lines in CLAUDE.md and DESIGN.md first.'
+Write-Host '    How to work with Claude: REHBER.md.'
 
 # robocopy leaves 1-7 in $LASTEXITCODE on success; do not let that become the script's exit code
 exit 0

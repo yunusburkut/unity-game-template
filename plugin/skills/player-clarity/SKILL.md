@@ -1,6 +1,6 @@
 ---
 name: player-clarity
-description: Deciding how the game tells players what to do and what just happened — onboarding, tutorials and the first-time experience ("tutorial", "ilk açılış", "oyuncu anlamıyor"), context hints ("ipucu"), event narration and attribution ("ne oldu", "kim yaptı"), the results screen, the wording of every player-facing string, HUD and world-space labels, colour-blind identification, readability in a muted or vertical clip, and keeping the UI original rather than template-looking ("AI yapmış gibi olmasın", "generic", "özgün", "sade", "net"). Use when adding or changing anything that explains, instructs, labels, announces or attributes, when players "don't get it", or before writing UI text or a HUD element. How an event feels (timing, shake, sound weight) is game-feel; laying out uGUI is ui-ugui.
+description: How the game tells players what to do and what happened — onboarding, hints, attribution, results screen, player-facing strings, HUD labels, colour-blind cues, non-template UI ("oyuncu anlamıyor", "ipucu", "ne oldu", "AI yapmış gibi olmasın"). Use before writing UI text or HUD. How it feels is game-feel; uGUI layout is ui-ugui.
 ---
 
 # Telling players what to do

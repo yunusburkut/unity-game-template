@@ -1,7 +1,7 @@
 # PreToolUse guard for hand edits of Unity YAML (.unity, .prefab, .asset, .mat, .controller, .overrideController,
 # .anim, .mask). Never hand-edit them while an Editor has this project open: the running Editor does not see the change
-# and overwrites it on its next save. settings.json runs this only for matching extensions (`if`), so other edits and
-# shell commands never start PowerShell.
+# and overwrites it on its next save. The gamekit plugin's hooks/hooks.json runs this only for matching extensions
+# (`if`), so other edits and shell commands never start PowerShell.
 #
 # Edit/Write are checked by file_path. Bash/PowerShell commands are checked by a heuristic: a write verb (redirect,
 # sed -i, tee, Set-Content, Copy-Item, ...) in a command that names a YAML file inside the project. It catches the usual

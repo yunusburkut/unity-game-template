@@ -1,6 +1,6 @@
 ---
 name: feel-troubleshooting
-description: Diagnosing a Feel feedback that does nothing, fires once and stops, will not compile, leaves an object stuck at a half-finished value, or behaves differently on the second Play session. Use when MMF_Player.PlayFeedbacks() produces no visible result, when a Feel type is not found or MMF_ / MoreMountains namespaces fail to resolve, when a camera shake or freeze frame is ignored, or when juice that worked yesterday stopped working.
+description: Diagnosing a Feel feedback that does nothing, fires once and stops, will not compile, leaves an object at a half-finished value, or acts differently on the second Play session. Use when PlayFeedbacks() shows nothing, MMF_ / MoreMountains types fail to resolve, a shake or freeze frame is ignored, or juice that worked stopped working.
 ---
 
 # When a feedback does nothing
@@ -8,8 +8,8 @@ description: Diagnosing a Feel feedback that does nothing, fires once and stops,
 Feel fails quietly by design — a missing listener, a mismatched channel or an out-of-range player
 produces no effect and no error. Work down this list in order; the cheap checks are first.
 
-Compile state is in `Logs/agent/compile.log` (`OK` plus a timestamp means clean; a stale timestamp
-means Unity has not regained focus and has not compiled yet). Console errors and warnings are
+Compile state is in `Logs/agent/compile.log` (`OK` plus a timestamp means clean; one older than the
+edit means no compile has run since, and `gk-bridge refresh` compiles without focus). Console errors and warnings are
 mirrored to `Logs/agent/console.log`. See `unity-editor-cli`.
 
 ## It does not compile

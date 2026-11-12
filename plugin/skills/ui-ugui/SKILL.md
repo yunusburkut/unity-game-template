@@ -5,6 +5,13 @@ description: Unity uGUI (Canvas-based) UI expert. Understands, edits, and genera
 
 Understand existing Unity uGUI, make targeted edits, and generate new Canvas-based hierarchies.
 
+**House rules win.** This is a vendored copy of Unity's skill; where it disagrees with the game's CLAUDE.md,
+`unity-architecture` or `unity-code-review`, the house rules apply:
+- Inspector-wired references are guaranteed: no null checks and no "verify referenced objects exist" for them. Only
+  untrusted input is guarded.
+- Scripts go in the game's `<Game>.Game` asmdef (`Assets/<Game>/Game`), not next to prefabs.
+- A direct reference, or a UnityEvent wired in the Inspector, over a C# event, unless two or more real listeners exist.
+
 When working with ScrollRect/ScrollView, read the reference file:
 - `references/scrollview-setup.md` — Required hierarchy, setup rules, and common failures
 
