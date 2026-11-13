@@ -9,7 +9,7 @@ Non-negotiable, in every phase:
 
 - **Gates have three answers.** `gk-bridge refresh` exit 0 = pass, 1 = fail, 2 = unknown. Unknown is never a pass:
   nothing is committed as verified and the handoff says "compile unverified". (Not on PATH: run
-  `bash "${CLAUDE_PLUGIN_ROOT}/bin/gk-bridge" refresh`.)
+  `bash "${CLAUDE_PLUGIN_ROOT}/bin/gk-bridge" refresh`; it asks for permission.)
 - **One writer at a time.** The main session or one `gamekit:builder` writes code, never both; every other subagent
   only reads code, and the workflow's card, plan, verify and handoff steps edit only PLAN.md and DESIGN.md, one at a
   time. While `/gamekit:feature` runs, the main session edits and commits nothing. No worktrees (they have no

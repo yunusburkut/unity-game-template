@@ -376,7 +376,7 @@ if (!handoff || !/\b[0-9a-f]{7,40}\b/i.test(handoff.commit.replace(/`/g, '')) ||
   return {
     stopped: 'Teslim', passed, rounds, open, older, decisions, extras, inspector: steps, gaps, commits: built.map(b => b.commit),
     reason: 'Teslim commit edilmedi; kart hâlâ PLAN.md Now\'da (' + scores[scores.length - 1] + '): `' +
-      (passed ? 'kabul' : 'devam') + '` yaz',
+      'devam' + '` yaz',
   }
 }
 

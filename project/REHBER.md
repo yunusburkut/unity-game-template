@@ -27,7 +27,7 @@
 1. Unity açık kalsın. Sahnede kaydetmediğin değişiklik varsa iş vermeden önce kaydet (Ctrl+S). Unity
    birkaç saniyeliğine kendiliğinden Play'e girip çıkarsa (Claude'un kontrolü) dokunma.
 2. `PLAN.md` → Pending Play Mode checks: adımları oyunda dene, sonucu yaz: `hepsi tamam` ya da neyin bozulduğunu.
-   `unverified` yazan satır oyunda denenmez: Sinyaller'deki `unverified` satırını yap.
+   `unverified` yazan satır Play Mode'da denenmez: Sinyaller'deki `unverified` satırını yap.
 3. `PLAN.md` → Next'te `[karar]` satırı varsa: seçeneği seç ya da istenen playtesti oyna, sonucu yaz.
 4. Sorulunca onay ver: build, test, push, ilk `/gamekit:feature` (izin kartı). Manual modda her dosya düzenlemesi de sorar; gözetimsiz iş için Auto mod
    (mesaj kutusundaki mod seçici > Auto; terminalde Shift+Tab).
@@ -39,9 +39,9 @@
 | `gk-bridge: FAIL` | Kontrol geçmedi (satır nedenini yazar) | Bekle: Claude düzeltir. `unsaved scene` yazıyorsa Ctrl+S, sonra isteği tekrarla. İş durduysa `devam` |
 | `UNKNOWN ... does not know 'refresh'` | Bu oyunun Unity köprüsü GameKit'ten eski: derleme kontrolü hep UNKNOWN, `/gamekit:feature` burada çalışmaz | Unity penceresine tıkla (derler), sonra `devam`: Claude `compile.log`'a bakar. Kalıcı çözüm: `/gamekit:sync-template GameKit'e geçir` |
 | `UNKNOWN ... does not know` (başka istek) | Bu oyunun köprüsü bu isteği bilmiyor (derleme kontrolü çalışır) | Kalıcı çözüm: `/gamekit:sync-template GameKit'e geçir` |
-| `gk-bridge: UNKNOWN` (diğer) | Kontrol yapılamadı (satır nedenini yazar) | `build is running` ya da `test run is in progress` yazıyorsa bitmesini bekle. `module is not installed` yazıyorsa Unity Hub > Installs > modülü ekle. Değilse: Unity'yi aç, Play'den çık, açılır pencereyi kapat (`unsaved scene` yazıyorsa Ctrl+S). Sonra `devam` |
+| `gk-bridge: UNKNOWN` (diğer) | Kontrol yapılamadı (satır nedenini yazar) | `build is running` ya da `test run is in progress` yazıyorsa bitmesini bekle (20 dakikadan uzun sürerse Unity'yi kapatıp aç). `module is not installed` yazıyorsa Unity Hub > Installs > modülü ekle, Unity'yi yeniden aç, sonra `devam`. Değilse: Unity'yi aç, Play'den çık, açılır pencereyi kapat (`unsaved scene` yazıyorsa Ctrl+S). Sonra `devam` |
 | Açılışta `Enter Safe Mode?` | Kodda derleme hatası var; Safe Mode'da köprü çalışmaz | `Ignore` seç. Zaten Safe Mode'daysan Console'daki hatayı yapıştır: düzelince Unity Safe Mode'dan kendiliğinden çıkar |
-| `unverified` (commit'te ya da Pending'de) | Bir kontrol yapılamadı, commit yine de atıldı | `WebGL` / `PC player`: o build'de dene. `module is not installed`: Unity Hub > Installs > modülü ekle. Başka neden: yanındaki yazıya uyan UNKNOWN satırını yap |
+| `unverified` (commit'te ya da Pending'de) | Bir kontrol yapılamadı, commit yine de atıldı | `WebGL` / `PC player`: o build'de dene. `module is not installed`: Unity Hub > Installs > modülü ekle, Unity'yi yeniden aç, sonra `devam`. Başka neden: yanındaki yazıya uyan UNKNOWN satırını yap |
 | `Puan: 8/10` ya da `Tur r1 ... 8` | Review 9'un altında | Bekle: Claude düzeltir |
 
 ## Durum

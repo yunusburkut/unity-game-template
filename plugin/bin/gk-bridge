@@ -79,7 +79,7 @@ fi
 started=$(date +%s)   # the pickup window below starts after the gate; deadline still bounds both
 
 # one request at a time: a build in progress keeps request.txt unread until it ends
-case "$(first "$d/build.log")" in PENDING*) unknown "a build is running (build.log PENDING); wait for it" ;; esac
+case "$(first "$d/build.log")" in PENDING*) unknown "a build is running (build.log PENDING); wait for it (PENDING for over 20 min: a build that never started, restarting Unity closes it)" ;; esac
 # a refresh or capture under a running test job would test a mix of old and new code; AgentBridge also holds requests
 # then. A RUNNING line older than the run-tests deadline is a run that never reported: not a reason to wait.
 case "$(first "$d/tests.log")" in RUNNING*)
@@ -106,7 +106,7 @@ while [ -e "$d/request.txt" ]; do
     # PENDING the moment it is taken, so a build request skips this)
     if [ "$log" != build.log ]; then case "$(first "$d/build.log")" in PENDING*)
         [ "$(tr -d '\r\n' < "$d/request.txt" 2>/dev/null)" = "$req" ] && rm -f "$d/request.txt"
-        unknown "a build is running (build.log PENDING); wait for it" ;; esac; fi
+        unknown "a build is running (build.log PENDING); wait for it (PENDING for over 20 min: a build that never started, restarting Unity closes it)" ;; esac; fi
     if [ "$(date +%s)" -ge "$(cap $((t0 + take)))" ]; then
         [ "$(tr -d '\r\n' < "$d/request.txt" 2>/dev/null)" = "$req" ] && rm -f "$d/request.txt"
         unknown "the Editor did not take the request in $take s: busy, a modal dialog or Safe Mode (look at Unity)"
