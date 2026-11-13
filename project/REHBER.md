@@ -19,7 +19,7 @@
 | Yarım kartı bırak | `kartı Next'e taşı` (sürdürmek için o işi yine iste) |
 | Kod temizliği | `/gamekit:refactor-pass` |
 | Şablon güncellemesi | `/gamekit:sync-template` |
-| GitHub'a gönder | `push et` (Claude kendiliğinden göndermez) |
+| GitHub'a gönder | `push et` (ilk seferde private GitHub reposu açar; Claude kendiliğinden göndermez, onay ister) |
 | Yeni işe geç | `/clear`, sonra iste |
 
 ## Senin işin

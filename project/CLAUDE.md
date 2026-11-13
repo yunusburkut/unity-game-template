@@ -121,6 +121,8 @@ A rule or architecture decision made in chat goes into DESIGN.md Decisions in th
 playtest, log it under DESIGN.md Playtests before fixing anything; bugs from it go to PLAN.md Known issues.
 
 Work straight on `main`: no feature branches, no PRs. Commit after each step that compiles.
+Push only when I ask. With no `origin` yet, the first push is `gh repo create __GAME__ --private --source . --remote origin
+--push` (private: Feel is committed).
 
 When compacting, keep the files changed and the pending Play Mode checklist.
 

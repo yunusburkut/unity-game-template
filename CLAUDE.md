@@ -11,6 +11,9 @@ work on it. Games made from it live in sibling folders under `C:\GitHub`.
 | GameKit package: AgentBridge, BuildMenu, ProjectSetup, FrameLog, SafeAreaFitter | `packages/com.yunusburkut.gamekit/` | A game moves its `#gamekit-vX.Y.Z` tag in `Packages/manifest.json` |
 | gamekit plugin: skills, agents, hooks | `plugin/` (marketplace: `.claude-plugin/`) | Automatically from `main` (`autoUpdate`, no `version` on purpose) |
 
+When I ask for a new game, run `new-game.ps1` without `-GitHub` (a local repo only); publish it
+(`gh repo create <Name> --private --source <dest> --remote origin --push`) only after my yes.
+
 `__GAME__` and `__COMPANY__` are placeholders that `new-game.ps1` fills in; keep them in every file under `project/`
 and `packs/`. A pack may add `packages.json` (UPM deps) and `[ProjectSetupStep]` Editor methods; its README.md and
 `examples/` are never copied.

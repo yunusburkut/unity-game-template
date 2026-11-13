@@ -52,6 +52,7 @@
                                     "Bash(git branch --force*)",
                                     "Bash(git branch -M*)",
                                     "Bash(git push*)",
+                                    "Bash(gh repo create*)",
                                     "Bash(git diff *--output*)",
                                     "Bash(git log *--output*)",
                                     "Bash(git show *--output*)",
@@ -69,6 +70,7 @@
                                     "PowerShell(git branch --force*)",
                                     "PowerShell(git branch -M*)",
                                     "PowerShell(git push*)",
+                                    "PowerShell(gh repo create*)",
                                     "PowerShell(git diff *--output*)",
                                     "PowerShell(git log *--output*)",
                                     "PowerShell(git show *--output*)"
