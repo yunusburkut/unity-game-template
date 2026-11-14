@@ -85,7 +85,8 @@ oyuna göre eklenecek paketler (`packages.md`) ve 2026 mağaza kuralları (`ship
 | İçerik | Nerede |
 |---|---|
 | `pipeline` skill'i: istem → PLAN.md'de spec kartı → plan → her birimde derleme kapısı → doğrulama → 10 üzerinden puanlı review (her reviewer ≥9) → teslim | `plugin/skills/pipeline/` |
-| 20 skill daha: mimari, performans, debug, review, test, doğrulama, refactor-pass, editor CLI, platformlar, Feel (+ tarifler), game-feel, player-clarity, level-beat-review, launch-review, sync-template, Unity'nin resmi 4 skill'i | `plugin/skills/` |
+| 21 skill daha: mimari, performans, debug, review, test, doğrulama, refactor-pass, editor CLI, platformlar, Feel (+ tarifler), game-feel, player-clarity, level-beat-review, launch-review, sync-template, visual-explainer, Unity'nin resmi 4 skill'i | `plugin/skills/` |
+| "Visual Clarity" output style'ı: Türkçe, görsel öncelikli, ASD-STE100 sade dil, QUICK / STANDARD / VISUAL EXPLAINER seviyeleri, dürüst doğrulama raporu; seçilince Concise'ın yerini alır | `plugin/output-styles/` |
 | 8 agent: scout (bağlam), builder (tek birim: yaz, kapı, commit), unity-reviewer, bug-hunter, perf-auditor, clarity-reviewer, design-critic, launch-auditor | `plugin/agents/` |
 | `gk-bridge` komutu: AgentBridge isteğini gönderir, bekler, `PASS`/`FAIL`/`UNKNOWN` (exit 0/1/2) döner | `plugin/bin/` |
 | `/gamekit:feature [istek]` workflow'u: kartı (yoksa önce yazar) gözetimsiz yapar, yalnız istenince | `plugin/workflows/` |
