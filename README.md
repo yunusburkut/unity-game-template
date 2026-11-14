@@ -6,6 +6,10 @@ projeden bağımsız hale getirilip buraya taşındı.
 
 ## Yeni oyun başlat
 
+En kolayı, herhangi bir Claude Code oturumunda: `/gamekit:new-game SkyHopper <oyunun ilk fikri>`. Paketleri ve
+GitHub reposunu sorar, oyunu kurar, fikri `DESIGN.md`ye yazar, Unity'yi açar ve oyun klasöründe fikri şekillendiren
+yeni bir oturum başlatır. Elle kurmak için:
+
 ```powershell
 .\new-game.ps1 -Name SkyHopper
 ```
