@@ -1,6 +1,6 @@
 ---
 name: clarity-reviewer
-description: Read-only review of the game's player-facing text and cues — every UI string, hint, HUD and world-space label, tutorial step, event narration, attribution, results screen and menu screen — against the player-clarity rules (speakable, muted clip, paste and budget tests, the carrier ladder, the game's voice, colour-blind identification, template tells, device-correct input names, HUD necessity, text that survives translation, the access baseline). Use after adding or changing anything that explains, instructs, labels or announces, or when asked "oyuncu anlar mı", "metinleri gözden geçir", "bu ipucu net mi".
+description: Use when asked "oyuncu anlar mı", "metinleri gözden geçir", "bu ipucu net mi", or after changing anything that explains, instructs, labels or announces. Read-only review of UI strings, hints, HUD, tutorials and menus against player-clarity.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---

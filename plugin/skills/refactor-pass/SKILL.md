@@ -1,6 +1,6 @@
 ---
 name: refactor-pass
-description: Behaviour-preserving clean-up of recent game code — SOLID/open-closed in the Core/Game idiom, allocation-free hot paths, readability, headroom on weak PCs and cheap phones. Use when asked to refactor, tidy, clean up, simplify, optimise, "go over what we added lately", or with no argument. Review without edits is unity-code-review.
+description: Use when asked to refactor, tidy, clean up, simplify, optimise ("refactor et", "toparla"), "go over what we added lately", or with no argument. Keeps behaviour: Core/Game SOLID, no hot-path allocations. Review only: unity-code-review.
 ---
 
 # Refactor pass
@@ -42,17 +42,27 @@ with line numbers. Treat the hits as questions, not verdicts — the script cann
 
 A user argument narrows or widens this: a folder (`Game/Level`), a topic (`perf`, `solid`,
 `low-end`, `mobile`), or a range. Vendored trees (`Assets/Feel`, `Assets/Plugins`, any Asset Store
-folder) are never in scope. `Assets/<Game>/Editor` is in scope for readability only — it never
-ships, so it gets no performance work.
+folder) are never in scope, and neither is `Assets/<Game>/Prototypes` (throwaway code that
+`prototype` owns and deletes on its verdict; the survey skips it). `Assets/<Game>/Editor` is in
+scope for readability only — it never ships, so it gets no performance work.
 
 ## The pass
+
+### 0. Separate the user's work from the pass
+
+Run `git status --porcelain -- Assets/<Game>`. The survey counts uncommitted and untracked files on
+purpose, but the pass commits per item, and a commit stamped "refactor" must hold only the pass's
+own edits. If anything is listed, ask once: commit it first (the user's message, or a `wip:`
+commit they approve), or keep those files out of the pass. Never edit a file that was already dirty
+when the pass started, and stage by path (`git add <file>`), never `git add -A` or `-p`. Note the
+first line of `compile.log` now, so step 5 can compare warning counts.
 
 ### 1. Read everything in scope, plus its other half
 
 For a `Game` MonoBehaviour that means its Core solver, state, tuning and config; for a Core type
-it means every Game caller and the EditMode test that pins it. Then read the ledger's *Noted between
-passes* and *Accepted trade-offs* sections, if the ledger exists, so you do not re-open a decision
-the user already made.
+it means every Game caller and the EditMode test that pins it. Then read the ledger's top-level
+*Accepted trade-offs* list and the newest dated section's *Noted between passes*, if the ledger
+exists, so you do not re-open a decision the user already made.
 
 While reading, write down for each type: who owns its state, who reads it, where it sits in the
 `[DefaultExecutionOrder]` chain, and which of its members a scene or asset depends on
@@ -89,20 +99,30 @@ its diff, and reading the diff is the primary verification here.
 
 ### 4. Apply one item at a time
 
-Edit, then gate the item on `gk-bridge refresh` (exit 0; it compiles without window focus, and 2
-is unknown, never a pass). A change that does not compile is undone, not patched forward. Keep
-unrelated items out of the same edit so each one can be reverted alone.
+Edit, then gate the item on `gk-bridge refresh` (not on PATH: `bash "${CLAUDE_PLUGIN_ROOT}/bin/gk-bridge" refresh`;
+it compiles without window focus). Exit 0 is a pass, 1 a fail, 2 unknown (no Editor, Play Mode,
+busy, timeout, stale compile). A change that does not compile is undone, not patched forward. On 2,
+stop after the current item: commit nothing as verified, and report "compile unverified" with the
+reason gk-bridge printed. Keep unrelated items out of the same edit so each one can be reverted
+alone.
 
-Commit on main after each item whose gate passed: `<area>: refactor <summary>` (area from the game's
+Before each commit, read that item's own diff (`git diff -- <files>`) against the catalog's diff
+checklist (section 6); an item that fails it is fixed or undone before it reaches history. Then
+commit on main, staging only that item's files: `<area>: refactor <summary>` (area from the game's
 CLAUDE.md list: core, game, ui, ...), a body that says why, ending with
-`Verified: gk-bridge refresh PASS <time>; no behaviour change`.
+`Verified: gk-bridge refresh PASS <time>; diff checklist read; Play Mode pending`. "No behaviour
+change" is a claim the Play Mode check in step 5 makes, not the compile gate; the ledger records
+that result.
 
 ### 5. Verify proportionally
 
-1. Read the whole diff against the catalog's checklist: flags still cleared at the top of every
-   step, no early `return` skipping a reset, every renamed serialized field carrying its old name,
-   no `in` parameter whose struct gained a non-`readonly` member.
-2. `compile.log` says `OK`, and `console.log` shows no new warning.
+1. Read the whole pass's diff once more against the catalog's checklist, now for what only shows
+   across items: flags still cleared at the top of every step, no early `return` skipping a reset,
+   every renamed serialized field carrying its old name, no `in` parameter whose struct gained a
+   non-`readonly` member.
+2. `compile.log` first line: `OK`, or a warning count no higher than the one noted in step 0, and
+   no `warning CS` line that was not there before (a new CS0618 means the pass used an obsolete
+   API). CS warnings live in `compile.log`; `console.log` is only for runtime warnings.
 3. If Core was touched, ask once — one sentence — whether to run the EditMode suite this pass. A
    solver refactor is the case `unity-testing` allows; do not run it unasked.
 4. Hand the user the Play Mode list from `implementation-verification`: concrete actions and what
@@ -119,9 +139,10 @@ Report in the language the user is writing in. Structure:
    steps the user performs, with the current value and the proposed one, per quality tier.
 5. **Play Mode check** — five lines at most.
 
-Then update `docs/refactor-pass-log.md` (create it on the first pass): move `last-pass` to `HEAD`,
-add a dated section with the same five headings, and append anything the user explicitly accepted
-as a trade-off to *Accepted trade-offs* so the next pass stays quiet about it.
+Then update `docs/refactor-pass-log.md` (create it on the first pass) in the one format the
+catalog's section 7 gives: move `last-pass` to `HEAD`, add a dated section, and append anything the
+user explicitly accepted as a trade-off to the single top-level *Accepted trade-offs* list so the
+next pass stays quiet about it.
 
 ## Guardrails
 

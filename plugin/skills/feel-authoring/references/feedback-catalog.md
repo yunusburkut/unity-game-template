@@ -15,7 +15,11 @@ Define state derives from `Packages/manifest.json` via the `versionDefines` in
 `Glob **/MoreMountains.Tools.asmdef`). With the template's manifest — URP, uGUI 2.x, Input System,
 the Physics2D module — these are **on:** `MM_URP`, `MM_UI`, `MM_UGUI2`, `MM_INPUTSYSTEM`,
 `MM_PHYSICS2D`. **Off:** `MM_CINEMACHINE`, `MM_CINEMACHINE3`, `MM_POSTPROCESSING`, `MM_HDRP`,
-`MM_VISUALEFFECTGRAPH`. Re-read the asmdef if a package was added or removed since.
+`MM_VISUALEFFECTGRAPH`, `MM_TEXTMESHPRO` (keyed to the old `com.unity.textmeshpro` package and read by no Feel script;
+the TMP feedbacks compile through `MM_UGUI2`), `MM_SCREENCAPTURE` (`com.unity.modules.screencapture` is not in the
+manifest; it gates only the `MMScreenshot` tool, no feedback). Re-read the
+asmdef if a package was added or removed since. This list is the single source for the define state; SKILL.md and
+feel-troubleshooting summarise it and point here.
 
 `MOREMOUNTAINS_NICEVIBRATIONS_INSTALLED` is a **scripting define**, not a version define: Feel's
 `NiceVibrationsDefineSymbols` adds it on Editor load, but only for the build target that is
@@ -209,8 +213,10 @@ UI uses `UnityEngine.UI.Text`, use the uGUI text feedbacks under UI instead, and
 
 `MMF_FreezeFrame` · `MMF_TimescaleModifier`
 
-Both require an `MMTimeManager` in the scene and do nothing without one. A freeze makes any input
-timer on scaled time swallow presses; run input timers unscaled.
+Both require an `MMTimeManager` in the scene and do nothing without one. Read input in `Update`
+(`FixedUpdate` does not run at time scale 0) and count input buffer and coyote timers on the simulation's scaled step
+so they pause with the freeze; an unscaled buffer drains during it and loses the press (`game-feel`
+references/numbers.md section 3.1).
 
 ## Transform — OK (16, F/)
 

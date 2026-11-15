@@ -1,6 +1,9 @@
 # Review rubric (scored out of 10)
 
 Used by every gamekit reviewer when the prompt asks for a score. The reviewer scores; it never edits.
+This file is the single source of the weights and the pass line; the pipeline (SKILL.md 6.3), `gamekit:builder` and
+`/gamekit:feature` apply them and point here. How a round's findings are written into PLAN.md Known issues is
+pipeline 6.4.
 
 ## Score
 

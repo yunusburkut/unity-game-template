@@ -11,7 +11,7 @@ applying SOLID as rules rather than as answers to a felt problem makes code wors
 
 ## Contents
 
-1. Single responsibility — the five-part shape
+1. Single responsibility — the Core/Game parts
 2. Open-closed — the seams this shape already has
 3. When a seam is justified, and which kind
 4. Liskov — contracts on interfaces
@@ -20,16 +20,17 @@ applying SOLID as rules rather than as answers to a felt problem makes code wors
 7. Anti-patterns to reject, with the reason
 8. Worked shapes
 
-## 1. Single responsibility — the five-part shape
+## 1. Single responsibility — the Core/Game parts
 
-Every mechanic built the `unity-architecture` way is split five ways, and "one reason to change"
-maps onto the parts directly:
+Every mechanic built the `unity-architecture` way is split into the parts listed in `unity-architecture` (The split) plus the View, and "one
+reason to change" maps onto the parts directly:
 
 | Part | Example name | Changes when |
 |---|---|---|
 | Config (ScriptableObject) | `MovementConfig`, `BoardConfig` | A designer wants a new dial |
 | Tuning (flat struct, `in`) | `MovementTuning` | The solver needs a derived value |
 | State (struct, `ref`) | `MovementState` | Something new must survive between steps |
+| Input (`readonly struct`, built by Game) | `MovementInput` | A new kind of per-frame intent or query result |
 | Solver (static `Step`) | `MovementSolver` | The rule changes |
 | Glue (sealed MonoBehaviour) | `PlayerController`, `BoardController` | Unity's side changes: physics, transforms, input |
 | View (MonoBehaviour polling edges) | `PlayerFeel`, `BoardView` | Presentation changes |

@@ -1,6 +1,6 @@
 ---
 name: feel-troubleshooting
-description: Diagnosing a Feel feedback that does nothing, fires once and stops, will not compile, leaves an object at a half-finished value, or acts differently on the second Play session. Use when PlayFeedbacks() shows nothing, MMF_ / MoreMountains types fail to resolve, a shake or freeze frame is ignored, or juice that worked stopped working.
+description: "Feel feedback broken (\"feedback çalışmıyor\", \"shake olmuyor\", \"titreşim yok\"): PlayFeedbacks() shows nothing, fires once, MMF_ types won't compile, shake/freeze ignored, value left half-done, juice stopped working or differs on 2nd Play."
 ---
 
 # When a feedback does nothing
@@ -24,14 +24,18 @@ reference `"MoreMountains.Tools"`. In Core, Feel never belongs: move the code to
 version define that `MoreMountains.Tools.asmdef` derives from the package manifest: `MMF_Cinemachine*`
 (Cinemachine absent; use `MMF_CameraShake` with an `MMCameraShaker`), the PPv2 post-process family
 (use the `_URP` variants), HDRP and VFX Graph feedbacks. The fix is to pick an available feedback, not
-to add a package; the small manifest is deliberate, ask first.
+to add a package; the small manifest is deliberate, ask first. The full define table (on/off with the
+template's manifest, including `MM_TEXTMESHPRO` and `MM_SCREENCAPTURE`) is the top section of
+`feel-authoring/references/feedback-catalog.md`, and the per-feedback on/off list follows it there.
 
 **Namespace is wrong** — `MoreMountains.Feedbacks` for the player, feedbacks, shakers, springs,
 `MMTimeManager`, `MMWiggle`; `MoreMountains.Tools` for `MMSoundManager`, poolers;
 `MoreMountains.FeedbacksForThirdParty` for the URP post-process shakers and `MMCameraZoom`.
 
 **Code from a tutorial does not compile** — it is probably legacy API. `GetComponent<MMFeedbacks>()`
-and `MMFeedbackScale` became `MMF_Player` and `MMF_Scale` in Feel 3.0.
+and `MMFeedbackScale` became `MMF_Player` and `MMF_Scale` in Feel 3.0. `MMVibrationManager` is the
+pre-v4 Nice Vibrations API and does not exist in Feel 6.1; use `HapticPatterns` / `HapticController`
+(`Lofelt.NiceVibrations`).
 
 ## `PlayFeedbacks()` runs but nothing happens
 
@@ -41,19 +45,23 @@ Check, in this order:
    session — warnings reach `Logs/agent/console.log`, a plain `Debug.Log` does not. One-step edge
    flags like `Landed` are reset at the top of every solver step, so polling them anywhere other than
    immediately after the step misses them entirely.
-2. **`Active` on the individual feedback**, and `Active` on the player's `CanPlay`.
-3. **`ChanceToPlay`** on the player or `Chance` on the feedback, if either is below 100.
-4. **`CooldownDuration`** on the player or in the feedback's `Timing` — a second call inside the
+2. **`Active` on the individual feedback**, and `CanPlay` on the player.
+3. **The player's GameObject is inactive in the hierarchy** (a pooled or disabled object) — the
+   player refuses to play from it.
+4. **`CanPlayWhileAlreadyPlaying` is false** and the player is still running from the previous
+   call, or `AutoPlayOnEnable` already started it in the same frame as `Start`.
+5. **`ChanceToPlay`** on the player or `Chance` on the feedback, if either is below 100.
+6. **`CooldownDuration`** on the player or in the feedback's `Timing` — a second call inside the
    cooldown is silently dropped.
-5. **`OnlyPlayIfWithinRange`** with a `RangeCenter` that is null or far away. The player just does
+7. **`OnlyPlayIfWithinRange`** with a `RangeCenter` that is null or far away. The player just does
    not play.
-6. **`UseIntensityInterval`** on a feedback, with the incoming intensity outside
+8. **`UseIntensityInterval`** on a feedback, with the incoming intensity outside
    `IntensityIntervalMin`–`Max`. This is the usual cause of "the heavy landing effect never fires".
-7. **`LimitPlayCount` / `MaxPlayCount`** — the feedback has used up its plays.
-8. **`MMFeedbacks.GlobalMMFeedbacksActive`** is false, or the feedback class's static
+9. **`LimitPlayCount` / `MaxPlayCount`** — the feedback has used up its plays.
+10. **`MMFeedbacks.GlobalMMFeedbacksActive`** is false, or the feedback class's static
    `FeedbackTypeAuthorized` is false. Both are global kill switches; with Play Mode reload disabled
    they survive from a previous session (see below).
-9. **`MMFeedbacksDirectionCondition`** is `OnlyWhenForwards`/`OnlyWhenBackwards` and the player is
+11. **`MMFeedbacksDirectionCondition`** is `OnlyWhenForwards`/`OnlyWhenBackwards` and the player is
    going the other way.
 
 ## The listener is missing
@@ -73,6 +81,10 @@ Nothing is logged.
 The feedback inspector's **Automatic Shaker Setup** button (or `player.AutomaticShakerSetup()`)
 creates the listener.
 
+A listener that exists can still drop the event: a shaker whose GameObject is inactive in the
+hierarchy ignores every event, and a feedback with `Timing` > `UseRange` reaches only shakers within
+`RangeDistance` (5 by default) of the feedback's position — a camera farther away never shakes.
+
 One extra trap for URP post-process feedbacks: the shaker must exist **and** the Volume profile must
 actually contain that override: a Chromatic Aberration shaker on a profile without Chromatic
 Aberration has nothing to drive. Read the scene's Volume profile before blaming the feedback.
@@ -82,7 +94,9 @@ Aberration has nothing to drive. Read the scene's Volume profile before blaming 
 A shaker only reacts when its channel matches the event's. Channel mismatch is silent and is the
 single most annoying Feel bug to find, because everything looks correctly wired.
 
-Channel 0 is the catch-all default. If you moved one side to a named `MMChannel` asset or to a
+Channel 0 is only the default: it matches channel 0 and nothing else, so a shaker on 0 and a
+feedback on 3 never meet. Only a null channel (an event triggered from code without channel data)
+matches every shaker. If you moved one side to a named `MMChannel` asset or to a
 non-zero integer, move the other side too. Check `ChannelMode` as well as the value — `Int 0` and
 `MMChannel <asset>` do not match.
 
@@ -102,9 +116,13 @@ hand-edit a `.unity` file while the Editor is open.
   camera shake, and anything that must play *during* the freeze needs `Unscaled`. The player's own
   `PlayerTimescaleMode` and `ForceTimescaleMode` override children.
 - **Freeze frame does nothing when the game is already slowed** — `MMF_FreezeFrame` has a
-  `MinimumTimescaleThreshold` of 0.1 and refuses to stack onto an already-slowed game.
-- **Input is eaten during a hit stop** — the jump buffer and coyote timers are advancing on scaled
-  time. They must run unscaled, or a freeze silently swallows presses.
+  `MinimumTimescaleThreshold` of 0.1 and refuses to fire while `Time.timeScale` is already below it,
+  i.e. during another freeze or a near-zero slow-mo. A game slowed to 0.5 still freezes; if it does
+  not, look for a missing `MMTimeManager` or a channel mismatch instead.
+- **Input is eaten during a hit stop** — either presses are read only in `FixedUpdate` (which does
+  not run at time scale 0), or the jump buffer and coyote timers count unscaled time and drain during
+  the freeze. Read input in `Update` and count those timers on the simulation's scaled step
+  (`SimulationStep.Delta`) so they pause with the freeze (`game-feel` references/numbers.md section 3.1).
 - **Timescale never returns to 1** — `MMTimeManager` keeps modifiers on a stack. An unbalanced
   `MMTimeScaleEvent.Trigger` needs its `Unfreeze()`; `MMTimeScaleEvent.Reset()` clears the stack.
 
@@ -141,7 +159,8 @@ class's `FeedbackTypeAuthorized`, and any singleton instance Feel or our code ho
 
 If a setting we wrote (an accessibility toggle, a debug kill switch) is not reset in a
 `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]` method, the first
-run after a recompile will look right and the second will not. Test the second run.
+run after a recompile will look right and the second will not. Test the second run. How to write
+such a static in the first place is in `feel-authoring`.
 
 ## It is slow, or the Inspector is sluggish
 
@@ -156,8 +175,8 @@ run after a recompile will look right and the second will not. Test the second r
 
 ## Nothing above explains it
 
-Open a reference scene and compare against a known-working setup:
-`Assets/Feel/MMFeedbacks/Demos/MMFeedbacksDemo/MMF_PlayerDemo.unity` exercises every feedback,
-`Assets/Feel/FeelDemos/Bounce/FeelBounce.unity` shows the same jump with and without feedbacks, and
-`Assets/Feel/FeelDemos/Toaster/FeelToaster.unity` compares 20+ shake variations. Official docs:
-https://feel-docs.moremountains.com/ and the API at http://feel-docs.moremountains.com/API/.
+Open a reference scene and compare against a known-working setup: the shipped demo scenes, only if the
+Feel demos were imported (games made by `new-game.ps1` have no `FeelDemos/` or `MMFeedbacks/Demos/`; check with
+Glob first, otherwise use the online docs) (every
+feedback, the same jump with and without feedbacks, 20+ shake variations) and the official docs and
+API index are listed with their paths under References in `feel-authoring`.

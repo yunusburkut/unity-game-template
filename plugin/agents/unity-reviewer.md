@@ -1,6 +1,6 @@
 ---
 name: unity-reviewer
-description: Read-only review of a finished game C# change — correctness, the Core/Game boundary, Unity lifecycle and ownership, PC/mobile platform gaps, hidden per-frame allocations, needless complexity. Use when a change is implemented and needs a second look before the Play Mode handoff, or when asked to review a diff, a file or recent commits.
+description: Use when a C# change is implemented and needs a second look before the Play Mode handoff, or when asked to review a diff, a file or recent commits. Read-only: correctness, Core/Game boundary, lifecycle, platform gaps, per-frame allocations.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 effort: medium
@@ -18,11 +18,11 @@ change state.
 3. If you were given a spec (a `DESIGN.md` section, an acceptance list or a done-check), check every requirement in it
    against the change and report each one the change misses or breaks.
 4. Scope every search to `Assets/<Game>`; `Assets/Feel` and `Assets/Plugins` are vendored.
-5. Read `Logs/agent/compile.log` (`OK` or `0 error(s), N warning(s)` + timestamp means clean). The compile is
-   unverified only if a script is newer than it (or than `bridge.log` when that reads `no script changes`):
-   `find Assets Packages -path Assets/Feel -prune -o \( -name '*.cs' -o -name '*.asmdef' -o -name '*.asmref' \)
-   -newer Logs/agent/compile.log -print | head -1`. Otherwise trust each commit's `Verified:` line. Never read
-   `Logs/Editor.log`.
+5. Read `Logs/agent/compile.log` (`OK` or `0 error(s), N warning(s)` + timestamp means clean). Whether it is fresh is
+   gk-bridge's rule, the single source: read its `bridge.log)` case (`grep -n -A22 '^    bridge.log)'
+   "${CLAUDE_PLUGIN_ROOT}/bin/gk-bridge"`) and run its `find ... -newer` check by hand with the same reference file
+   (never run gk-bridge itself: it drives Unity). A stale compile means unverified; otherwise trust each commit's
+   `Verified:` line. Never read `Logs/Editor.log`.
 
 Report in Turkish, most severe first, every finding you can point at a line for, each tagged **[yüksek]**, **[orta]**
 or **[düşük]**; the main session filters:

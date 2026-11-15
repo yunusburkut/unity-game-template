@@ -1,6 +1,6 @@
 ---
 name: feel-authoring
-description: Wiring Feel (MMF_Player, feedbacks, shakers, Nice Vibrations, MMSoundManager, MMTimeManager) into the game — the assembly reference, where code goes, reading simulation edge flags, mobile haptics. Use when adding or changing juice, shake, hit stop, particles, sound or vibration. A feedback that misbehaves is feel-troubleshooting.
+description: Use when adding or changing juice, shake, hit stop, particles, sound or vibration ("juice ekle", "titreşim") - wiring Feel (MMF_Player, shakers, Nice Vibrations) into the game. A feedback that misbehaves is feel-troubleshooting.
 ---
 
 # Using Feel
@@ -15,15 +15,17 @@ Feel ships **no `MoreMountains.Feedbacks` assembly**. Every MMFeedbacks folder c
 `MoreMountains.Tools`, so all feedbacks, shakers, springs and `MMSoundManager` compile into that one assembly.
 
 The first time Game uses Feel, add `"MoreMountains.Tools"` to `Assets/<Game>/Game/<Game>.Game.asmdef`. Haptics
-(`MMF_NV*` feedbacks, `MMVibrationManager`) also need `"Lofelt.NiceVibrations"`. `<Game>.Core` never gets either:
+(`MMF_NV*` feedbacks, `HapticPatterns` / `HapticController`) also need `"Lofelt.NiceVibrations"`. `<Game>.Core` never gets either:
 if a Feel type is needed in Core, the design is wrong.
 
 ## What compiles
 
-`MoreMountains.Tools.asmdef` turns feedback families on from the package manifest: URP post-process feedbacks
-(`_URP` variants), uGUI and TMP (`ugui` 2.x ships TMP), Input System, Physics2D are on. Cinemachine, PPv2, HDRP and
-VFX Graph feedbacks do not exist here; most Feel tutorials reach for Cinemachine impulses, use `MMF_CameraShake` with
-an `MMCameraShaker` instead. Do not add a package to turn a family on without asking.
+`MoreMountains.Tools.asmdef` turns feedback families on from the package manifest through version defines. In short:
+URP post-process feedbacks (`_URP` variants), uGUI and TMP (`ugui` 2.x ships TMP), Input System, Physics2D are on;
+Cinemachine, PPv2, HDRP and VFX Graph feedbacks do not exist here. Most Feel tutorials reach for Cinemachine impulses,
+use `MMF_CameraShake` with an `MMCameraShaker` instead. The define-by-define table (the single source; re-read it when
+the manifest changes) is `references/feedback-catalog.md`, top section. Do not add a package to turn a family on
+without asking.
 
 ## Where the code goes
 
@@ -45,12 +47,14 @@ Play session.
 ## PC and mobile
 
 - **Haptics are mobile only.** `MMF_NVPreset` / `MMF_NVEmphasis` on the same `MMF_Player` as the visual feedback;
-  Nice Vibrations does nothing on PC, so no `#if` is needed. Keep a player setting to turn them off, and keep them
+  on PC Nice Vibrations only rumbles a connected gamepad, so no `#if` is needed. Keep a player setting to turn them
+  off (`HapticController.hapticsEnabled`, which covers phone and gamepad alike), and keep them
   short: a light preset for taps, a medium one for a win, never a continuous rumble.
 - **Shake less on a phone.** The screen is in the player's hand and close to the eyes: scale camera shake by a tuning
   value per tier rather than authoring two players.
-- **Hit stop** (`MMF_FreezeFrame`) needs an `MMTimeManager` in the scene and makes input timers that run on scaled
-  time swallow presses; run those unscaled.
+- **Hit stop** (`MMF_FreezeFrame`) needs an `MMTimeManager` in the scene and does not eat presses as long as input
+  is read in `Update` and buffer/coyote timers count the simulation's scaled step (`SimulationStep.Delta`), so they
+  pause with the freeze; unscaled time is for camera shake and UI (`game-feel` references/numbers.md section 3.1).
 - **Particles** are the first thing to cut on the Mobile tier (`unity-performance`).
 
 ## References
@@ -60,6 +64,8 @@ Play session.
 - `references/feedback-catalog.md` (which feedbacks compile here, haptics define per platform) and
   `references/recipes.md` (starting stacks per game event, and a code-side `Haptics` service).
 - Official docs: https://feel-docs.moremountains.com/ · API index http://feel-docs.moremountains.com/API/
-- Reference scenes shipped with the asset: `Assets/Feel/MMFeedbacks/Demos/MMFeedbacksDemo/MMF_PlayerDemo.unity`
+- Reference scenes shipped with the full asset, present only if the Feel demos were imported (games made by
+  `new-game.ps1` copy Feel without them; check with Glob before citing them, and otherwise import the demos from the
+  Package Manager's My Assets or use the online docs): `Assets/Feel/MMFeedbacks/Demos/MMFeedbacksDemo/MMF_PlayerDemo.unity`
   (every feedback), `Assets/Feel/FeelDemos/Bounce/FeelBounce.unity` (the same jump with and without feedbacks),
   `Assets/Feel/FeelDemos/Toaster/FeelToaster.unity` (20+ shake variations side by side).

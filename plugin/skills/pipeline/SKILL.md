@@ -1,6 +1,6 @@
 ---
 name: pipeline
-description: Running an M or L game task end to end - the prompt becomes a spec card in PLAN.md, then context, plan, build with a compile gate per step, verify, a scored review loop until every reviewer gives 9/10, and the Play Mode handoff. Use when the task router sizes a task M or L, or when asked to plan, build or finish a feature properly.
+description: Use when the router sizes a game task M or L, or on "planla", "düzgün bitir", "devam", "review et", "puanla" - spec card in PLAN.md, context, plan, build with a compile gate per unit, verify, scored review until 9/10, Play Mode handoff.
 ---
 
 # Pipeline
@@ -45,9 +45,10 @@ Now already holds another card: ask whether to finish it (`devam`) or park it. P
 Why: <what the player gets, one line>
 Scope: <areas, Core/Game, scenes/prefabs touched>    Not: <what is explicitly left out>
 Targets: PC | Phone | WebGL
+Budget: <ms or bytes allocated per frame, on the slowest target | no per-frame cost - <why>>
 Accept:
-- [ ] <checkable outcome> - evidence: <play-capture (what it shows) | dosya:satır (a code-level claim) | Play Mode (user) | gk-bridge refresh (only an item about compiling)>
-Assumptions: <M: your reading of anything ambiguous, or "none">
+- [ ] <checkable outcome> - evidence: <play-capture (what it shows) | dosya:satır (a code-level claim) | test run (gk-bridge run-tests, after the user's yes) | Play Mode (user) | gk-bridge refresh (only an item about compiling)>
+Assumptions: <M: your reading of anything ambiguous, each as "<reading> (break it when: <condition>)" when it has one, or "none">
 Open questions: <L: only those whose answer changes the build, or "none">
 Base: <`git rev-parse --short=7 HEAD`, run when the card is written: the card's key>
 Plan:
@@ -72,7 +73,7 @@ Review: <after each round: r1 unity-reviewer 8, clarity-reviewer 9 (its findings
   2-3 binary candidates before building: input to visible response within 1 frame at 60 fps; the menu in at most 2
   taps from any screen; 4 of 5 testers pick the right option first time. M: pick one, note it under Assumptions; L: ask.
 - Ready to leave phase 1: `Not:` is filled, what the card depends on is done, and a card that touches per-frame code
-  states a budget or `no per-frame cost - <why>`.
+  fills its `Budget:` line (the number Verify and the reviewers check it against).
 - A tuning or rule-change card adds these lines (DESIGN.md Rules changes in the same commit):
   ```
   Tune: | Parameter | Old | New | Why | In range? |   (DESIGN.md or the field's [Range]; outside: a one-line reason)
@@ -129,7 +130,9 @@ Per unit, in order:
 2. `gk-bridge refresh` in Bash (it ends within the Bash tool's default 120 s). Exit 1: fix it; the same error after
    two fixes: stop and run `gamekit:bug-hunter`. Exit 2: commit with `Verified: compile unverified (<reason>)` and
    leave the unit unticked, so `devam` gates it again; go on only if the next unit does not depend on it, and tell the
-   user what to open or end (Unity, Play Mode).
+   user what to open or end (Unity, Play Mode). Run `gk-bridge refresh` again before Verify and before phase 7: a pass
+   ticks the unit (commit PLAN.md with `Verified: gk-bridge refresh PASS <time>`); a unit still unknown at phase 7
+   goes to Pending Play Mode checks as `compile unverified: <unit> - focus Unity, check the Console`.
 3. Platform code, after exit 0: `#if UNITY_ANDROID` also gets `gk-bridge compile android`, `#if UNITY_IOS` gets
    `compile ios`, and `#if !UNITY_EDITOR` code gets both, one after the other (the Editor never compiles it; two
    gk-bridge calls at once read each other's answers). A FAIL is fixed like step 2. An UNKNOWN (no answer in time, the
@@ -151,14 +154,15 @@ run stays unticked and goes to the reviewers as such.
 
 1. Pick reviewers by what changed: `gamekit:unity-reviewer` always (it covers per-frame cost with
    `unity-performance`); `gamekit:clarity-reviewer` for player-facing text; `gamekit:design-critic` for a level or
-   mechanic. Run them in parallel.
+   mechanic. Run them in parallel. A unit or a fix that adds or changes player-facing text adds
+   `gamekit:clarity-reviewer` from the next round on, even when the first pick left it out.
 2. Brief each one: "Score this change with the review rubric. Range: the card's commits (`git log --format=%h
    --grep='^Card: <Base>' <Base>..HEAD`, plus the `önce` grep of a repaired Base; other commits there are other
    work). Spec card: PLAN.md Now." plus the Accept
    items Verify left open (with their `failed:` / `not run:` reason) and every `disputed` line so far. They read
    `${CLAUDE_PLUGIN_ROOT}/skills/pipeline/references/review-rubric.md`.
-3. The score is the arithmetic on each reviewer's listed findings (10, -3 per [yüksek], -1 per [orta]); a different
-   number the reviewer wrote is noted, not used.
+3. The score is the rubric's arithmetic (its Score table is the single source of the weights: 10, -3 per [yüksek],
+   -1 per [orta]) on each reviewer's listed findings; a different number the reviewer wrote is noted, not used.
 4. Before fixing, write the round into PLAN.md (files survive `/clear`; the fix commit carries it): the scores on the
    card's Review line, and each [yüksek] and [orta] finding as a Known issues line
    `review <Base>: [orta] dosya:satır - <what> (<reviewer>) - <what breaks it> - düzeltme: <fix>`, in place of this
@@ -168,8 +172,12 @@ run stays unticked and goes to the reviewers as such.
    phase 7, which writes the last round's: a fix may wire one in code, and every round reads the whole range, so a
    step still needed is named again. Then judge each finding against the code. Fix the real ones (gate + commit with
    `Card: <Base>`; one commit per round is enough) and drop their lines; an Accept item a fix repairs gets its
-   evidence check run again and is ticked with it. A wrong one becomes
-   `review <Base>: disputed dosya:satır - <evidence>`; never drop it silently.
+   evidence check run again and is ticked with it, and so does every ticked Accept item whose evidence file a fix
+   commit touched (`git show --stat` over the round's fix commits): its `dosya:satır` may have moved. A wrong one becomes
+   `review <Base>: disputed dosya:satır - <evidence>`; never drop it silently. One disputed line per dosya:satır: a
+   newer dispute of the same place replaces it. When every [yüksek]/[orta] a round lists is already disputed, do not
+   run another round: each becomes a [karar] in Next (accept the finding, or keep the code) and the card stays open as
+   in 6.
 5. Re-review with **new** agent calls (a fresh reviewer, never a resumed one). Stop when every score is 9 or more.
 6. After round 3 below 9: no handoff. Write the round as in 4, its Inspector/scene steps to Pending too, without
    fixing; commit `design: review open for <goal>`
@@ -190,6 +198,8 @@ in the body.
 First compare the card's own commits (`git show --stat` over the `--grep='^Card: <Base>'` list, never a plain diff
 of the range) against Scope and Not: each addition outside Scope or inside Not is named in the handoff as kept, or
 moved to Next; a cut lands after the review, so it needs a `gk-bridge refresh` and its own Pending check.
+In an unattended run (`/gamekit:feature`) nobody can choose a cut: keep the code and add a Next [karar]
+`kapsam dışı: <file> - <what> - seçenekler: tut (Scope'a yaz) ya da kes`.
 In the last commit (its body lists the scores): the card's Assumptions copied to DESIGN.md Decisions, PLAN.md Now back
 to its TODO line (nothing moves up from Next: a Next item reaches Now only through phase 1, when the
 user asks for it), Pending Play Mode checks written as concrete actions with the expected result, for PC and, when
@@ -197,17 +207,26 @@ input, UI or performance changed, the phone. The reviewers' Inspector/scene step
 act on go into Pending too; an [orta] a passing review left, a reviewer's unscored "Önceden:" line, and an Accept
 item still unticked that is not a Play Mode check, go to Known issues as `review <Base>: ` lines; a `review <Base>: `
 line the final review no longer lists leaves the file (other lines, another card's or the user's, stay); a [karar]
-item (with its options or the playtest to run) and a builder's needed extra go to PLAN.md Next. What 6.4 already
+item (with its options or the playtest to run) and a builder's needed extra go to PLAN.md Next. Next keeps at most 5
+items: merge related ones and list what still does not fit in the commit body, older non-decision items first; a
+[karar] line always stays in Next, past 5 if it must. What 6.4 already
 wrote stays as it is: never a second copy.
-Then tell the user, in this order: what now works, the assumptions and own calls taken (each to keep or change: a
-change is a fix now or a Next item), the scores, what stayed unverified, the
-decisions waiting for them in Next, the Play Mode checklist, and that `push et` sends the commits to GitHub.
+A Plan unit still unticked after `compile unverified` gets one more `gk-bridge refresh` first (4.2); still unknown, it
+goes to Pending as 4.2 says and the handoff names it. Then tell the user what now works, the assumptions and own calls
+taken (each to keep or change: a change is a fix now or a Next item), the scores, what stayed unverified (a compile
+first), the decisions waiting for them in Next, the Play Mode checklist, and that `push et` sends the commits to
+GitHub. This is the content; the output style and ADHD rules set the order and size, and the first Play Mode check is
+the closing next action.
 
 ## Longer than one session
 
-`devam` reads PLAN.md Now and `git log -10`, then continues: a Base line that is missing or no sha gets one first
-(the parent of the oldest commit whose body carries `Card: <that line>`, written `Base: <sha> (önce: <that line>)`
-so the range keeps those commits; with no such commit, `git rev-parse --short=7 HEAD`; commit PLAN.md); a card
+`devam` reads PLAN.md Now and `git log -10`, then continues: a Base line with no sha gets one first (the parent of the
+oldest commit whose body carries `Card: <that line>`, written `Base: <sha> (önce: <that line>)` so the range keeps
+those commits; with no such commit, `git rev-parse --short=7 HEAD`; commit PLAN.md). A missing Base line: no Plan
+line ticked, `git rev-parse --short=7 HEAD`; units ticked, the parent of the oldest commit that added the card's goal
+line (`git log --reverse --format=%h -S'<goal>' -- PLAN.md`), with `(önce: <x>)` when the card's commits carry
+`Card: <x>`; nothing found, ask the user for the card's first commit, never HEAD (it would drop the built units from
+review and the scope audit; `/gamekit:feature` stops on the same card for this reason). Then a card
 whose Open questions line still lists questions from phase 1 L (ask them, write the answers, commit, then go on); a
 card with no Plan lines from phase 2; else from
 the first unticked Plan line; once every unit is ticked, from Verify while an Accept item is unticked with no

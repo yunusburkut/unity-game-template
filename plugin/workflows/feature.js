@@ -54,11 +54,12 @@ const PLAN = {
       items: {
         type: 'object',
         properties: {
+          line: { type: 'integer', minimum: 1, description: 'the number of its line in the card\'s "Plan:" list, as written there (ticked lines keep theirs)' },
           title: { type: 'string' },
           files: { type: 'string' },
           platforms: { type: 'array', items: { enum: ['android', 'ios'] }, description: 'phones whose code the unit touches: #if UNITY_ANDROID / UNITY_IOS, or #if !UNITY_EDITOR code they compile' },
         },
-        required: ['title', 'files', 'platforms'],
+        required: ['line', 'title', 'files', 'platforms'],
       },
     },
     reviewers: {
@@ -78,7 +79,7 @@ const BUILD = {
     note: { type: 'string', description: 'a step the user must do (Inspector, scene, a build check), else empty' },
     playerText: { type: 'boolean', description: 'true when this commit adds or changes player-facing text (UI strings, hints, labels)' },
     extras: { type: 'array', items: { type: 'string' }, description: 'work outside the unit the change needs, one line each, else empty' },
-    disputes: { type: 'array', items: { type: 'string' }, description: 'review findings judged wrong, each with file:line evidence' },
+    disputes: { type: 'array', items: { type: 'string' }, description: 'review findings judged wrong, each "<the finding\'s where, as given> - <file:line evidence>"' },
   },
   required: ['status', 'gate', 'commit', 'note', 'playerText', 'extras', 'disputes'],
 }
@@ -133,8 +134,9 @@ const HANDOFF = {
     subject: { type: 'string', description: 'that commit\'s subject line, or "yok"' },
     playmode: { type: 'array', items: { type: 'string' } },
     assumptions: { type: 'array', items: { type: 'string' }, description: 'the card\'s Assumptions, else empty' },
+    outOfScope: { type: 'array', items: { type: 'string' }, description: 'each addition of the card\'s commits outside its Scope or inside its Not ("<file> - <what> - kept"), else empty' },
   },
-  required: ['commit', 'subject', 'playmode', 'assumptions'],
+  required: ['commit', 'subject', 'playmode', 'assumptions', 'outOfScope'],
 }
 
 const short = t => t.replace('gamekit:', '')
@@ -145,7 +147,9 @@ const list = (title, xs) => xs.length ? title + ':\n- ' + xs.join('\n- ') + '\n'
 // the same shapes in PLAN.md as a main-session round writes (pipeline 6.4)
 const decided = s => s.findings.filter(f => f.severity === 'karar').map(f => fmt(f, s.reviewer) + ' - ' + f.fix)
 const olderLine = s => 'önceden ' + s.older + ' (' + short(s.reviewer) + ')'
-// the score is the rubric's arithmetic on the listed findings; a reviewer's own number is logged, never used
+// the score is the rubric's arithmetic on the listed findings; a reviewer's own number is logged, never used. The
+// weights (yüksek -3, orta -1, floor 0) come from the Score table in skills/pipeline/references/review-rubric.md: change them there first
+// and mirror them here
 const points = s => Math.max(0, 10 - 3 * s.findings.filter(f => f.severity === 'yüksek').length -
   s.findings.filter(f => f.severity === 'orta').length)
 // a stopped gate, in the user's words: FAIL is Claude's to fix, UNKNOWN needs the Editor fixed first (REHBER: Sinyaller)
@@ -242,8 +246,8 @@ const built = []
 for (let i = 0; i < plan.units.length; i++) {
   const u = plan.units[i]
   const r = await call(
-    'Build unit ' + (i + 1) + '/' + plan.units.length + ' of the spec card in ' + SPEC + ': "' + u.title + '" (files: ' +
-    u.files + ').' +
+    'Build unit ' + (i + 1) + '/' + plan.units.length + ' of this run, the card\'s Plan line ' + u.line + ', in ' + SPEC +
+    ': "' + u.title + '" (files: ' + u.files + '). Tick that line, number ' + u.line + ', and no other.' +
     (u.platforms.length ? ' It touches platform #if code: also run ' + u.platforms.map(p => '`gk-bridge compile ' + p + '`').join(', then ') + ', one at a time.' : '') +
     (built.length ? ' Already built: ' + built.map(b => b.commit).join('; ') + '.' : '') + CARDLINE,
     { agentType: 'gamekit:builder', label: 'birim ' + (i + 1), phase: 'Yap', schema: BUILD })
@@ -274,7 +278,21 @@ if (built.some(b => b.playerText) || (verify && verify.playerText)) needClarity(
 phase('Review')
 const rounds = []
 // a rerun on a card left "review open" keeps what its earlier rounds disputed (pipeline 6.2)
-let disputes = check.disputes || []
+// a dispute's key is the finding's where: "review <key>: disputed <where> - <evidence>" (a rerun) or
+// "<where> - <evidence>" (a fix round); one line per where, the latest evidence kept
+const disputeKey = d => String(d).replace(/^review \S+: disputed /, '').split(' - ')[0].trim().toLowerCase()
+const dedupeDisputes = ds => Array.from(new Map(ds.filter(given).map(d => [disputeKey(d), d])).values())
+// a reviewer may word the where a little differently: the same file:line matches, else the same text; a bare file
+// never matches, so a dispute about one line does not swallow another finding in that file
+const fileLine = t => { const m = /[\w./\\-]+\.\w+:\d+/.exec(t); return m ? m[0].replace(/\\/g, '/') : '' }
+const sameWhere = (w, k) => { const a = fileLine(w), b = fileLine(k); return a || b ? a === b : w === k }
+const disputedBy = f => {
+  const w = String(f.where).trim().toLowerCase()
+  const d = w && disputes.find(x => { const k = disputeKey(x); return k && sameWhere(w, k) })
+  return d ? String(d).replace(/^review \S+: disputed /, '') : ''
+}
+let disputes = dedupeDisputes(check.disputes || [])
+let stalled = []
 let last = []
 // every review of every round: a decision or an older problem only round 1 named still reaches Teslim
 const everyRound = []
@@ -301,14 +319,28 @@ for (let round = 1; round <= MAX_ROUNDS; round++) {
     .map(f => fmt(f, s.reviewer) + ' - ' + f.breaks + ' - düzeltme: ' + f.fix))
   // a score below 9 always has findings (the arithmetic); with none, only a silent reviewer is left: call it again
   if (!findings.length) continue
+  // tie-break: when every finding still costing points is one the builder already disputed with evidence, another
+  // round only repeats the disagreement; it becomes the user's [karar] (accept the finding, or keep the code)
+  const costing = last.flatMap(s => s.findings.filter(f => f.severity === 'yüksek' || f.severity === 'orta')
+    .map(f => ({ f, s })))
+  if (disputes.length && costing.every(({ f }) => disputedBy(f))) {
+    stalled = costing.map(({ f, s }) => '[karar] ' + f.where + ' - ' + f.what + ' (' + short(s.reviewer) + ', disputed: ' +
+      disputedBy(f) + ') - seçenekler: bulguyu kabul et (Claude düzeltir) ya da kodu koru (bulgu kapanır)')
+    log('Tur ' + round + ': kalan bulguların hepsi itirazlı; karar kullanıcıya kaldı')
+    break
+  }
   const fix = await call(
-    'Unit: review fixes, round ' + round + ', for the spec card in ' + SPEC + '. Before fixing, write the round into ' +
-    SPEC + ', so a later session can go on from it: set the card\'s "Review:" line to "' + line + '", and under "## ' +
-    'Known issues" make each finding below one line "review ' + KEY + ': <finding>", in place of the "review ' + KEY +
-    ': " lines from the round before (its "disputed" lines stay; other lines stay). Then judge each finding against ' +
-    'the code. Fix the real ones in one commit (gate first) with ' + SPEC + ', and drop their lines; an Accept item you ' +
-    'fix gets its evidence check run again and is ticked with it. For a finding that is wrong, change no code: add a ' +
-    'dispute with file:line evidence, and its line becomes "review ' + KEY + ': disputed <file:line> - <evidence>".' +
+    'Unit: review fixes, round ' + round + ', for the spec card in ' + SPEC + '. This is gamekit:pipeline phase 6.4 ' +
+    '(load it with the Skill tool; where it and this brief differ, the brief is the workflow\'s own state and wins). ' +
+    'Before fixing, write the round into ' +
+    SPEC + ', so a later session can go on from it: set the card\'s "Review:" line to "' + line + '", and write the rest ' +
+    'of the round as gamekit:pipeline 6.4 says (skills/pipeline/SKILL.md; the card key is ' + KEY + ', each ' +
+    'finding below is already in its line form). Then judge each finding against the code. Fix the real ones in one ' +
+    'commit (gate first) with ' + SPEC + ', and drop their lines; an Accept item you fix gets its evidence check run ' +
+    'again and is ticked with it, and so does every ticked Accept item whose evidence file a fix commit touched (`git ' +
+    'show --stat` over the round\'s fix commits: its file:line may have moved). For a finding that is wrong, change no code: add a ' +
+    'dispute "<the finding\'s where, as given> - <file:line evidence>", and its line becomes "review ' + KEY +
+    ': disputed <that where> - <evidence>" (one per where: a newer dispute of the same where replaces the line).' +
     ' Write the lists after the findings too, each line once (one already there is not added again).' +
     CARDLINE + ' Findings:\n- ' + findings.join('\n- ') + '\n' +
     list('Decisions for "## Next", with their options', uniq(last.flatMap(decided))) +
@@ -319,17 +351,19 @@ for (let round = 1; round <= MAX_ROUNDS; round++) {
   }
   built.push(fix)
   if (fix.playerText) needClarity()
-  disputes = disputes.concat(fix.disputes)
+  disputes = dedupeDisputes(disputes.concat(fix.disputes))
 }
 const silent = reviewers.filter(t => !last.some(s => s.reviewer === t))
 const passed = !silent.length && last.every(s => s.score >= 9)
-const open = last.flatMap(s => s.findings.filter(f => f.severity === 'yüksek' || f.severity === 'orta')
+// a stalled dispute is the user's decision (Next), not an open finding as well
+const open = last.flatMap(s => s.findings.filter(f => (f.severity === 'yüksek' || f.severity === 'orta') &&
+  !(stalled.length && disputedBy(f)))
   .map(f => fmt(f, s.reviewer) + ' - ' + f.breaks + ' - düzeltme: ' + f.fix))
   .concat(silent.map(t => 'review missing: ' + short(t) + ' did not answer'))
 // a decision keeps its options (or the playtest to run), so the user can choose from PLAN.md Next alone; one per
 // file:line and question across rounds, the latest options kept (the handoff merges reworded repeats)
 const decisions = Array.from(new Map(everyRound.flatMap(s => s.findings.filter(f => f.severity === 'karar')
-  .map(f => [f.where + ' | ' + f.what, fmt(f, s.reviewer) + ' - ' + f.fix]))).values())
+  .map(f => [f.where + ' | ' + f.what, fmt(f, s.reviewer) + ' - ' + f.fix]))).values()).concat(stalled)
 // Inspector steps from the last round only, so the fix rounds do not write them: each round reads the whole range
 // (a step still needed is named again), and a fix may have made an earlier step obsolete (wired in code)
 const steps = uniq(last.map(s => s.inspector).filter(given).concat(built.map(b => b.note).filter(given)))
@@ -347,10 +381,16 @@ const unticked = 'Every line you add under "## Known issues" starts with "review
   'what still does not fit in the commit body, older non-decision items first; a [karar] line always stays in Next ' +
   '(the user looks there), past 5 if it must. '
 const handoff = await call(passed
-  ? 'Hand off the spec card in ' + SPEC + ' (gamekit:pipeline phase 7). First set the card\'s "Review:" line to "' +
+  ? 'Hand off the spec card in ' + SPEC + ': this is gamekit:pipeline phase 7 (load it with the Skill tool; where it ' +
+    'and this brief differ, the brief is the workflow\'s own state and wins). First set the card\'s "Review:" line to "' +
     scores[scores.length - 1] + '" and commit ' + SPEC + ' alone (`git commit -F -`, subject "design: review passed ' +
     check.goal + '", "Card: ' + KEY + '", "Verified: workflow review rounds ' + scores.join('; ') + '"), so the ' +
-    'record survives if the rest stops. Then copy the card\'s "Assumptions:" (unless "none") into DESIGN.md "## Decisions", one line each, and ' +
+    'record survives if the rest stops. Then audit scope: run `git show --stat` on each of ' + RANGE + ' (never one ' +
+    'plain diff of the span) and compare what they add with the card\'s "Scope:" and "Not:". Nobody can choose a cut ' +
+    'during this run, so keep the code: return each addition outside Scope or inside Not in outOfScope as "<file> - ' +
+    '<what> - kept", and add each under "## Next" as "[karar] kapsam dışı: <file> - <what> - seçenekler: tut (Scope\'a ' +
+    'yaz) ya da kes (gk-bridge refresh ve bir Pending kontrolü ister)". ' +
+    'Then copy the card\'s "Assumptions:" (unless "none") into DESIGN.md "## Decisions", one line each, and ' +
     'return them. ' + unticked + 'Then put "## Now" back to its TODO line (move nothing up from "## Next": a Next item ' +
     'reaches Now only when the user asks for it) and keep "## Pending Play Mode checks" as concrete actions with the ' +
     'expected result for PC and, when input, UI or performance changed, the phone.\n' +
@@ -361,8 +401,9 @@ const handoff = await call(passed
     'Commit only PLAN.md and DESIGN.md with `git commit -F -`, subject "design: hand off ' + check.goal + '", a body ' +
     'listing the review scores (' + scores.join('; ') + '), the line "Card: ' + KEY + '", and "Verified: workflow ' +
     'gates as listed in the earlier commits".'
-  : 'The review of the spec card in ' + SPEC + ' did not reach 9/10. Do NOT clear "## Now": keep the card, set its ' +
-    '"Review:" line to "' + scores[scores.length - 1] + '", and add the open findings under "## Known issues". ' + unticked + 'Return the card\'s Assumptions.\n' + list('Open findings', open.concat(older)) +
+  : 'The review of the spec card in ' + SPEC + ' did not reach 9/10 (gamekit:pipeline phase 6.6; load it with the Skill ' +
+    'tool, and where it and this brief differ, the brief wins). Do NOT clear "## Now": keep the card, set its ' +
+    '"Review:" line to "' + scores[scores.length - 1] + '", and add the open findings under "## Known issues". ' + unticked + 'Return the card\'s Assumptions, and outOfScope empty (the scope audit is phase 7\'s).\n' + list('Open findings', open.concat(older)) +
     list('Disputes, each kept as its "review ' + KEY + ': disputed" line', disputes) +
     list('Inspector/scene steps for Pending Play Mode checks', steps) +
     list('User decisions for "## Next", options included', decisions) + list('Needed extras for "## Next"', extras) +
@@ -393,6 +434,7 @@ return {
   extras,
   inspector: steps,
   assumptions: handoff.assumptions,
+  outOfScope: handoff.outOfScope || [],
   gaps,
   unverified: verify ? verify.unverified : ['verification agent did not answer'],
   accept: verify ? verify.accept : [],

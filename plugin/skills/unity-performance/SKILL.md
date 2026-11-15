@@ -1,6 +1,6 @@
 ---
 name: unity-performance
-description: Keeping the game's per-frame code allocation-free and its frame time flat on phones and PCs — Update loops, physics queries, HUD text, pooling, draw calls, shaders, import settings, soak runs. Use when writing or changing anything reached every frame, or when diagnosing GC spikes, stutter, heat, memory growth or battery drain.
+description: Use when writing or changing code reached every frame, or for GC spikes, stutter ("kasıyor"), heat, memory growth or battery drain on phones and PCs. Update loops, physics queries, HUD text, pooling, draw calls, shaders, import settings, soak runs.
 ---
 
 # Hot-path discipline
@@ -23,6 +23,11 @@ GC spike is worse than a 0.05 ms inefficiency. Outside hot paths, do not micro-o
 - One `Update` on a manager driving N items over N MonoBehaviours each with their own `Update`.
 - Pooling only where objects genuinely recur during play (projectiles, pickups, VFX).
 - Many identical meshes: `Graphics.RenderMeshInstanced` with an instancing-enabled material, one call per material.
+  It culls only the whole batch against `RenderParams.worldBounds`, never per instance, so it suits instances that
+  have no GameObject (crowds, debris) and whose off-screen ones you skip yourself. Hundreds of ordinary
+  `MeshRenderer` GameObjects on the PC tier: try URP's GPU Resident Drawer first (URP asset setting; needs the
+  Forward+ or Deferred+ path and BatchRendererGroup Variants set to Keep All in Graphics settings; skinned meshes
+  are not covered). On the Mobile tier measure it against plain SRP-Batcher GameObjects before keeping it.
 
 ## Mobile GPU budget
 
@@ -35,8 +40,9 @@ Phones are fill-rate and bandwidth bound, and run hot:
 - Particles: every system has an explicit Max Particles (lower on the Mobile tier); one-shot hit effects come from a
   pool. Never read GPU particle or compute data back to the CPU per frame.
 - Post-processing: bloom and colour grading are affordable; depth of field, motion blur and SSAO are not, on Mobile.
-- Textures: set a max size per platform in the importer (phones rarely need above 1024), use ASTC on Android and iOS.
-- Keep the frame at 60 fps with headroom: a phone at 100% load throttles within minutes.
+- Textures and audio: per-platform importer overrides; the rules and their exceptions live in Asset audit below.
+- Keep the frame at 60 fps with headroom: a phone at 100% load throttles within minutes. The phone budget is about
+  11 ms of `cpu_ms` and of `gpu_ms` per 16.7 ms frame (about 65%), not the full frame; Measuring below judges by it.
 
 Custom shaders and passes:
 
@@ -53,11 +59,15 @@ Custom shaders and passes:
 
 ## Asset audit
 
-Audit through the Editor (`unity command script run` reading `TextureImporter` / `AudioImporter`), never from file
-headers.
+Audit through the Editor, never from file headers or `.meta` files. The main session runs it (the read-only
+perf-auditor never runs Unity): `unity command script run --file <absolute path of this skill's
+scripts/AssetAudit.cs> --timeout 120`. It changes nothing and writes one row per texture and clip (type, source size,
+Read/Write, mipmaps, default and per-platform max size and format; audio load type, format, Force To Mono, overrides)
+to `Temp/asset-audit.txt`. Judge each row against these rules:
 
-- Textures: a max size per platform override, 1024 or less on phones; ASTC on Android and iOS; Read/Write off;
-  mipmaps off for UI; non-power-of-two only for UI sprites in an atlas.
+- Textures: a max size per platform override, 1024 or less on phones (2048 for a hero texture the camera fills the
+  screen with, such as a main character or a title backdrop); ASTC on Android and iOS; Read/Write off; mipmaps on for
+  3D textures, off for UI; non-power-of-two only for UI sprites in an atlas.
 - Audio: Vorbis for long clips, ADPCM for short frequent SFX; Streaming load type for music; Force To Mono for SFX.
 - A value that cannot be read is "not assessed", never an estimate. Do not report orphan assets from a code grep:
   references live in scenes and prefabs. Report misses as ordinary [yüksek]/[orta]/[düşük] findings.
@@ -85,8 +95,22 @@ Every Development Build (not the Editor) also runs `FrameLog` (GameKit): one CSV
 sys_mb, gc_reserved_mb`. F3 or a three-finger tap shows the frame numbers on screen. Ask the user for that CSV after a
 play session on the phone; it is the cheapest real-device number there is.
 
+What the frame columns mean at 60 fps: `fps` is the second's average; `p99_ms` is the 99th-percentile frame of the
+last 10 s (the 6th-worst of about 600 frames), the sustained tail that a hitch pattern raises; `max_ms` is the single
+worst frame of that second, the one-off hitch. One `max_ms` spike with a flat `p99_ms` is an isolated hitch (a load,
+a GC); a rising `p99_ms` is frequent stutter.
+
+WebGL (itch.io builds): FrameLog writes into the browser's virtual file system, so that CSV cannot be fetched; do not
+ask for it. Measure with the F3 overlay (the user reads the numbers out), the Unity Profiler on a Development Build
+with Autoconnect Profiler, or the browser's performance tools. The browser runs the game's managed code on one thread
+and collects garbage only between frames, so per-frame allocation grows the heap toward the build's memory ceiling
+instead of spiking a single frame: the 0 B rule matters most there.
+
 Two numbers have a budget: frame ms against DESIGN.md Platforms Frame target (vSync = the display's refresh rate;
-still TODO, or vSync with an unknown refresh rate: not assessed, never headroom against an assumed 16.7 ms) and `gc_bytes_per_frame` against 0 B. The other columns are read, not judged.
+still TODO, or vSync with an unknown refresh rate: not assessed, never headroom against an assumed 16.7 ms) and
+`gc_bytes_per_frame` against 0 B. On phones the frame budget is about 65% of the target frame (about 11 ms of
+`cpu_ms` and of `gpu_ms` at 60 fps) so thermal throttling has room; a phone build at 15-16 ms is a miss, not a pass.
+PC judges against the full frame. The other columns are read, not judged.
 
 ## Soak run
 

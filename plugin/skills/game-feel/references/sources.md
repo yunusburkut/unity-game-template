@@ -13,6 +13,7 @@ Section numbers match `numbers.md`.
 - §7 Input
 - §8 Haptics
 - §9 Accessibility
+- §10 Starting profiles: dodge roll, rhythm judgement
 - §11 Social timing windows and the feedback hierarchy
 - Known gaps — do not present these as authoritative
 
@@ -125,6 +126,19 @@ Juice technique lists, used throughout:
 
 ---
 
+## 10. Starting profiles: dodge roll, rhythm judgement
+
+The platformer and tap-puzzle profiles are assembled from §1–§9. The two below add:
+
+- StepMania default timing windows (`TimingWindowSecondsW1`–`W5`, 0.0225 / 0.045 / 0.090 / 0.135 / 0.180 s) —
+  https://github.com/stepmania/stepmania (preferences in `src/Player.cpp`)
+- osu! hit windows from Overall Difficulty — https://osu.ppy.sh/wiki/en/Beatmap/Overall_difficulty
+- Scheduling and judging against the audio clock — https://docs.unity3d.com/ScriptReference/AudioSettings-dspTime.html ·
+  https://docs.unity3d.com/ScriptReference/AudioSource.PlayScheduled.html
+- Dodge-roll invulnerability has no primary source (gap 8 below); its bands are convention.
+
+---
+
 ## 11. Social timing windows and the feedback hierarchy
 
 The feedback hierarchy and the `[EX]` social windows come from a game-feel research summary, not from re-read papers.
@@ -156,6 +170,11 @@ Its research claims come from these papers; read the paper before quoting a numb
    the installed version.
 4. **Eiserloh's exact trauma decay rate** is not stated in the slides; the 0.5–1.0 per second range is convention.
 5. **The "25 Hz Perlin frequency" figure** for shake is repeated widely in tutorials with no primary source. The
-   sourced numbers are Feel's frequency 40 and the ~40 Hz haptic figure.
+   sourced number is Feel's frequency 40; the ~20–40 Hz band in `numbers.md` §3.2 is convention, and the starting
+   profile's 25 Hz is marked there as a starting guess.
 6. **Android haptic quality** varies by device and is not documented per model; test on real low-end hardware.
 7. `mathforgameprogrammers.com` PDFs have had TLS failures; use the archive.org mirrors.
+8. **Souls-like roll invulnerability frames** are community datamines that vary by game, equip load and patch;
+   FromSoftware publishes none. `numbers.md` §10.3 uses convention bands, not those counts.
+9. **Bluetooth and device audio latency** (§10.4 calibration) varies by headset, codec and phone; the 150–300 ms
+   figure is a community range, which is why the profile calibrates per device instead of hard-coding it.

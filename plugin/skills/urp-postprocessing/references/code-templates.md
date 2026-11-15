@@ -1,79 +1,122 @@
 ## Code Templates
 
-Each template is a snippet to run through the Editor's `eval` command. Hard stops `throw`,
-so the eval fails loudly; anything the caller needs to read is `return`ed.
+Each template is a C# file to run through `script run` (SKILL.md section 0, `gamekit:unity-editor-cli`): save it in
+the scratchpad directory, outside `Assets/`, and run
+`unity command script run --file <absolute .cs path> --timeout 60`. Hard stops `throw`, so the run fails loudly;
+anything the caller needs to read is `return`ed. Because `script run` compiles a real file, these keep their `using`
+directives. Only if you pass one to `script eval` instead do you strip the usings and fully qualify every type
+(SKILL.md, "If you use `script eval` instead").
 
-**`eval` compiles a statement block, not a file.** `using` directives are rejected there — the
-compiler reads `using UnityEngine;` as a resource-disposal statement and fails. So these
-templates fully qualify every type. If you instead save the code as a `.cs` file for the user
-to keep, add the usings back and drop the qualification.
+**Before and after (house rules, `project/CLAUDE.md` and `gamekit:pipeline` phase 4):**
+
+- **Commit first.** `/rewind` cannot undo what the Editor wrote, and Edit > Undo does not reliably cover CLI edits
+  (see "Undo and reverting" below), so git is the way back.
+- **Save only what you changed, then commit it with the change.** An asset (the Volume Profile): call
+  `AssetDatabase.SaveAssetIfDirty(asset)` in the same `script run`. The active scene: run `unity command scene save`
+  afterwards. Never `editor save_all`: it also saves the user's other scenes.
+- **A scene that was already dirty before your edit holds the user's unsaved work: ask first.** The scene templates
+  below check `scene.isDirty` before touching anything and stop if it is set, so the save afterwards writes only
+  your change.
 
 ### Creating a Global Volume with Effects
 
+The profile goes into the game's own Settings folder, `Assets/<Game>/Settings`, next to the URP assets (there is no
+`Assets/Settings` in games made from this template). The bloom threshold is below 1 so it also triggers on the
+Mobile tier, which is SDR on purpose; the tonemapping override applies on the HDR tier only (SKILL.md pre-flight
+check 2).
+
 ```csharp
-// Verify HDR is enabled on the URP Asset
-var urpAsset = UnityEngine.Rendering.Universal.UniversalRenderPipeline.asset;
-if (urpAsset == null) { throw new System.Exception("No UniversalRenderPipelineAsset active."); }
-if (!urpAsset.supportsHDR) { throw new System.Exception("HDR is disabled on the URP Asset. Enable it for Bloom/Tonemapping."); }
+using System.IO;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
-var profile = UnityEngine.ScriptableObject.CreateInstance<UnityEngine.Rendering.VolumeProfile>();
-var assetPath = UnityEditor.AssetDatabase.GenerateUniqueAssetPath("Assets/Settings/PostProcessProfile.asset");
-UnityEditor.AssetDatabase.CreateAsset(profile, assetPath);
+public static class CreateGlobalVolume
+{
+    public static string Run()
+    {
+        var urpAsset = UniversalRenderPipeline.asset;
+        if (urpAsset == null) throw new System.Exception("No UniversalRenderPipelineAsset active.");
 
-// MUST set overrideState = true on each property
-var bloom = profile.Add<UnityEngine.Rendering.Universal.Bloom>();
-bloom.threshold.overrideState = true;
-bloom.threshold.value = 0.9f;
-bloom.intensity.overrideState = true;
-bloom.intensity.value = 1f;
-bloom.scatter.overrideState = true;
-bloom.scatter.value = 0.7f;
+        var scene = EditorSceneManager.GetActiveScene();
+        if (scene.isDirty) throw new System.Exception($"Scene '{scene.name}' already has unsaved changes: ask the user first.");
 
-var tonemapping = profile.Add<UnityEngine.Rendering.Universal.Tonemapping>();
-tonemapping.mode.overrideState = true;
-tonemapping.mode.value = UnityEngine.Rendering.Universal.TonemappingMode.ACES;
+        // The game's Settings folder is where its URP assets live (Assets/<Game>/Settings)
+        var settingsFolder = Path.GetDirectoryName(AssetDatabase.GetAssetPath(urpAsset)).Replace('\\', '/');
+        var assetPath = AssetDatabase.GenerateUniqueAssetPath(settingsFolder + "/PostProcessProfile.asset");
+        var profile = ScriptableObject.CreateInstance<VolumeProfile>();
+        AssetDatabase.CreateAsset(profile, assetPath);
 
-var volumeObj = new UnityEngine.GameObject("Global Volume");
-var volume = volumeObj.AddComponent<UnityEngine.Rendering.Volume>();
-volume.isGlobal = true;
-volume.profile = profile;
+        // MUST set overrideState = true on each property
+        var bloom = profile.Add<Bloom>();
+        bloom.threshold.overrideState = true;
+        bloom.threshold.value = 0.9f;   // < 1: also blooms on the SDR Mobile tier
+        bloom.intensity.overrideState = true;
+        bloom.intensity.value = 1f;
+        bloom.scatter.overrideState = true;
+        bloom.scatter.value = 0.7f;
 
-UnityEditor.Undo.RegisterCreatedObjectUndo(volumeObj, "Create Global Volume");
-UnityEditor.EditorUtility.SetDirty(profile);
-UnityEditor.AssetDatabase.SaveAssets();
+        var tonemapping = profile.Add<Tonemapping>();   // HDR tiers only; ignored on the SDR Mobile tier
+        tonemapping.mode.overrideState = true;
+        tonemapping.mode.value = TonemappingMode.ACES;
 
-return "Created Global Volume with Bloom and ACES Tonemapping.";
+        var volumeObj = new GameObject("Global Volume");
+        var volume = volumeObj.AddComponent<Volume>();
+        volume.isGlobal = true;
+        volume.sharedProfile = profile;   // the asset itself; `profile` would clone it into an instance
+
+        // profile.Add<T>() only adds the component to the in-memory list (VolumeProfile.cs); it is not a
+        // sub-asset yet, so after a reload the override is a missing reference. Store each one in the asset,
+        // as the Volume Profile inspector does.
+        foreach (var component in profile.components)
+            if (!AssetDatabase.Contains(component)) AssetDatabase.AddObjectToAsset(component, profile);
+        EditorUtility.SetDirty(profile);
+        AssetDatabase.SaveAssetIfDirty(profile);
+        EditorSceneManager.MarkSceneDirty(scene);
+
+        return $"Created Global Volume with Bloom and ACES Tonemapping; profile saved at {assetPath}. "
+             + $"Scene '{scene.name}' is modified: run `unity command scene save`, then commit both.";
+    }
+}
 ```
 
 ### Enabling Post-Processing on Camera
 
+`Camera.main` needs the `MainCamera` tag; the template finds the camera by that tag, so name the camera you mean if
+the scene has several.
+
 ```csharp
-var cam = UnityEngine.Camera.main;
-if (cam == null) { throw new System.Exception("No Main Camera found."); }
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.Rendering.Universal;
 
-if (!cam.TryGetComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>(out var data)) { throw new System.Exception("Missing UniversalAdditionalCameraData. Is URP active?"); }
+public static class EnableCameraPostFx
+{
+    public static string Run()
+    {
+        var cam = Camera.main;
+        if (cam == null) throw new System.Exception("No camera tagged MainCamera found.");
+        if (!cam.TryGetComponent<UniversalAdditionalCameraData>(out var data))
+            throw new System.Exception("Missing UniversalAdditionalCameraData. Is URP active?");
 
-UnityEditor.Undo.RecordObject(data, "Enable Post-Processing");
-data.renderPostProcessing = true;
-UnityEditor.EditorUtility.SetDirty(data);
+        var scene = data.gameObject.scene;
+        if (scene.isDirty) throw new System.Exception($"Scene '{scene.name}' already has unsaved changes: ask the user first.");
 
-// This edits a component, which lives in the scene rather than in an asset, so
-// AssetDatabase.SaveAssets() does not persist it. SetDirty only marks; nothing is written until
-// the scene is saved. Mark the scene and say it is unsaved, rather than reporting the change as
-// done: if the session ends without a scene save, the edit is gone.
-var scene = data.gameObject.scene;
-UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
-return $"Post-processing enabled on '{cam.name}'. Scene '{scene.name}' is modified but NOT saved. "
-     + "Save it, or the change is lost when the Editor session ends.";
+        data.renderPostProcessing = true;
+        EditorUtility.SetDirty(data);
+
+        // This edits a component, which lives in the scene rather than in an asset, so
+        // AssetDatabase.SaveAssets() does not persist it. SetDirty only marks; nothing is written until
+        // the scene is saved. If the session ends without a scene save, the edit is gone.
+        EditorSceneManager.MarkSceneDirty(scene);
+        return $"Post-processing enabled on '{cam.name}'. Scene '{scene.name}' is modified: "
+             + "run `unity command scene save`, then commit it.";
+    }
+}
 ```
-
-The right choice depends on whether anyone is watching:
-
-- **Interactive run** (the user is at the Editor): report and let them save. A save from here also
-  commits whatever else they had in progress in that scene, which is not yours to decide.
-- **Non-interactive run** (batch, CI, or a session that is about to end): call
-  `UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene)` and say that you saved it.
-  Nobody is there to act on a "scene is unsaved" report, so leaving it unsaved just loses the work.
 
 ### Modifying an Existing Volume Profile
 
@@ -83,68 +126,63 @@ reading `volume.profile` is enough to trigger the clone, so the null check has t
 too. `sharedProfile` returns the asset itself, which is what an Editor-time edit needs.
 
 ```csharp
-var volumeObj = UnityEngine.GameObject.Find("Global Volume");
-if (volumeObj != null && volumeObj.TryGetComponent<UnityEngine.Rendering.Volume>(out var volume)
-    && volume.sharedProfile != null)
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+
+public static class EditVolumeProfile
 {
-    var profile = volume.sharedProfile;
-    if (profile.TryGet<UnityEngine.Rendering.Universal.Bloom>(out var bloom))
+    public static string Run()
     {
+        var volumeObj = GameObject.Find("Global Volume");
+        if (volumeObj == null || !volumeObj.TryGetComponent<Volume>(out var volume) || volume.sharedProfile == null)
+            throw new System.Exception("No 'Global Volume' with a profile asset in the open scene(s).");
+
+        var profile = volume.sharedProfile;
+        if (!profile.TryGet<Bloom>(out var bloom))
+            throw new System.Exception($"Profile '{profile.name}' has no Bloom override.");
         bloom.intensity.overrideState = true;
         bloom.intensity.value = 2f;
+
+        EditorUtility.SetDirty(profile);
+        // SetDirty only marks the asset. Without this the edit is in memory only: it reads back
+        // correctly for the rest of the session and is lost when the session ends.
+        AssetDatabase.SaveAssetIfDirty(profile);
+        return $"Bloom intensity set to 2 on {AssetDatabase.GetAssetPath(profile)} (saved; commit it).";
     }
-    UnityEditor.EditorUtility.SetDirty(profile);
-    // SetDirty only marks the asset. Without this the edit is in memory only: it reads back
-    // correctly for the rest of the session and is lost when the session ends.
-    UnityEditor.AssetDatabase.SaveAssets();
 }
 ```
 
-### Making a change undoable through `eval`
+### Undo and reverting
 
-`Undo.RecordObject` alone does **not** produce an undo entry when the snippet runs through the
-Editor's `eval` command (measured: nothing appeared on the undo stack). `RecordObject` takes a
-*deferred* snapshot that Unity flushes at the end of an Editor event, and a snippet executed by
-the Pipeline server is outside that loop.
+`Undo.RecordObject` alone does **not** produce an undo entry when the code runs through the Editor's command server
+(measured with `eval`: nothing appeared on the undo stack). `RecordObject` takes a *deferred* snapshot that Unity
+flushes at the end of an Editor event, and a snippet executed by the Pipeline server is outside that loop. That is
+why these templates carry no Undo calls and why the way back is git: commit before the edit, then
+`git restore` / `git revert` the profile and scene files after it.
 
-Use the explicit group + immediate-snapshot + flush sequence instead, which does not rely on
-the event loop:
+`Undo.RecordObject` (and `Undo.RegisterCreatedObjectUndo` for a new object) still belongs in code the user runs
+interactively from a menu item or an editor window, where the event loop flushes it.
+
+If the user does ask for an Edit > Undo entry from a CLI run, the explicit group + immediate-snapshot + flush sequence
+does not rely on the event loop (it is not a substitute for the commit):
 
 ```csharp
-UnityEditor.Undo.IncrementCurrentGroup();
-UnityEditor.Undo.SetCurrentGroupName("Set up post-processing");     // the label the user will see
-var group = UnityEditor.Undo.GetCurrentGroup();
+Undo.IncrementCurrentGroup();
+Undo.SetCurrentGroupName("Set up post-processing");     // the label the user will see
+var group = Undo.GetCurrentGroup();
 
-UnityEditor.Undo.RegisterCompleteObjectUndo(target, "Set up post-processing");   // immediate, not deferred
+Undo.RegisterCompleteObjectUndo(target, "Set up post-processing");   // immediate, not deferred
 // ... make the modification, and for a newly created object:
-// UnityEditor.Undo.RegisterCreatedObjectUndo(newObject, "Set up post-processing");
-UnityEditor.EditorUtility.SetDirty(target);
+// Undo.RegisterCreatedObjectUndo(newObject, "Set up post-processing");
+EditorUtility.SetDirty(target);
+// ... then save as in "Before and after" above
+Undo.FlushUndoRecordObjects();         // force the snapshot out now
+Undo.CollapseUndoOperations(group);    // one entry, not several
 
-// SetDirty marks; it does not write. Persist according to what `target` is, or the change is
-// lost at session end even though every read-back looks correct:
-//   an asset (Volume Profile, URP Asset)  -> UnityEditor.AssetDatabase.SaveAssets();
-//   a component in a scene                -> MarkSceneDirty(target.gameObject.scene) and tell
-//                                            the user the scene needs saving
-UnityEditor.Undo.FlushUndoRecordObjects();         // force the snapshot out now
-UnityEditor.Undo.CollapseUndoOperations(group);    // one entry, not several
-
-return UnityEditor.Undo.GetCurrentGroupName();     // report the label back to confirm it landed
+return Undo.GetCurrentGroupName();     // report the label back to confirm it landed
 ```
 
-**Verify it landed rather than assuming.** The returned group name tells you the group exists;
-to confirm the entry is actually on the stack, have the user check `Edit > Undo <label>` in the
-menu — it should read your label.
-
-**If it still doesn't land, fall back to a scoped revert rather than dropping the guarantee.**
-Before modifying, read the current value of the field you're about to change and report it with
-a one-line snippet that restores it, so reverting is a single command:
-
-```csharp
-// captured before the change
-var previous = data.renderPostProcessing;         // report: previous = false
-// revert snippet to hand the user:
-//   data.renderPostProcessing = false;
-```
-
-Scene and prefab files are text-serialized, so version control is the last resort, not the
-first answer — offer the scoped revert before pointing at `git`.
+The returned group name tells you the group exists; only the user can confirm the entry is on the stack
+(`Edit > Undo <label>` should read your label). Do not promise Ctrl+Z on that basis alone.

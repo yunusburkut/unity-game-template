@@ -2,7 +2,14 @@
 
 `SKILL.md` is the short version. This file holds the rules with their thresholds (DR01–DR28), the relief palette and
 the full critique procedure with its scales and Turkish report template. The IDs are local to this skill and stable:
-cite them in reviews, append new ones, never renumber.
+cite them in reviews, append new ones, never renumber. This file is the canonical, game-agnostic DR catalogue.
+
+**Same IDs, different catalogue.** A game made with the coop-multiplayer pack also has `docs/difficulty-rhythm.md`,
+the game-specific research doc this file was distilled from (§D). It uses the same DR01–DR28 numbers, but several rules
+and thresholds differ (for example its DR16 is report-only and its DR24 is a refuge rule). In such a game, write this
+file's rules as `LBR-DRxx` and that doc's as `doc-DRxx`, never a bare `DRxx`, and never mix one catalogue's ID with the
+other's threshold. Where the game doc is stricter or decided for that game, it wins as a `DESIGN.md`-level override:
+cite both IDs.
 
 Values marked *(start)* are starting values, not findings: tune them in Play Mode and write the result into
 `DESIGN.md`. Source keys in square brackets resolve in §D.
@@ -118,7 +125,7 @@ Use for "bölümü yorumla", a level order, or a level pack. Read-only: never ed
 Every value in the map carries one tag:
 
 - **M** measured: timed in Play Mode, a recording, or a playtest log.
-- **D** documented: written in `DESIGN.md` or read from scene/level data (`unity-editor-cli`, read-only).
+- **D** documented: written in `DESIGN.md` (`## Levels`) or read from scene/level data (`unity-editor-cli`, read-only).
 - **E** estimated: inferred by the reviewer. Every E names the measurement that would replace it.
 
 ### C.2 Scales
@@ -136,6 +143,23 @@ Every value in the map carries one tag:
 **Proxy rule for an unmeasured C** (tag E): start at C1 and add one for each that holds:
 (a) the window is under ~500 ms *(start)*; (b) two or more mechanics are needed at once; (c) a failure is not
 visible before commitment; (d) a loss engine is running (timer, chase, limited moves). Cap at C5.
+
+These terms fit real-time beats. For the other unit columns of `SKILL.md`, swap the terms, same start and cap:
+
+- **Level-based puzzle** (a beat is one decision or move): add one for each that holds: (a) three or more rules
+  interact in the solution; (b) the solution chain is longer than ~4 moves *(start)* before feedback confirms it is
+  right; (c) a red herring, a move that looks right and dead-ends, is present; (d) a loss engine is running (move limit,
+  timer). Window (ms) is "—" unless the puzzle is timed.
+- **Run-based** (a beat is one encounter): rate the encounter as drawn, then add one if it can be drawn from the pool
+  before the run has offered the tools that counter it, and one if the player's resources at that point of a typical
+  run are below the encounter's intended margin. Rate the run's curve from the pool's weighting per floor, not one seed.
+
+**Which rules apply per unit column**: all DR rules apply to platformer / action. Level-based puzzle: DR08 (the
+checkpoint is the level start or an undo) and DR09 (replay to the peak is the instant restart plus the moves before the
+failed one) apply as stated; DR24's talk window applies only to timed puzzles. Run-based: DR08, DR09 and DR19 do not
+apply as written (the run is the unit and a loss ends it); judge instead run length *(start: the game's target run in
+`DESIGN.md`)*, the time from death to the next meaningful choice in a new run, and whether meta-progression raises the
+floor of the next run. Name the substitute in the finding.
 
 **Stakes T0–T3** (what a failure costs):
 
@@ -211,8 +235,9 @@ No single numeric score. Every **Karar** goes to the user.
 
 ## D. Source keys
 
-Checked against the research doc this was distilled from (`packs/coop-multiplayer/docs/difficulty-rhythm.md` in the template repo keeps the
-full table):
+Checked against the research doc this was distilled from (`packs/coop-multiplayer/docs/difficulty-rhythm.md` in the
+template repo, `docs/difficulty-rhythm.md` in a coop game, keeps the full table; its DR IDs are a separate catalogue, see
+the top of this file):
 
 | Key | Source |
 |---|---|

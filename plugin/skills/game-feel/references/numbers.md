@@ -23,7 +23,7 @@ Frame conversions at 60 fps: 1 fr = 16.7 ms · 3 fr = 50 ms · 6 fr = 100 ms · 
 - §7 Input
 - §8 Haptics (mobile)
 - §9 Accessibility thresholds
-- §10 Starting profiles
+- §10 Starting profiles: platformer, tap puzzle, dodge roll, rhythm judgement
 - §11 If the game is multiplayer: social timing windows
 
 ---
@@ -64,7 +64,7 @@ platformer numbers that exist. `[SRC]`
 | `JumpHBoost` | 40 px/s | Horizontal nudge given on jump |
 | `UpwardCornerCorrection` | **4 px** | Head-bump corner correction |
 | `MaxRun` / `WalkSpeed` | 90 / 64 px/s | |
-| `RunAccel` / `RunReduce` | 1000 / 400 px/s² | ≈0.09 s to top speed, ≈0.22 s to stop |
+| `RunAccel` / `RunReduce` | 1000 / 400 px/s² | RunAccel is used both to accelerate and to stop (≈0.09 s each); RunReduce only bleeds speed above MaxRun while holding that direction (after a dash or boost) |
 | `AirMult` | **0.65** | Air control is 65 % of ground control |
 | `DashSpeed` / `EndDashSpeed` | 240 / 160 px/s | End speed is 2/3 of dash speed |
 | `DashTime` | **0.15 s** | |
@@ -96,7 +96,7 @@ grants another at ~0.15 s: past it, one player's grace becomes the other's surpr
 |---|---|---|
 | Fall gravity vs rise gravity | × 1.5–2.5, 2.0 is the safe default | [CONV] |
 | Jump cut (button released while rising) | × 2.0–3.0 extra gravity, or a one-shot `vy *= 0.4–0.5` | [CONV] |
-| Apex hang | gravity × 0.5 while abs vy is under ~4–8 % of launch speed | [SRC] |
+| Apex hang | gravity × 0.5 while abs vy is under ~35–40 % of launch speed and jump is held (Celeste: 40 / 105 px/s) | [SRC] |
 | Mario, past apex | gravity × 3 | [SRC] |
 | Variable-height hold window | 0.2 s | [SRC] |
 
@@ -127,14 +127,18 @@ in the disassembly and are not citable. `[COMM]`
 | Melee hitlag | floor(damage/3 + 3), capped at 20 fr | [COMM] |
 | Ultimate hitlag | (damage × 0.65 + 6) × modifiers, capped at 30 fr | [COMM] |
 | Dead Cells critical | **1 frame** hard freeze, then a few tenths of slow motion | [SRC] |
-| Action game convention | 0.05–0.15 s (3–9 fr) | [CONV] |
+| Action game convention | 0.05–0.15 s (3–9 fr); on a hit the player initiated, this template caps it at ~8 fr (133 ms, SKILL.md) | [CONV] |
 
 Hit stop of 1–8 frames reads as *impact and weight* and is short enough to keep input responsive. Slow motion at time
 scale 0.1–0.3 for 0.1–0.4 s with an eased return reads as *significance*, and should be rare. Dead Cells chains them,
 freeze then slow motion, for crits only.
 
-Rules that matter more than the number: run camera shake and input buffering on **unscaled** time during the freeze,
-and rate-limit rather than sum hit stops when several land in the same frame.
+Rules that matter more than the number: run camera shake and UI feedback on **unscaled** time during the freeze, and
+rate-limit rather than sum hit stops when several land in the same frame. Input is the other way round: read presses
+in `Update` (never only in `FixedUpdate`, which does not run at time scale 0), and count buffer and coyote timers on
+the simulation's own scaled step (`SimulationStep.Delta`), so they pause with the freeze. A buffer counted on unscaled
+time drains during the freeze: a 0.12 s buffer set off by a 0.10–0.13 s hit stop has almost nothing left when time
+resumes, and the press is lost.
 
 An empirical study of impact feel across 19 features found hit stop, sound coherence and camera control to be the three
 whose absence most reliably ruins perceived impact. `[SRC]`
@@ -192,8 +196,9 @@ phone, shake less: the screen is held close to the eyes. `[CONV]`
 | Chromatic aberration pulse | 0 → peak → 0 over ~0.3 s for hits | [COMM] |
 | Feel `MMF_Flicker` default | duration 0.2 s, period 0.04 s (≈5 flickers), colour (255,20,20) | [SRC] |
 
-Published ordering for a single impact: rumble or haptic and sound at t=0, flash at +20 ms, particles at +50 ms,
-floating number at +100 ms. Audio-to-haptic sync error must stay under 12–15 ms. `[COMM]`
+One practitioner's ordering for a single impact (a single 2026 blog, see `sources.md`): rumble or haptic and sound at
+t=0, flash at +20 ms, particles at +50 ms, floating number at +100 ms, with audio-to-haptic drift kept under
+12–15 ms. `[COMM]` The peak still lands on the impact frame (FR13): the later channels are tails, not second peaks.
 
 ---
 
@@ -385,7 +390,7 @@ jump:
   riseGravityScale:    1.0
   fallGravityScale:    1.5 -> 2.5 (ramped)
   jumpCutMultiplier:   2.0-3.0
-  apexHang:            gravity x 0.5 under ~8 % of launch speed
+  apexHang:            gravity x 0.5 under ~35-40 % of launch speed, jump held
 forgiveness:
   coyoteTime:          0.12 s
   jumpBuffer:          0.12-0.15 s
@@ -400,7 +405,8 @@ camera:
   lookAhead:           1.2 x player height, smoothing 0.35 s
   fovPunchOnDash:      +4 deg, in 0.06 s, out 0.30 s
   shake:               trauma^2, decay 1.0/s, maxRoll 2.5 deg, maxOffset 0.12 m,
-                       perlin ~25 Hz, unscaled time
+                       perlin ~25 Hz (a starting guess inside the 20-40 Hz band; Feel's
+                       default is 40), unscaled time
 feedback:
   hitStopLight:        0.05 s
   hitStopHeavy:        0.10 s
@@ -437,6 +443,56 @@ ui:
   panelSlide:          EaseOutCubic 0.25-0.30 s
   flashes:             <= 3 per second
 ```
+
+### 10.3 Dodge roll with invulnerability (soulslike, character action)
+
+FromSoftware publishes no constants; wiki frame counts are datamines that change with equip load and patch (see the
+gaps in `sources.md`). The bands are `[CONV]`; the values are starting points to tune in Play Mode.
+
+```yaml
+roll:
+  invulnerableFrom:    the first simulated step of the roll (0-0.033 s); a late start reads as a dropped input
+  invulnerableFor:     0.30 s (band 0.20-0.40 s, about 40-60 % of the roll)
+  totalDuration:       0.60 s (band 0.50-0.80 s); the hittable tail after the window is the cost of rolling
+  distance:            ~3 m, the same every time, so the player learns spacing
+  buffer:              0.20 s, the attack-buffer band (2.2); a roll pressed during a swing fires when it ends
+  staminaCost:         paid on press; with too little stamina the roll does not start, and sound + UI say why
+enemyTelegraph:
+  windUp:              0.4-0.8 s on a boss blow, above the 240 ms floor (4.2), so the player rolls on reading it
+feedback:
+  onDodgedHit:         a soft whoosh, no hit stop and no shake: a dodge is not a hit
+```
+
+Count the window on the simulation step (`SimulationStep.Delta`) like every input timer, so a hit stop pauses it.
+
+### 10.4 Rhythm hit judgement
+
+Windows are ± around the note's time, judged against the audio clock (`AudioSettings.dspTime` minus the song's
+scheduled start, plus the player's calibration offset), never `Time.time`, which drifts from what is heard.
+
+| Grade | StepMania default (Judge 4) | osu! at OD 8 (300: 80 − 6·OD, 100: 140 − 8·OD, 50: 200 − 10·OD) | Tag |
+|---|---|---|---|
+| 1st | ±22.5 ms | ±32 ms | [SRC] |
+| 2nd | ±45 ms | ±76 ms | [SRC] |
+| 3rd | ±90 ms | ±120 ms | [SRC] |
+| 4th, 5th | ±135 ms, ±180 ms | — | [SRC] |
+
+```yaml
+judgement:             # a casual or mobile starting point, wider than the competitive tables above
+  perfect:             +/- 0.045 s
+  great:               +/- 0.090 s
+  good:                +/- 0.135 s
+  missBeyond:          0.180 s late; an early press outside every window is ignored, not a miss
+calibration:
+  offsetRange:         -0.300 to +0.300 s, from a tap test of 8-16 beats (median, not mean)
+  why:                 Bluetooth audio adds ~150-300 ms, phone speakers and TVs tens of ms [COMM]
+feedback:
+  onHit:               on the press frame: graded text and the hit sound
+  onMiss:              combo-break sound and a lane flash, no camera shake
+```
+
+On touch, judge each finger's touch-down, not its release (§7). On a phone, start wide and narrow later: touch and
+audio latency vary per device more than calibration can hide.
 
 ---
 

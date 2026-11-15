@@ -48,11 +48,11 @@ quoting; these values move.
 | Setting | Template default (Mobile / PC) | Low-end proposal | Why |
 |---|---|---|---|
 | Quality levels | Mobile (0), PC (1) | Add a PC Low tier when the PC target is an iGPU; split Mobile into Low/High only when one phone tier cannot hold both targets | One level per platform means no headroom lever on that platform. |
-| Rendering path | Forward / Forward+ | **Measure Forward** on Low and Mobile | Forward+ runs a light-culling pass; with one directional light and few point lights plain Forward is often cheaper. |
+| Rendering path | Forward / Forward (`ProjectSetup` never sets it, so both renderers keep the `UniversalRendererData` default; check the renderer asset, a game may have changed it) | **Keep Forward** on Low and Mobile; Forward+ on PC only after measuring | Forward+ runs a light-culling pass; with one directional light and few point lights plain Forward is often cheaper. |
 | GPU Resident Drawer | Off / per project | PC only, after measuring; verify BRG variants are *Keep All* | Needs compute and Forward+; not a mobile lever, and it skips Animator-driven renderers anyway. |
 | SRP Batcher | On | On | Reduces per-draw CPU setup on every tier. |
 | Static batching | Per project | Off if GRD is on; on otherwise for static scenery | A statically batched renderer is a slice of a combined mesh GRD cannot instance. |
-| HDR | Off / On | Off on Low and Mobile | Halves colour-buffer bandwidth. Bloom degrades but works in LDR. |
+| HDR | Off / On | Off on Low and Mobile | At URP's default 32-bit HDR precision (B10G11R11) the colour buffer is the same size as LDR RGBA8; the saving is the HDR post work (wider-range bloom, tonemapping) and the 64-bit RGBA16F buffer used when *HDR Precision* is 64-bit, the camera output needs alpha, or the device cannot blend B10G11R11. Bloom degrades but works in LDR. |
 | MSAA | 2x / 4x | 2x or off on Mobile; off on PC Low | On tile-based mobile GPUs 2x is cheap; on an iGPU it is bandwidth. |
 | Render Scale | 1.0 | 0.8–0.85 on Low; on phones consider 0.75–0.9 with FSR/Bilinear | Largest single GPU lever. A phone's high-dpi screen hides it well. |
 | Depth Texture | Off unless needed | On only if a shader or SSAO reads `_CameraDepthTexture` | An extra pass on some paths. |
@@ -67,7 +67,7 @@ quoting; these values move.
 | Post: DoF, Motion Blur, Lens effects | Per project | Off on Mobile | Full-screen passes the screen size does not justify. |
 | Color grading | Per project | LDR mode, LUT 16 on Low and Mobile | The URP manual's explicit recommendation. |
 | LOD cross-fade | Per project | Bayer dithering, or off on Mobile | Cheaper than blue noise. |
-| Textures | Per importer | Max 1024 on phones (2048 for a hero texture), ASTC on Android and iOS, mipmaps on 3D | Memory and bandwidth; the importer's per-platform override beats a runtime branch. |
+| Textures | Per importer | Per-platform override; rules and the hero-texture exception: `unity-performance` Asset audit | Memory and bandwidth; the importer's per-platform override beats a runtime branch. |
 | Graphics APIs | Unity default | Windows: D3D11 first for old iGPU drivers, DX12 deliberately. Android: Vulkan first with an OpenGLES3 fallback, unless a target device misbehaves on Vulkan | Old drivers are where crashes on launch come from. |
 | Shader variants / prewarm | Nothing preloaded | Turn on *Log Shader Compilation* in a dev build once to find first-use hitches, then a `ShaderVariantCollection` prewarm at boot | First-time shader compiles are the stutter a laptop or phone will report. |
 
@@ -121,7 +121,7 @@ These are the code habits that keep whatever the tier bought:
 ## 5. Phones: heat, battery and frame pacing
 
 - A phone at sustained 100 % GPU throttles within minutes and the frame rate halves. Headroom is
-  the target: aim for the frame done in ~11 ms at 60 fps, not 16.
+  the target: aim for the frame done in the phone budget in `unity-performance` Measuring (about 11 ms at 60 fps).
 - `Application.targetFrameRate = 60` is set by `AppStartup`; vSync does nothing on mobile. A 120 Hz
   phone still runs 60 unless the game asks for more; do not ask for more unless the game needs it.
 - Menus and paused screens can drop to 30 fps (`targetFrameRate`) — free battery.

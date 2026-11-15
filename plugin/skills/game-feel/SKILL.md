@@ -1,6 +1,6 @@
 ---
 name: game-feel
-description: Deciding how an action should feel and picking the numbers — feedback hierarchy, durations, forgiveness windows, easing, shake, hit stop, camera, audio, VFX, haptics. Use when it feels floaty or slow ("his yok", "tok değil", "juice ekle"), when adding polish, or before writing any feedback. Wiring it in Feel is feel-authoring.
+description: Feels floaty or slow ("his yok", "tok değil", "juice ekle"), adding polish, before any feedback: how an action should feel, with numbers for hierarchy, timing, forgiveness, easing, shake, hit stop, camera, audio, VFX, haptics. Wiring: feel-authoring.
 ---
 
 # Choosing how the game feels
@@ -30,7 +30,9 @@ human can close is about **240 ms**. Every feel decision is measured against tha
   design deliberately chose is recorded in `DESIGN.md`; do not flag it.
 - Hazard and enemy telegraphs are the opposite: they must exceed 240 ms to be reactable.
 - Hit stop on something the player did is capped around 8 frames (133 ms). Longer and the game stops answering.
-- Input buffers keep running on unscaled time during any freeze, or the freeze silently eats presses.
+- A freeze must not eat presses: read input in `Update` (never only in `FixedUpdate`, which stops at time scale 0) and
+  count buffer and coyote timers on the simulation's scaled step, so they pause with the freeze. Unscaled time is for
+  camera shake and UI, not input timers (`references/numbers.md` §3.1).
 - On a phone, touch input and the display add their own latency; that is one more reason to acknowledge on the press
   frame, not on release.
 
@@ -94,8 +96,8 @@ Full tables with sources in `references/numbers.md`; these are the bands to stay
 | Dash start | freeze 0–3 frames, FOV +2–10° | Input stays live through the freeze |
 | Hit stop, light | 0.05 s (3 frames) | Anything the player initiated |
 | Hit stop, heavy | 0.10 s (6 frames) | Rare, meaningful events |
-| White flash | 50–100 ms | Under 30 ms is invisible, over 150 ms smears |
-| Screen shake | 0.1–0.3 s | Rotation-dominant with a perspective camera, see below |
+| White flash | 50–100 ms | Counts toward the 3 flashes per second limit |
+| Screen shake | 0.1–0.3 s | ≤ 30 ms is unreadable, ≥ 150 ms on an ordinary hit blurs; rotation-dominant with a perspective camera, see below |
 | UI tween | 0.10–0.25 s in play, up to 0.3 s in menus | EaseOut by default |
 | Value / damage text | 1–2 s rise and fade | EaseOutQuad |
 | Coyote time | 0.08–0.15 s | Precision games lean generous |
@@ -123,7 +125,8 @@ Nice Vibrations ships inside Feel and does nothing on PC. Treat haptics as the s
 
 - One distinct preset per event class: selection or light impact for a tap, success for a win, warning or failure for a
   wrong move, a heavy impact only for rare events. Never a buzz on every tap, scroll or UI hover.
-- Fire the haptic on the same frame as the sound; audio and haptic drift above ~12–15 ms is felt.
+- Fire the haptic on the same frame as the sound (one practitioner puts the felt drift at ~12–15 ms, `[COMM]` in
+  `references/numbers.md` §3.3).
 - A player setting turns haptics off, and the game reads it before every play.
 
 ## Anti-patterns, with the threshold that defines each
@@ -139,15 +142,18 @@ Nice Vibrations ships inside Feel and does nothing on PC. Treat haptics as the s
 - Decorative squash or trails that suggest a hitbox or timing that is not real.
 - Vibration on every UI interaction.
 
-The full list, with what each looks like, is `references/feedback-stack.md` §7.
+The full list, with what each looks like, is `references/feedback-stack.md` §6 (FX01–FX10).
 
 ## Accessibility is part of the tuning, not a later pass
 
 - No more than 3 flashes in any one second, and no saturated-red flashing.
 - Sliders, not toggles, for screen shake and full-screen effects (0–100 %, 100 default), plus a haptics switch.
-- Every Feel feedback class has a static `FeedbackTypeAuthorized`: `MMF_CameraShake.FeedbackTypeAuthorized = false`
-  disables every camera shake at once. That is the intended wiring for a settings menu (and it needs a
-  `SubsystemRegistration` reset, since Play Mode domain reload is off).
+- The slider value multiplies intensity: set `MMF_Player.FeedbacksIntensity` or pass it into
+  `PlayFeedbacks(position, intensity)`, multiplied by the Mobile-tier shake factor, so one path serves both
+  (`feel-authoring`, `references/feel-api.md`).
+- Every Feel feedback class also has a static `FeedbackTypeAuthorized`: `MMF_CameraShake.FeedbackTypeAuthorized =
+  false` disables every camera shake at once. Use it for the 0 % end of the slider (and reset it in a
+  `SubsystemRegistration` method, since Play Mode domain reload is off).
 
 ## Curves: which system for which job
 

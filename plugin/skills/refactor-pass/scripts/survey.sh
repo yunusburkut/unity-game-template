@@ -3,7 +3,8 @@
 #
 #   survey.sh                 scope = commits since `last-pass:` in docs/refactor-pass-log.md
 #   survey.sh <git-ref>       scope = commits since <git-ref>
-#   survey.sh --all           scope = every .cs under the game folder (Editor and Tests included)
+#   survey.sh --all           scope = every .cs under the game folder (Editor and Tests included,
+#                             Prototypes never: throwaway code the prototype skill owns)
 #   survey.sh ... --editor    include the game's Editor folder in the smell grep (readability only)
 #
 # The game folder is the one under Assets/ that holds the *.Core.asmdef (Assets/<Game>), found at
@@ -69,7 +70,8 @@ else
               git ls-files --others --exclude-standard -- "$ROOT"; } | grep -E '\.cs$' | sort -u || true)"
 fi
 
-FILES="$(printf '%s\n' "$FILES" | grep -v '^$' || true)"
+# Prototypes are throwaway code the prototype skill deletes on its verdict; never refactor them.
+FILES="$(printf '%s\n' "$FILES" | grep -v '^$' | grep -v "^$ROOT/Prototypes/" || true)"
 if [ -z "$FILES" ]; then
   echo "  (no .cs files in scope)"
   exit 0
@@ -88,9 +90,17 @@ RUNTIME="$(printf '%s\n' "$RUNTIME" | while read -r f; do [ -f "$f" ] && printf 
 echo
 echo "================ EXECUTION ORDER (whole Game assembly)"
 if [ -d "$ROOT/Game" ]; then
-  grep -rn --include='*.cs' -E '\[DefaultExecutionOrder\(' "$ROOT/Game" \
-    | sed -E 's/^([^:]+):([0-9]+):.*DefaultExecutionOrder\(([-0-9]+)\).*/\3\t\1/' \
-    | sort -n | awk -F'\t' '{printf "  %6s  %s\n", $1, $2}'
+  # Whatever sits between the parentheses: an integer literal sorts into the chain; a constant,
+  # a named argument or an expression is listed apart, because sorting it as 0 would misplace it.
+  ORDERS="$(grep -rn --include='*.cs' -E '\[DefaultExecutionOrder\(' "$ROOT/Game" \
+    | sed -E 's/^([^:]+):[0-9]+:.*DefaultExecutionOrder\(([^)]*)\).*/\2\t\1/' \
+    | sed -E 's/^[[:space:]]*(order[[:space:]]*:)?[[:space:]]*//; s/[[:space:]]*\t/\t/' || true)"
+  printf '%s\n' "$ORDERS" | grep -E $'^-?[0-9]+\t' | sort -n | awk -F'\t' '{printf "  %6s  %s\n", $1, $2}'
+  SYMBOLIC="$(printf '%s\n' "$ORDERS" | grep -v '^$' | grep -vE $'^-?[0-9]+\t' || true)"
+  if [ -n "$SYMBOLIC" ]; then
+    echo "  symbolic order: resolve by hand"
+    printf '%s\n' "$SYMBOLIC" | awk -F'\t' '{printf "    %s  %s\n", $1, $2}'
+  fi
 fi
 echo "  (unlisted MonoBehaviours run at 0)"
 
@@ -149,7 +159,9 @@ smell '[\(,=]\s*(\(\)|\(?[a-zA-Z_][a-zA-Z0-9_]*\)?)\s*=>'                  'Lamb
 smell 'Physics(2D)?\.(Raycast|SphereCast|BoxCast|CapsuleCast|OverlapSphere|OverlapBox|OverlapCapsule|OverlapCircle|OverlapPoint)\(' 'Physics queries — confirm NonAlloc / preallocated buffer'
 smell 'Time\.deltaTime'                                                  'deltaTime reads — SimulationStep.Delta where a simulation steps?'
 smell '\bin\s+[A-Z][A-Za-z]*Tuning\b'                                    'in-tuning parameters — every computed member on the struct must be readonly'
-smell '\.(velocity|drag|angularDrag)\b|\bPhysicMaterial\b|FindObjectsOfType|FindObjectOfType|FindFirstObjectByType|FindObjectsSortMode|GetInstanceID|InstanceIDToObject|CinemachineVirtualCamera|OnCameraSetup|Execute\(ScriptableRenderContext' 'obsolete API, pre-Unity-6 or obsoleted by 6000.6 (.velocity/.drag only on Rigidbody/Rigidbody2D; CharacterController/NavMeshAgent .velocity are fine) — see unity-code-review item 11'
+# Mirrors the rename list in unity-code-review SKILL.md item 11, which is the source: add a rename
+# there first, then here. scripts/test-survey.sh checks that every name it lists is matched.
+smell '\.(velocity|drag|angularDrag)\b|\bPhysicMaterial\b|FindObjectsOfType|FindObjectOfType|FindFirstObjectByType|FindObjectsSortMode|GetInstanceID|InstanceIDToObject|CinemachineVirtualCamera|Cinemachine(Transposer|FramingTransposer|Composer|FreeLook)\b|OnCameraSetup|Execute\(ScriptableRenderContext|cameraColorTargetHandle|\bWWW\b|Application\.LoadLevel' 'obsolete API, pre-Unity-6 or obsoleted by 6000.6 (.velocity/.drag only on Rigidbody/Rigidbody2D; CharacterController/NavMeshAgent .velocity are fine) — see unity-code-review item 11'
 
 echo
 echo "================ DONE"

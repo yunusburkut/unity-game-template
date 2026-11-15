@@ -23,8 +23,26 @@ Marks: `[x]` with the evidence on the line, `[ ]` work remains, `[?]` could not 
   not the command: the Development Build box in File > Build Profiles makes every entry a development build. FrameLog
   runs only in a development build, so it is off in this one.
 - Google Play: `gk-bridge build aab`; no `WARNING debug-signed` line (the keystore passwords are typed again in each
-  Editor session); `targetSdk` meets Play's current target API level *(verify)*; no `16 KB` warning line.
-- iOS: the Xcode project in `Builds/iOS` is signed for distribution on a Mac.
+  Editor session); `targetSdk` meets Play's current target API level (36 in 2026, rule 1 of
+  [shipping-2026.md](shipping-2026.md); it moves every August).
+- Google Play 16 KB pages: no `16 KB` warning line in build.log, and `zipalign -c -P 16 -v 4` on the APK or
+  `bundletool dump config` on the AAB shows 16 KB alignment for every `.so` (rule 3 of shipping-2026.md). From 1 Feb
+  2027 an update without it cannot be released; the usual culprit is a third-party SDK's native library.
+- Google Play tablets: `appCategory` is `game` in Player Settings (ProjectSetup sets it), or Android 16 ignores the
+  orientation lock on screens 600 dp and wider; a portrait game is checked on a tablet emulator (rule 4).
+- iOS: built with Xcode 26 and the iOS 26 SDK, deployment target iOS 13 or higher (shipping-2026.md, App Store rule 1).
+  The Xcode project in `Builds/iOS` is signed for distribution on a Mac. With no Mac (this Windows machine), the
+  route is a cloud Mac: Unity Build Automation, or a GitHub Actions `macos-latest` job that archives the Xcode
+  project, signs it and uploads it to TestFlight (fastlane `pilot`/`upload_to_testflight`, or an upload-testflight
+  action) with an App Store Connect API key kept in the CI secrets, never in the repo *(verify the runner image ships
+  Xcode 26)*. Either way the build reaches TestFlight before review.
+- iOS privacy manifest: Unity declares its own required-reason APIs (file timestamps, `PlayerPrefs` user defaults,
+  boot time, disk space), and every third-party SDK on Apple's listed-SDK list ships its own manifest. Search
+  `Assets/<Game>` for `File.GetLastWriteTime`, `FileInfo.LastWriteTime`, `CreationTime` and `LastAccessTime`: when
+  the game's own C# calls one (a save system that compares file dates) or adds native code,
+  `Assets/Plugins/PrivacyInfo.xcprivacy` exists and gives a reason for each (App Store rule 2 of shipping-2026.md).
+- App Store Connect: the age-rating questions are answered (required since 31 Jan 2026), and App Tracking
+  Transparency is present only when an ads or attribution SDK tracks the player (App Store rules 3 and 4).
 - Note the `size` line. WebGL for itch.io: see the itch.io row below.
 
 ## Code and content scan
@@ -59,7 +77,11 @@ Scan `Assets/<Game>` (never `Assets/Feel`). State the denominator, "N dosya tara
   line.
 - Crash reporting decided: Play Console's Android vitals and App Store Connect's crash reports come with the store; a
   PC or WebGL build reports nothing unless a crash reporter is added. Say which applies: without one, a launch crash
-  is invisible.
+  is invisible. The options: Unity's Cloud Diagnostics (crash and exception reports, in Unity Cloud) or the Sentry
+  Unity SDK (`io.sentry.unity`), in a release build, named in the privacy policy and, where the store or the law asks
+  for it, behind the player's consent *(verify current packages and terms)*. "None" is a valid choice only when it is
+  on record. For playtests without one, tell testers where the log is: Windows
+  `%USERPROFILE%\AppData\LocalLow\<Company>\<Product>\Player.log`; WebGL errors are in the browser console (F12).
 - Patch notes for this build exist (below), and the rollback is named (below).
 
 ## Smoke on the built player
@@ -87,6 +109,11 @@ every item is `[?]`. A failure becomes a Known issues line with its repro.
   unlock in that build (if any). Steam Cloud saves round-trip between two machines (if on). Steam Deck is checked if
   the page claims it: controller glyphs, text readable at 1280x800, no launcher. The page is complete: capsule,
   trailer, description, system requirements.
+- **Steam, with the steam pack:** `SteamBootstrap.AppId` and `steam_appid.txt` hold the game's App ID, not `480`
+  (Valve's Spacewar test app; with 480 the restart-through-Steam check is skipped). The depot does not ship
+  `steam_appid.txt` *(verify Steamworks' current guidance)*.
+- **itch.io Windows, with the steam pack:** that build was made with `DISABLESTEAMWORKS` in the Windows Scripting
+  Define Symbols (`packs/steam` README), and the define was removed again before the next Steam build.
 - **Google Play:** the AAB from the Build rows; the first release goes to a closed or open testing track first, and
   updates go out as a staged rollout.
 - **App Store:** the build number is higher; the first version reaches everyone at once, so turn phased release on
@@ -116,8 +143,10 @@ Source: `git log --format="%h %s" v<prev>..v<this>`. No previous tag: ask for th
 - Order: the biggest change as the headline, then New, Changes (balance as before -> after from the ScriptableObject
   diff: "jump 4.0 -> 4.5"), Fixes (what the player saw: "Fixed a freeze when opening the shop", never a class name,
   sha or stack-trace word), Known issues (from PLAN.md, in player words).
-- A fix or a feature is listed only with a commit on the shipped tag and a ticked Play Mode check. A claim nobody can
-  check is left out, not softened. Never promise a feature or a date.
+- A fix or a feature is listed only with a commit on the shipped tag and a Play Mode check the user confirmed. Done
+  checks leave PLAN.md, so the record is: the check is no longer in Pending Play Mode checks and its commit is on the
+  tag, or a later commit's `Verified:` line or a DESIGN.md Playtests entry names it. A check still pending is not
+  confirmed. A claim nobody can check is left out, not softened. Never promise a feature or a date.
 - Write in the store listing's language. Google Play's "What's new" takes about 500 characters and the App Store's
   "What's New" about 4,000 *(verify)*: give a short version for those and a long one for a Steam or itch.io devlog.
   Show the draft; the user posts it.

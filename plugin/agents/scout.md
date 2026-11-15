@@ -1,6 +1,6 @@
 ---
 name: scout
-description: Read-only context finder for a game task - returns the 5-10 files that matter, the Core/Game helpers to reuse, the scenes and prefabs that use a script (by GUID) and the risks. Use before planning an M or L change, before changing a script that scenes or prefabs use, or for a wide search whose conclusion matters more than the reading.
+description: Use before planning an M or L change, before changing a script scenes or prefabs use, or for a wide search whose conclusion matters more than the reading. Read-only: the 5-10 files that matter, helpers to reuse, GUID users, risks.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 effort: low

@@ -1,6 +1,6 @@
 ---
 name: level-beat-review
-description: Laying out or critiquing a level, level pack or level order ("bölümü yorumla", "level eleştir", "zorluk eğrisi", "sıkıcı mı") — difficulty rhythm, length, checkpoints, failure cost, teaching arc, beats, replay levers. Use when designing a level, adding a hazard, when playtesters quit, or before building level geometry.
+description: Level layout and critique ("bölümü yorumla", "level eleştir", "zorluk eğrisi", "sıkıcı mı"): rhythm, checkpoints, failure cost, teaching arc, replay. Use before building a level or hazard, or when playtesters quit. Full audit: design-critic.
 ---
 
 # Reviewing a game level before it exists
@@ -13,7 +13,9 @@ into `DESIGN.md`.
 
 ## Map the units to the genre first
 
-Every rule below talks about beats, segments, acts and worlds. Fix what those are for this game, once, in `DESIGN.md`:
+Every rule below talks about beats, segments, acts and worlds. Fix what those are for this game, once, in the `## Levels` section
+of `DESIGN.md` (add the section if the game has none). It holds the unit map row, the escalation operators and one line
+per level: moment sentence, clean time, peak C.
 
 | Unit | Platformer / action | Level-based puzzle (mobile packs) | Run-based (roguelike, endless) |
 |---|---|---|---|
@@ -32,17 +34,18 @@ is allowed as rest between beats; it must be deliberate and short.
 
 | | Target | Note |
 |---|---|---|
-| Segment, clean run | 45–90 s *(start)* | Under 45 s a loss does not sting; over 90 s players stop retrying |
-| Level-based puzzle level | 30 s–3 min *(start)* | Mobile sessions are short; one level must fit in a bus stop |
+| Segment, clean run (action: checkpoint to checkpoint) | 45–90 s *(start)* | Under 45 s a loss does not sting; over 90 s players stop retrying |
+| Level-based puzzle level | 30 s–3 min *(start)* | Mobile sessions are short; one level must fit in a bus stop. The 90 s segment cap does not apply: restart must be instant (or an undo), so a loss costs the replay to the failed move, not the level length |
 | Beats per segment | 3–5 *(start)* | Under 3 is filler; over 5 nothing lands |
 | A memorable moment | one per 60–90 s *(start)* | The level's real score |
 | Recoverable failure | next decision within **3–8 s** | Undo, a catch, a short fall: fixed in place |
 | Consequence beat | 2–3 s of quiet *(start)* | After a rescue or a cleared beat: the reaction is the content |
 | Filler | ≤ ~15 s *(start)* | Longer is dead air |
-| Reaction floor for any window | **240 ms** (sourced) | Human perceive-decide-act loop |
+| Reaction floor for any window | **240 ms** (sourced: `game-feel` `references/numbers.md`, which owns it) | Human perceive-decide-act loop |
 | Telegraph for a hazard | > 240 ms | Shorter is not reactable |
 
-**The governing rule: a player must be able to lose the same segment four times without quitting.** If they quit on
+**The governing rule *(start)*: a player must be able to lose the same segment four times without quitting.** A
+heuristic, not a measured threshold; confirm it with the four-loss test in Verify in Play Mode. If they quit on
 the third loss, the segment is too long or the failure was unfair, and unfair almost always means *unreadable*, not
 hard.
 
@@ -57,14 +60,19 @@ hard.
 
 ## Teaching arc
 
-One new idea per segment, in this order:
+One new idea per segment. The arc runs at two scales:
 
-1. **Safe teach**: the mechanic alone, nothing that can fail you.
+Inside one segment (the tooth, DR03):
+
+1. **Safe teach**: the mechanic alone, nothing that can fail you (DR05).
 2. **Develop**: a harder form of it.
-3. **Twist**: a known mechanic used in a way the teach did not show (the peak).
-4. **Combination**: two learned mechanics, both rules intact.
+3. **Twist**: a known mechanic used in a way the teach did not show (the peak), then the lap and the checkpoint.
+
+Across later segments, the act and the world:
+
+4. **Combination**: two learned mechanics, both rules intact, in a later segment than either part's teach (DR06).
 5. **Recovery**: mistakes route into tier-1 rescues instead of restarts.
-6. **Mastery finale**: everything learned, under pressure.
+6. **Mastery finale**: everything learned, under pressure: the act or world finale (DR18).
 
 **Never introduce a mechanic for the first time under a timer, a chase or inside a combination.**
 
@@ -84,7 +92,7 @@ Write every beat as a row of this table before building it:
 
 Harder means turning an existing knob, never a new button or a new screen: compress time, add distance, make a static
 element expire, require two actions in sequence or at once, do the same action while carrying a constraint, remove a
-safety. Each new knob in the game's configs is an escalation operator; list them in `DESIGN.md`.
+safety. Each new knob in the game's configs is an escalation operator; list them in `DESIGN.md` `## Levels`.
 
 ## Difficulty axes
 
@@ -144,7 +152,11 @@ opening.
 Use when the user shows a level, a level pack or a level order and asks for a critique. The scales, columns and Turkish
 report template are `references/difficulty-rhythm.md` §C.
 
-1. **Gather**: the level notes in `DESIGN.md`, moment sentences, clean times, and parameters read from the scene or
+A full critique of an existing level, pack or order goes to the read-only `design-critic` agent (Level mode), which
+runs these steps and §C in its own context. Inline in the main session, while laying a level out, use the beat table,
+the numbers and the anti-patterns; run the steps below yourself only when no agent can be spawned.
+
+1. **Gather**: the `## Levels` notes in `DESIGN.md`, moment sentences, clean times, and parameters read from the scene or
    level data through `unity-editor-cli` (read-only). Say which values are documented (D), estimated (E) or measured
    (M).
 2. **Map**: one row per beat: role, question, challenge C1–C5, stakes T0–T3, pressure, novelty, window, visible,
@@ -164,7 +176,7 @@ report template are `references/difficulty-rhythm.md` §C.
 | Two loss engines at once | A timer and a second loss engine load-bearing in the same beat |
 | Required item losable | Something the level needs can leave play for good |
 | Filler over ~15 s | Travel or waiting with nothing authored in it |
-| Segment over 90 s | Players stop retrying |
+| Segment over 90 s | Action checkpoint-to-checkpoint segment: players stop retrying. A puzzle level uses its own 30 s–3 min row |
 | Occluded failure | The failure frame hidden by its own effect |
 | Flat load | Three or more consecutive segments at the same peak, or no valley after a peak (DR01, DR04) |
 | Peak then peak | Two C4+ beats with no valley between, or two peaks asking the same question (DR04, DR13) |

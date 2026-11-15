@@ -149,6 +149,9 @@ pass:
 # Refactor pass log
 last-pass: <full sha>
 
+## Accepted trade-offs (do not re-flag)
+- `BoardSolver.Step` length — one argument, kept whole. (2026-01-15)
+
 ## 2026-01-15 — <one-line scope>
 ### Changed
 - `Game/Board/BoardView.cs` — merged the two clear paths into `ClearSelection()` (green)
@@ -158,11 +161,15 @@ last-pass: <full sha>
 - …
 ### Low-end checklist
 - …
+### Play Mode check
+- PC: passed / failed: <what differed> / pending (user has not run it). Phone: same, or "not needed".
 ### Noted between passes
 - …
-### Accepted trade-offs (do not re-flag)
-- `BoardSolver.Step` length — one argument, kept whole.
 ```
 
-The header line is what `scripts/survey.sh` reads. Keep *Accepted trade-offs* cumulative: copy the
-previous section's list forward so it never has to be rediscovered.
+The `last-pass:` header line is what `scripts/survey.sh` reads. *Accepted trade-offs* is one
+cumulative list directly under the header, never copied into dated sections: append to it, dated,
+and remove an entry only when the user reverses the decision. Dated sections are newest first and
+carry the report's headings plus *Noted between passes*; *Play Mode check* records the result, so a
+"pending" one is the first thing the next pass asks about. A ledger written in the older shape (the
+list inside each dated section) is converted on the next pass: move the newest list to the top.

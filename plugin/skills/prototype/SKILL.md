@@ -1,6 +1,6 @@
 ---
 name: prototype
-description: Answering one design question in throwaway code before building the feature - a falsifiable question, a timebox, the PROCEED / PIVOT / KILL verdict, then deleting the code. Use when the question is "would X feel good or be fun?" rather than "build X" ("prototip", "prototipini yap", "hissettiriyor mu", "eğlenceli mi", "spike"). Not for "does this existing code work?", which is a bug or a check.
+description: Use on "prototip", "prototipini yap", "hissettiriyor mu", "eğlenceli mi", "spike", or "would X feel good / be fun?" - one falsifiable question in throwaway code, a timebox, PROCEED / PIVOT / KILL, then delete it. Not "does this code work?".
 ---
 
 # Prototype: answer one question, then throw the code away
@@ -20,7 +20,9 @@ Write it in one sentence before any code, at the top of each prototype file and 
 - Rejected: "Is it fun?" There is no signal that can say no. Rewrite it until one can.
 - Test the riskiest assumption first: the one that kills the idea if it is false.
 - Feel, timing or physics is the question: a Unity scene. Logic, economy, cards, idle or strategy maths: a table or a
-  spreadsheet first; it is often enough.
+  spreadsheet first; it is often enough. A table prototype lives in the reply, or in
+  `Assets/<Game>/Prototypes/<Name>/<Name>.md` when it must survive the session (no asmdef, no scene); the user
+  "plays" it by reading the outcomes for the inputs they pick, and sections 4 and 5 apply to it unchanged.
 
 ## 2 Timebox
 
@@ -32,9 +34,17 @@ Write it in one sentence before any code, at the top of each prototype file and 
 
 `Assets/<Game>/Prototypes/<Name>/` with its own asmdef (`<Game>.Prototypes.<Name>`), and its own scene there.
 
-- It may reference `<Game>.Core`. `<Game>.Game`, Core and the test assemblies never reference it.
+- It may reference `<Game>.Core` and the engine and package assemblies the question needs (Unity.InputSystem,
+  UnityEngine.UI, Feel's MoreMountains.* when feel is the question), never `<Game>.Game`. `<Game>.Game`, Core and the test assemblies never reference it.
 - Each file starts with `// PROTOTYPE - NOT FOR PRODUCTION`, `// Question: <the sentence>`, `// Date: YYYY-MM-DD`.
+- Its code runs only from its own scene: no `[RuntimeInitializeOnLoadMethod]`, no static hooks, and the scene stays
+  out of Build Settings unless the question needs a device. The asmdef still compiles into every player build, so it
+  must build for every target (PC, mobile, WebGL) while the folder exists.
+- Gate before the commit: `gk-bridge refresh` exit 0 (1 = fix it, 2 = unknown, never a pass; the same three answers
+  as `gamekit:pipeline`). A compile error anywhere blocks Play Mode for the whole project.
 - Commit it to main like any work: git is the archive.
+- Hand off in one line: `open Assets/<Game>/Prototypes/<Name>/<Name>.unity, controls: <keys / touch>, watch for
+  <signal Z>`.
 
 | Allowed to be ugly | Never allowed |
 |---|---|
@@ -70,7 +80,9 @@ One DESIGN.md Decisions line, then delete the prototype folder (with its `.meta`
 (PROCEED or PIVOT in place of KILL; a PIVOT keeps the folder until the next verdict, and a later verdict on the same
 prototype edits its line, the old text kept as `was: ...`. NOT ASSESSED writes no line and keeps the folder; the
 verdict waits until someone plays it.) Until the folder is deleted, PLAN.md Now holds one line, `prototype <Name>:
-<the question>`, so `devam` finds it. A play session the user reports is logged under DESIGN.md
+<the question>`, so `devam` finds it; when the folder is deleted, Now goes back to its TODO line. Now already
+holds a card: ask whether to finish it (`devam`) or park it first, exactly as `gamekit:pipeline` phase 1 does; never
+overwrite a card. A play session the user reports is logged under DESIGN.md
 Playtests first (CLAUDE.md); the Decisions line points to it. Asked to keep or promote the prototype code after
 PROCEED: decline and point at that Decisions line; `git show <sha>:<path>` still has the code.
 

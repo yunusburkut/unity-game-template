@@ -1,6 +1,6 @@
 ---
 name: launch-review
-description: Auditing store pages, launch plans and the upload build on Steam, Google Play, the App Store and itch.io — price, model, tags, store art, ASO, demo, soft launch, review risks, wishlists, patch notes, hotfixes. Use when asked "what should we charge", "free or paid", "will Apple reject this", "is this build ready to upload", to write patch notes or patch a shipped build, or to check a store rumour.
+description: Use for "what should we charge", "free or paid", "will Apple reject this", "is this build ready to upload", patch notes, hotfix, a store rumour; store page, price, tags, store art, ASO, demo, soft launch, wishlists (Steam, Play, App Store, itch.io).
 ---
 
 # Auditing the launch
@@ -103,6 +103,8 @@ source.
 **Ratings prompt:** use the native in-app review APIs (Play In-App Review, `SKStoreReviewController`
 / `AppStore.requestReview` *(verify)*), never a custom "rate 5 stars" dialog. Ask after a win or a
 completed session, never after a loss or on first launch. The OS limits how often the prompt shows.
+With the mobile-store pack, call `__GAME__.Store.StoreReview.Prepare(host)` when the level starts and
+`StoreReview.Request(host)` at the win (`host` a DontDestroyOnLoad object) instead of writing a new wrapper.
 
 **Review-guideline pitfalls** *(verify against the current App Store Review Guidelines and Google
 Play Developer Policy before a submission)*:
@@ -162,6 +164,13 @@ development) build, the code and secrets scan, asset licences from `docs/asset-s
 disclosure), smoke on the built player, the per-store rows, release day, patch notes, and patching a shipped build
 (main only, the next PATCH tag). Its verdict is HAZIR, BELİRSİZ or HAZIR DEĞİL; a row nobody could check is `[?]`
 and makes it BELİRSİZ, never HAZIR.
+
+`launch-auditor` cannot run git, ask the user or size a file, so the main session collects these first and passes
+them in the brief; without them those rows come back `[?]`:
+
+1. `git describe --tags --abbrev=0` (the previous tag) and `git log --format="%h %s" v<prev>..HEAD` (or `..v<this>`).
+2. The user's answer to "Bu build'i bu oturumda açtın mı?" and, if yes, their result for each smoke row.
+3. For a WebGL upload, the size on disk of `Builds/WebGL/Build/*.data.br`.
 
 ## Production lesson
 

@@ -1,16 +1,20 @@
 ---
 name: ui-ugui
-description: Unity uGUI (Canvas-based) UI expert. Understands, edits, and generates Canvas hierarchies, RectTransforms, Layout Groups, and prefab UI. Use for requests involving Canvas, uGUI, RectTransform, or .prefab UI files.
+description: Building or changing a uGUI menu, screen, popup or HUD layout ("menü", "ekran", "popup", "buton", "arayüz") - Canvas, RectTransform, layout groups, ScrollRect lists. Safe area, scaling and input are platform-targets; the words are player-clarity.
 ---
 
 Understand existing Unity uGUI, make targeted edits, and generate new Canvas-based hierarchies.
 
+<!-- BEGIN HOUSE -->
 **House rules win.** This is a vendored copy of Unity's skill; where it disagrees with the game's CLAUDE.md,
 `unity-architecture` or `unity-code-review`, the house rules apply:
 - Inspector-wired references are guaranteed: no null checks and no "verify referenced objects exist" for them. Only
   untrusted input is guarded.
 - Scripts go in the game's `<Game>.Game` asmdef (`Assets/<Game>/Game`), not next to prefabs.
 - A direct reference, or a UnityEvent wired in the Inspector, over a C# event, unless two or more real listeners exist.
+- Every house edit in this copy, here and in `references/`, sits between `BEGIN HOUSE` / `END HOUSE` comments; an
+  upstream refresh keeps them (`unity-editor-cli`).
+<!-- END HOUSE -->
 
 When working with ScrollRect/ScrollView, read the reference file:
 - `references/scrollview-setup.md` — Required hierarchy, setup rules, and common failures
@@ -66,7 +70,9 @@ Determine what the user is asking for:
 - Avoid "shotgun debugging" with multiple simultaneous changes
 
 **Color and visibility:**
+<!-- BEGIN HOUSE -->
 - **Ensure text is readable by default:** When choosing colors, ensure text contrasts with its background (at least 4.5:1, `player-clarity` CL32) — but respect intentional low-contrast uses (disabled states, placeholder text, decorative elements)
+<!-- END HOUSE -->
 - **Check visibility for new elements:** After creating UI elements, verify they have non-zero size and are within parent bounds. Elements intentionally created hidden (for later toggling, animation, etc.) are fine
 
 **Specification adherence:**
@@ -104,9 +110,12 @@ Canvas (Screen Space - Overlay or Camera)
 
 **CanvasScaler settings:**
 - Default to UI Scale Mode "Scale With Screen Size" unless the project has a specific reason for "Constant Pixel Size" (e.g., pixel-art, fixed-resolution targets)
-- Reference Resolution: Match project standards (e.g., 1920x1080)
-- When creating a Canvas with Screen Space - Camera, **read the camera's reference resolution** first
+<!-- BEGIN HOUSE -->
+- Reference Resolution: in the game's main orientation from CLAUDE.md (1080x1920 portrait, 1920x1080 landscape); match an existing Canvas in the project first
+- Screen Space - Camera: assign the camera that renders the UI (`Canvas.worldCamera`); the reference resolution still comes from the Canvas Scaler, not the camera
 - Match Width Or Height: 0.5 (balanced)
+- Interactive content goes under a full-stretch child with `SafeAreaFitter` (GameKit); backgrounds stay outside it, full-bleed. Letterboxing, orientation and touch sizes: `platform-targets`
+<!-- END HOUSE -->
 - If an existing Canvas uses "Constant Pixel Size", flag it and ask the user before changing
 - Prefer anchors and Layout Groups over absolute pixel positions for layout
 
@@ -127,9 +136,11 @@ Canvas (Screen Space - Overlay or Camera)
 - Do not add Layout Group to an element that should have fixed size
 - Nested Layout Groups require careful configuration of each level
 - When layout is wrong, check parent settings before modifying child
-- ContentSizeFitter on the **same** object as a Layout Group that has Control Child Size enabled = conflict
-- ContentSizeFitter on a child whose parent has Control Child Size enabled = ContentSizeFitter is overridden (wasted)
-- When using ContentSizeFitter with a Layout Group parent, disable Control Child Size on the parent for the relevant axis
+<!-- BEGIN HOUSE -->
+- ContentSizeFitter and a Layout Group on the **same** object is the normal pattern: Control Child Size sizes the children, the fitter sizes the object itself from the group's preferred size
+- ContentSizeFitter on a child of a Layout Group = the parent drives that child, so the fitter is overridden (wasted) and Unity warns about it
+- To size such a child to its content, remove its fitter and enable Control Child Size on the parent for that axis; the child's preferred size comes from its own Layout Group, a `LayoutElement` or its TMP text
+<!-- END HOUSE -->
 - Common pattern: ScrollView Content should have ContentSizeFitter + VerticalLayoutGroup where VLG controls children but ContentSizeFitter sizes the Content itself
 
 **Grid Layout Group:**
@@ -194,12 +205,14 @@ When the user describes a position (e.g., "top right", "bottom bar", "left side"
 - Use Layout Groups instead of manual positioning where possible
 - Set Raycast Target = false on non-interactive images
 - Use sprite atlases for performance
+<!-- BEGIN HOUSE -->
 - Split canvases by change rate: a changing element dirties and rebuilds its whole Canvas, so the HUD (timers, score) sits on its own Canvas or a nested sub-Canvas, apart from static frames and labels
 - Hide or fade a group with a `CanvasGroup` (alpha, interactable, blocksRaycasts), not per-element alpha and not SetActive every frame. A screen hidden for a long time: disable its Canvas component (layout kept, no drawing)
 - Set `Canvas.sortingOrder` explicitly per layer (HUD, Menus, Popups) instead of relying on hierarchy order
 - Long lists and grids in a ScrollRect pool their items, never Instantiate/Destroy per scroll
 - UI never owns or changes game state: it reads the controller's state and calls the controller (direct reference or Inspector-wired UnityEvent); the rules live in Core
 - UI CPU stays within about 1–2 ms of the frame on the target phone; read the Profiler's UI module before restructuring
+<!-- END HOUSE -->
 
 **Never use** `EditorApplication.ExecuteMenuItem("Window/TextMeshPro/Import TMP Essential Resources")`, unless the user asks for an interactive TMP Essentials installation. It opens a modal dialog that blocks whatever invoked it until a human dismisses it.
 
@@ -209,13 +222,16 @@ When the user describes a position (e.g., "top right", "bottom bar", "left side"
 
 Before completing any UI that contains interactive elements, verify:
 
-1. **EventSystem** must exist in the scene (exactly one)
+<!-- BEGIN HOUSE -->
+1. **EventSystem** must exist in the scene (exactly one), with `InputSystemUIInputModule`, not `StandaloneInputModule` (the old Input Manager is off)
+<!-- END HOUSE -->
 2. **GraphicRaycaster** must be on the Canvas
 3. **Raycast Target = true** on interactive elements (and false on non-interactive ones to avoid blocking)
 4. **Button.onClick should be wired** (via inspector or script) — only when scripts or logic were requested
 
 If the first three are missing, interactive elements will exist visually but fail silently.
 
+<!-- BEGIN HOUSE -->
 ## Screens
 
 A screen that loads or lists data defines its loading, empty and error states before it is built; every screen defines
@@ -238,6 +254,7 @@ what Back does. Empty = one image from the game's art, one line, one action.
 - Error text never blames the player and never says "invalid": it says what to do.
 - Labels leave room for 40 % longer text (`player-clarity` CL28).
 - Mouse targets at least 32 px; touch targets per `platform-targets`. A swipe never starts in a system gesture edge.
+<!-- END HOUSE -->
 
 ## Understanding
 
@@ -277,15 +294,18 @@ For targeted changes to existing UI:
 ## C# (Only When Requested)
 
 - Use fully qualified UI types to avoid namespace conflicts
-- Use `[SerializeField]` for inspector references
-- Cache component references in Awake()
-- Use events/delegates for button callbacks
-- Place scripts in same folder as prefabs (follow project patterns)
+<!-- BEGIN HOUSE -->
+- Use `[SerializeField] private` fields for Inspector references; they are guaranteed, so no null checks for them (house rules above)
+- Cache components the script finds itself in Awake(), never look them up per frame
+- Button callbacks: `onClick` wired in the Inspector, or one `AddListener` in Awake that calls the controller directly; a C# event only when two or more real listeners exist
+- Scripts go in `Assets/<Game>/Game` (`<Game>.Game` asmdef), not next to prefabs
+<!-- END HOUSE -->
 
 **Component references:**
-- Verify referenced objects exist before accessing them
-- Handle cases where serialized references may be null
-- When wiring up references, confirm the target component is present
+<!-- BEGIN HOUSE -->
+- When wiring references in the Editor, confirm the target component is present on the object you assign
+- A reference resolved at runtime from untrusted data (a lookup by id, a loaded save) is guarded; Inspector refs are not
+<!-- END HOUSE -->
 
 ## Error Recovery
 

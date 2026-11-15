@@ -2,6 +2,9 @@
 
 Verified against the copy at `Assets/Feel` (v6.1, `Assets/Feel/readme.txt`), cross-checked with
 https://feel-docs.moremountains.com/ and the Doxygen API at http://feel-docs.moremountains.com/API/.
+The check is by hand (last: 2026-11, every `Trigger(` signature read from the source); no test guards it, so after a
+Feel update the compiler wins over this file: grep the event's `static void Trigger` in `Assets/Feel` and fix the
+snippet here.
 
 Namespaces: `MoreMountains.Feedbacks` (player, feedbacks, shakers, springs, floating text,
 MMTimeManager, MMWiggle), `MoreMountains.Tools` (MMSoundManager, MMRadio, poolers),
@@ -224,7 +227,7 @@ There is no "hold until complete" boolean. Feel expresses it structurally:
 | `MMF_Scale` | mode `Absolute`, duration 0.2 s, curve keys (0→0, 0.3→1.5, 1→0), remap 1→2 — the canonical punch |
 | `MMF_SquashAndStretch` | axis `YtoXZ`, duration 0.2 s, same punch curve, remap 1→2 |
 | `MMF_Position` | mode `AtoB`, world space, duration 0.2 s, `RelativePosition` true |
-| `MMF_FreezeFrame` | duration 0.1 s, `MinimumTimescaleThreshold` 0.1 (will not stack onto an already-slowed game) |
+| `MMF_FreezeFrame` | duration 0.1 s, `MinimumTimescaleThreshold` 0.1 (will not fire while `Time.timeScale` is already below the threshold, e.g. during another freeze; a game at 0.5 still freezes) |
 | `MMShaker` (all shakers) | `ShakeDuration` 0.2 s, cooldown 0 |
 | Any `MMSpring*` | `Damping` 0.4, `Frequency` 6 |
 | `MMF_ScaleSpring` | mode `Bump`, damping 0.4, frequency 6, bump min/max (20,20,20)–(30,30,30), `DeclaredDuration` 0 |
@@ -263,7 +266,7 @@ MMCameraShakeEvent.Trigger(duration, amplitude, frequency,
                            amplitudeX, amplitudeY, amplitudeZ,
                            infinite: false, channelData: null, useUnscaledTime: true);
 
-MMFreezeFrameEvent.Trigger(0.05f);
+MMFreezeFrameEvent.Trigger(0.05f, 0.1f);   // duration, minimumTimescaleThreshold (0.1 = MMF_FreezeFrame default)
 
 MMTimeScaleEvent.Trigger(MMTimeScaleMethods.For, 0.5f, 1f, true, 50f, false);
 // method, timescale, duration, lerp?, lerpSpeed, infinite?
@@ -291,8 +294,8 @@ var byInt     = new MMChannelData(MMChannelModes.Int, 12, null);
 var byAsset   = new MMChannelData(MMChannelModes.MMChannel, 0, myMMChannelAsset);
 ```
 
-`MMChannel.Match(a, b)` is the comparison; a null channel matches everything. Channel 0 is the
-default catch-all. Prefer named `MMChannel` ScriptableObjects (Create ▸ MoreMountains ▸ MMChannel);
+`MMChannel.Match(a, b)` is the comparison; a null channel matches everything. Channel 0 is only the
+default: it matches channel 0 and nothing else. Prefer named `MMChannel` ScriptableObjects (Create ▸ MoreMountains ▸ MMChannel);
 sample assets ship at `Assets/Feel/MMFeedbacks/MMFeedbacks/Core/MMChannels/`.
 
 ### `MMFeedbacksShaker`
@@ -357,7 +360,8 @@ options.MmSoundManagerTrack = MMSoundManager.MMSoundManagerTracks.Sfx;
 options.ID = 50;
 MMSoundManagerSoundPlayEvent.Trigger(clip, options);
 
-MMSoundManagerSoundFadeEvent.Trigger(50, 5f, 0f, fadeTween);
+MMSoundManagerSoundFadeEvent.Trigger(MMSoundManagerSoundFadeEvent.Modes.PlayFade,
+                                    50, 5f, 0f, fadeTween);   // mode, ID, duration, final volume, tween
 MMSoundManagerTrackEvent.Trigger(MMSoundManagerTrackEventTypes.PauseTrack,
                                  MMSoundManager.MMSoundManagerTracks.UI);
 ```

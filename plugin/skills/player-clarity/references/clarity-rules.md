@@ -43,8 +43,8 @@ says so.
 | CL03 | Paste | it would not work in another game |
 | CL04 | Budget | ≤ 3 new things, readable in time |
 
-- **CL01, speakable.** The rule is one sentence a player can say in five seconds or less. On screen it is six words or
-  fewer. Fall Guys' bar is the same: if they could not explain a round in one sentence, they did not build it.
+- **CL01, speakable.** The rule is one sentence a player can say in five seconds or less. On screen it keeps the §E word
+  budget. Fall Guys' bar is the same: if they could not explain a round in one sentence, they did not build it.
   (src: FALLGUYS, WARIO)
 - **CL02, muted clip.** Take three seconds of a muted clip, cropped to 9:16. A stranger who watches it can say what
   happened and who did it. Many phone players play muted, so this is also the in-game test. (src: CLIP)
@@ -79,9 +79,10 @@ name, the player's name.
 **CL09, never colour alone.** Pair a colour with a direction, a name, an icon or a shape. (src: GAG) About 1 in 12 men
 has a colour vision deficiency; check every colour code with a colour-blind simulation.
 
-**CL10, key information in the middle third.** Put attribution and key labels in world space or near the action,
-outlined, at least 26 px at 1080p. Corners are the first thing a vertical crop loses: a 9:16 crop of a 16:9 frame keeps
-31.6 % of its width. On a phone, corners also sit under notches and thumbs. (src: CLIP, XAG)
+**CL10, key information in the centre 30 % of the width.** Put attribution and key labels in world space or near the
+action, outlined, at least 26 px at 1080p. Corners are the first thing a vertical crop loses: a 9:16 crop of a 16:9
+frame keeps 31.6 % of its width (81/256), less than the middle third, so the band to aim for is the centre 30 %
+around the action. On a phone, corners also sit under notches and thumbs. (src: CLIP, XAG)
 
 ## D. The three moments
 
@@ -91,7 +92,7 @@ outlined, at least 26 px at 1080p. Corners are the first thing a vertical crop l
 they have, play starts. The ready check is the forced lesson. Precedents: the first mushroom in Mario 1-1, the practice
 round in Mario Party, the climbing wall in PEAK's airport. (src: FORCE, PARTY, PEAK-WIKI)
 
-**CL12, the rule stays in the world.** One line of six words or fewer, placed in the world where it applies and visible
+**CL12, the rule stays in the world.** One line within the §E budget for a world rule line (six words), placed in the world where it applies and visible
 the whole time. Never a card that disappears. (src: BABA, SIGN)
 
 **CL13, the full explanation only once.** The first time a rule appears: the world line plus a short demonstration by
@@ -121,7 +122,7 @@ time. In multiplayer: the last player whose action acted on you, cleared once yo
 same way. (src: SMASH)
 
 **CL20, the cost decides the size.**
-- **Recovered in place:** a small label at the body, three words or fewer.
+- **Recovered in place:** a small label at the body, three words or fewer (§E budget).
 - **A real failure:** the cause named over the body, and the moment kept for the results.
 
 **CL21, failure is a story, not a fine.** The results screen is where failures pay off: what happened, the best moment,
@@ -132,11 +133,13 @@ the near miss. In Ultimate Chicken Horse the score bar is built from who trapped
 
 ## E. The game's voice
 
-Write it into `DESIGN.md` once; these are the defaults:
+Write it into `DESIGN.md` Look, on a `Voice` line, once; these are the defaults:
 
 - Second person, an order or a bare fact. Start with the verb or a name.
 - Names, not roles.
-- One to four words. An arrow (→) and a colour count as words.
+- **The word budget** (the one place it is set; CL01, CL12 and CL20 use it): one to four words for a prompt, a label
+  or an attribution; up to six for the persistent world rule line (CL12); three or fewer for a recovered-in-place
+  label (CL20). An arrow (→) and a colour count as words.
 - Sentence case. Capitals only for the shout of a moment.
 - Numbers only when they are the stake or the joke.
 - Never: "Congratulations", "Mission:", "Objective:", "Are you ready?", stacked exclamation marks, "you can …"
@@ -237,7 +240,9 @@ form is its own key, picked in code from the language's rule.
 ## J. Access
 
 Flashes, shake and haptics are `game-feel` (≤ 3 flashes a second, a shake slider, a haptics switch). Touch target
-sizes are `platform-targets`. Every game passes the rest before launch.
+sizes are `platform-targets`. Every game passes the rest before launch. The rules and the WCAG ratios (CL32) are pass
+conditions; a number marked `(start)` or sourced only to CCGS (a checklist with no primary source) is a target: missing
+it needs a stated reason in `DESIGN.md` Decisions, and with no reason it fails.
 
 **CL32, contrast.** (src: WCAG)
 - Text at least 4.5:1 against what is behind it (SC 1.4.3); large text (24 px, or 19 px bold) at least 3:1.

@@ -229,3 +229,4 @@ The presets available are `Selection`, `Success`, `Warning`, `Failure`, `LightIm
   existing ones the player would actually miss. Feel's *Bounce* demo
   (`Assets/Feel/FeelDemos/Bounce/FeelBounce.unity`) shows the same jump with and without feedbacks
   and is worth opening as a calibration reference; *Toaster* ships 20+ shake variations side by side.
+  Both exist only if the Feel demos were imported (games made by `new-game.ps1` do not have `FeelDemos/`).

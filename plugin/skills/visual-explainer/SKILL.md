@@ -1,6 +1,6 @@
 ---
 name: visual-explainer
-description: Deep visual explanation of a system, architecture, algorithm or data flow for a Unity/C# developer, in Turkish with English code terms - big picture, a Mermaid (or ASCII) model, how it works step by step, implementation, decisions, performance (measured vs theoretical), takeaways. Use when asked "açıkla", "anlat", "nasıl çalışıyor", "adım adım göster", "mimarisini çiz", "walk me through", or when the Visual Clarity output style picks its VISUAL EXPLAINER level.
+description: Use when asked "açıkla", "anlat", "nasıl çalışıyor", "adım adım göster", "mimarisini çiz", "walk me through", or when Visual Clarity picks VISUAL EXPLAINER. Deep Turkish explanation of a Unity/C# system, algorithm or data flow, with a diagram.
 ---
 
 # Visual explainer

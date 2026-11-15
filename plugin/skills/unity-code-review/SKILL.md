@@ -1,9 +1,15 @@
 ---
 name: unity-code-review
-description: Reviewing existing game C# for correctness (culture-safe parsing included), architectural fit, Unity lifecycle and ownership problems, save files and untrusted input, hidden allocations, platform gaps between PC and mobile, pre-Unity-6 API and unnecessary complexity. Use when asked to review, audit or critique code rather than write it.
+description: Use when asked to review, audit or critique game C# ("kodu incele", "kodu gözden geçir") - correctness, culture, Core/Game boundary, lifecycle, ownership, saves and untrusted input, allocations, PC/mobile/WebGL gaps, pre-Unity-6 API, complexity.
 ---
 
 # Reviewing code
+
+This file is the checklist of the `gamekit:unity-reviewer` agent. `review et` / `puanla` belong to the `pipeline`
+skill's scored review loop, not to this skill. For a diff, a commit range or a card, spawn `gamekit:unity-reviewer`
+(or run the pipeline's review step). Reviewing inline instead: follow that agent's steps (getting the change, scope
+`Assets/<Game>` only, the compile.log check) and its report format and **[yüksek]** / **[orta]** / **[düşük]** tags;
+**[karar]** is defined in `pipeline/references/review-rubric.md`.
 
 Report what materially matters. Do not nitpick style that already matches its surroundings.
 
@@ -54,6 +60,11 @@ Report what materially matters. Do not nitpick style that already matches its su
 5. **Platform gaps** — input that only works with a mouse or only with keys, UI placed outside the safe area or sized
    in pixels instead of through the `CanvasScaler`, `#if UNITY_EDITOR` logic the build depends on, a feature with no
    path on one of the targets (`platform-targets`).
+   - WebGL has no threads by default: `Task.Run`, `new Thread` and `System.Threading.Timer` work run on PC and mobile
+     but stall or never run there. Keep Unity-facing and WebGL-reached work on the main thread with `Awaitable` or a
+     coroutine, and split long work across frames.
+   - `async void` only for event handlers, with a `try`/`catch` inside: an exception thrown in it is not observed by
+     any caller. Everything else returns `Awaitable` (or `Task`).
 6. **Ownership** — two objects mutating the same state, or state duplicated across a view and its simulation. A
    `DontDestroyOnLoad` singleton that holds game state other systems write. UI that writes game state instead of
    reading it and sending a command.
@@ -69,10 +80,15 @@ Report what materially matters. Do not nitpick style that already matches its su
     - `Rigidbody` / `Rigidbody2D`: `.velocity` → `.linearVelocity`, `.drag` → `.linearDamping`, `.angularDrag` →
       `.angularDamping`. `PhysicMaterial` → `PhysicsMaterial` (`PhysicMaterialCombine` → `PhysicsMaterialCombine`).
       `CharacterController.velocity` and `NavMeshAgent.velocity` are not renamed.
-    - `FindObjectOfType` and `FindFirstObjectByType` → `FindAnyObjectByType`; `FindObjectsOfType` and
-      `FindObjectsByType(FindObjectsSortMode)` → `FindObjectsByType<T>()` or `FindObjectsByType<T>(FindObjectsInactive)`.
-      6000.6 marks `FindFirstObjectByType` and the sort-mode overload obsolete too. Better still, an Inspector
-      reference (item 2).
+    - `FindObjectOfType` / `FindFirstObjectByType` / `FindObjectsOfType` / the `FindObjectsSortMode` overload in
+      runtime code: the fix is an Inspector reference (item 2), not a renamed lookup. Only in an Editor tool or a
+      one-time bootstrap scan do they become `FindAnyObjectByType` and `FindObjectsByType<T>()` /
+      `FindObjectsByType<T>(FindObjectsInactive)`. 6000.6 marks `FindFirstObjectByType` and the sort-mode overload
+      obsolete too.
+    - Any `UnityEngine.Input` call (`Input.GetKey`, `Input.GetMouseButton`, `Input.mousePosition`, `Input.touches`,
+      `Input.GetAxis`) compiles with no warning but throws `InvalidOperationException` at runtime on every target:
+      Active Input Handling is the Input System only. Rewrite it with an `InputAction` or the `Pointer` API
+      (`platform-targets`).
     - Unity 6.4+: `InstanceID` → `EntityId`; `GetInstanceID()` → `GetEntityId()`; `InstanceIDToObject` →
       `EntityIdToObject`. A dictionary keyed on an instance ID becomes keyed on `EntityId`.
     - Cinemachine 3: namespace `Unity.Cinemachine`; `CinemachineVirtualCamera` → `CinemachineCamera`; Transposer →
@@ -85,6 +101,12 @@ Report what materially matters. Do not nitpick style that already matches its su
       path runs only in URP Compatibility Mode, which URP 17.6 (Unity 6000.6) no longer offers:
       `RenderGraphSettings.enableRenderCompatibilityMode` is hard-wired to `false` there.
     - `WWW` → `UnityWebRequest`; `Application.LoadLevel` → `SceneManager.LoadScene`.
+
+    This list is the source; the mechanical grep that mirrors it is the "obsolete API" section of
+    `bash "${CLAUDE_PLUGIN_ROOT}/skills/refactor-pass/scripts/survey.sh" --all` (its "Old Input manager" and
+    "Scene scans" sections cover the `Input` and item 2 hits). Run it before reading the diff by eye. A rename added
+    here is added to that regex too, with a matching line in `refactor-pass/scripts/test-survey.sh`'s `Obsolete.cs`
+    fixture.
 
 ## Convention checks
 

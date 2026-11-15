@@ -136,6 +136,160 @@
                                                        },
                                                        {
                                                            "type":  "command",
+                                                           "if":  "Edit(*.mixer)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Edit(*.playable)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Edit(*.signal)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Edit(*.lighting)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Edit(*.preset)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Edit(*.terrainlayer)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Edit(*.renderTexture)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Edit(*.spriteatlasv2)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Edit(*.physicMaterial)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Edit(*.physicsMaterial)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Edit(*.physicsMaterial2D)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
                                                            "if":  "Write(*.unity)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
@@ -235,6 +389,160 @@
                                                        {
                                                            "type":  "command",
                                                            "if":  "Write(*.overrideController)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Write(*.mixer)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Write(*.playable)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Write(*.signal)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Write(*.lighting)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Write(*.preset)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Write(*.terrainlayer)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Write(*.renderTexture)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Write(*.spriteatlasv2)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Write(*.physicMaterial)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Write(*.physicsMaterial)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Write(*.physicsMaterial2D)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -360,6 +668,160 @@
                                                        },
                                                        {
                                                            "type":  "command",
+                                                           "if":  "Bash(*.mixer*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Bash(*.playable*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Bash(*.signal*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Bash(*.lighting*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Bash(*.preset*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Bash(*.terrainlayer*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Bash(*.renderTexture*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Bash(*.spriteatlasv2*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Bash(*.physicMaterial*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Bash(*.physicsMaterial*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Bash(*.physicsMaterial2D*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
                                                            "if":  "PowerShell(*.unity*)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
@@ -459,6 +921,160 @@
                                                        {
                                                            "type":  "command",
                                                            "if":  "PowerShell(*.overrideController*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "PowerShell(*.mixer*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "PowerShell(*.playable*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "PowerShell(*.signal*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "PowerShell(*.lighting*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "PowerShell(*.preset*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "PowerShell(*.terrainlayer*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "PowerShell(*.renderTexture*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "PowerShell(*.spriteatlasv2*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "PowerShell(*.physicMaterial*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "PowerShell(*.physicsMaterial*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1"
+                                                                    ],
+                                                           "timeout":  15
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "PowerShell(*.physicsMaterial2D*)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",

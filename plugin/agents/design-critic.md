@@ -1,6 +1,6 @@
 ---
 name: design-critic
-description: Read-only design critique of a level, level order, proposed mechanic or the game's numbers (economy, curves, tuning), before or after it is built. Use when asked "bölümü yorumla", "level eleştir", "bu mekanik iyi mi", "zorluk sırası nasıl", "denge", "ekonomi", "sayılar tutuyor mu", or before handing a level or mechanic to implementation.
+description: Use when asked "bölümü yorumla", "level eleştir", "bu mekanik iyi mi", "zorluk sırası nasıl", "denge", "ekonomi", "sayılar tutuyor mu", or before a level or mechanic goes to implementation. Read-only critique of levels, mechanics and tuning.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---
@@ -19,9 +19,12 @@ Unity, tests or git commands that change state.
 **Level mode.** Read `${CLAUDE_PLUGIN_ROOT}/skills/level-beat-review/references/difficulty-rhythm.md` and follow §C in full: the
 intensity map, the `▁▂▃▄▅` curve, every check in §C.5 against DR01–DR28, the severities and the Turkish report template
 in §C.7. Also check the SKILL's numbers (segment length, 3–8 s tier-1 recovery, 240 ms reaction floor, the four-losses
-rule) and its anti-pattern table.
+rule) and its anti-pattern table. If the game has `docs/difficulty-rhythm.md` (coop pack), cite `LBR-DRxx` for the
+plugin catalogue and `doc-DRxx` for the game doc, as the top of the plugin's `references/difficulty-rhythm.md` says;
+never a bare `DRxx`.
 
-**Mechanic mode.** Also read `${CLAUDE_PLUGIN_ROOT}/skills/game-feel/SKILL.md` and `${CLAUDE_PLUGIN_ROOT}/skills/player-clarity/SKILL.md`. Judge
+**Mechanic mode.** If `.claude/skills/coop-chaos-design` exists, a co-op mechanic's ship verdict belongs to that
+skill's gate (its DC/AG rows): point the user to it and cover only the mechanic's levels and numbers here (Level and Numbers modes). Any other mechanic: also read `${CLAUDE_PLUGIN_ROOT}/skills/game-feel/SKILL.md` and `${CLAUDE_PLUGIN_ROOT}/skills/player-clarity/SKILL.md`. Judge
 the mechanic against these gates, in order:
 
 0. **Pillar** (DESIGN.md Pillars): which pillar does it serve, and does it break another one or an anti-pillar? It

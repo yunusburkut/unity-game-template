@@ -1,13 +1,15 @@
 ---
 name: genre-defaults
-description: The defaults a genre's best games share, one sheet per genre - camera, first-slice defaults, feel rules, the choices that shape the pitch. Use when shaping a new game's idea, when the user names a genre ("tür", "genre", "X gibi bir oyun", "like Celeste"), or before picking the defaults for a genre's core system. Feel numbers are game-feel; level rhythm is level-beat-review.
+description: Use when shaping a new game idea or the user names a genre ("tür", "genre", "X gibi bir oyun", "like Celeste") - one sheet per genre of the defaults its best games share. Feel numbers are game-feel; level rhythm is level-beat-review.
 ---
 
 # Genre defaults
 
 A sheet is `references/<genre>.md`. Each line is a hypothesis read from the genre's best games, not a measured number.
-The user's words override every line. Numbers come from `game-feel/references/numbers.md`, never from a sheet. A source
-key such as `[gungeon-2]` resolves in `references/sources.md`.
+The user's words override every line. Feel durations and magnitudes (dodge windows, judgement windows, handling) come
+from `game-feel/references/numbers.md`, never from a sheet; where it has no band for the genre, use a starting guess
+marked to tune in Play Mode (game-feel's rule). Session lengths and variety floors in a sheet are hypotheses too. A
+source key such as `[gungeon-2]` resolves in `references/sources.md`.
 
 ## Match the idea to a sheet
 
@@ -84,13 +86,16 @@ that game's genre. No sheet fits: take the nearest one and say which in the Assu
 - **Choices that shape the pitch** (failure, progression, view, the feeling sentence): ask only the ones the user's
   words leave open. The feeling sentence goes into the DESIGN.md opening paragraph.
 - **Defaults and Feel** feed DESIGN.md Pillars and Rules and the first spec card. A default the user did not confirm is
-  an Assumption on the card, with its Break it when. A rule goes into Rules only after it is built.
-- **Camera** sets the first scene's camera. **Variety**, where a sheet has it, is the floor of enemy kinds in the first
+  an Assumption on the card in one line, `<default> (break it when: <condition>)`; copied to DESIGN.md Decisions, the
+  condition stays in its Why. A rule goes into Rules only after it is built.
+- **Camera** sets the first scene's camera. A Cinemachine camera first adds `com.unity.cinemachine`, which the template
+  does not install (`gamekit:unity-package-management`). **Variety**, where a sheet has it, is the floor of enemy kinds in the first
   slice (a hypothesis; never fewer than the user names).
 - **Platforms** feeds the DESIGN.md Platforms table (input, orientation, session length on PC and phone).
 - **Variants:** the user's words pick one (else the first, as an Assumption); it tunes the Feel lines.
 - **In a mashup:** read it with `references/mashups.md`.
-- **Later** items go to PLAN.md Next (at most 5), never into the first slice.
+- **Later** items are candidates, never in the first slice. One enters PLAN.md Next only when it is among the riskiest
+  systems (`gamekit:new-game`'s rule; Next holds at most 5); the rest stay out of PLAN.md.
 - **Online:** the idea asks for play over a network: read `references/online.md` and record its level.
 - **Look:** the user said nothing about the look: read `references/art-directions.md` and mark the pick *guessed*.
 
