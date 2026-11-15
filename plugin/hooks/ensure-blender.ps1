@@ -26,7 +26,8 @@ if (Test-Port) { exit 0 }
 
 $fix = 'In Blender: Edit > Preferences > System > Allow Online Access on, then Add-ons > MCP > Start.'
 
-if (Get-Process blender -ErrorAction SilentlyContinue) {
+# A --background run (bake, export, *_for_cli) has no window and no MCP server, so only a windowed Blender counts.
+if (Get-Process blender -ErrorAction SilentlyContinue | Where-Object MainWindowHandle -ne 0) {
     # Blender may still be starting; the add-on starts its server a few seconds after launch.
     if (Wait-Port 20) { exit 0 }
     [Console]::Error.WriteLine("Blender is running but its MCP server is not listening on localhost:$port. $fix")
