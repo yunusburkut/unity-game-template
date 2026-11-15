@@ -115,7 +115,11 @@ Blender (5.2, PATH'te yok):
 
 1. `BLENDER_PATH` kullanıcı değişkenini `C:\Program Files\Blender Foundation\Blender 5.2\blender.exe` yap; Claude'u
    yeniden başlat. Blender MCP'nin `*_for_cli` araçları Blender'ı bununla bulur.
-2. Canlı MCP araçları için Blender'da MCP add-on'unu kur ve aç (port 9876).
+2. Canlı MCP araçları için Blender'da MCP add-on'unu kur ve aç (port 9876):
+   `blender --command extension repo-add --name "Blender Lab" --url https://lab.blender.org/ lab`, sonra
+   `blender --online-mode --command extension sync` ve `... extension install --enable lab.mcp`. Preferences →
+   System → **Allow Online Access** açık olmalı; kapalıyken add-on sunucuyu başlatmaz (yalnızca localhost dinler,
+   internete çıkmaz). Blender açıldıktan birkaç saniye sonra sunucu kendiliğinden başlar.
 3. `~/.claude/skills` içinde yalnızca `blender-director`, `blender-image-to-3d` ve `unity-export` durur. Diğer ~90
    Blender skill'i `~/.claude/spares/blender-skills/` altındadır: skill listesine girmezler, director onları dosya
    olarak okur. Skill olarak dursalar, listeleme bütçesi taşar ve gamekit skill'lerinin açıklaması düşer.
