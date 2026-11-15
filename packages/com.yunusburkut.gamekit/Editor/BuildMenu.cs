@@ -3,12 +3,9 @@ using System.IO;
 using System.Reflection;
 using System.Text;
 using UnityEditor;
-using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
 using UnityEngine;
-using UnityEngine.Rendering;
-using UnityEngine.Rendering.Universal;
 
 namespace GameKit.Editor
 {
@@ -29,6 +26,9 @@ namespace GameKit.Editor
         [MenuItem("GameKit/Build/Android (AAB, Google Play)")] public static void AndroidBundle() => Build(BuildTarget.Android, appBundle: true);
         [MenuItem("GameKit/Build/iOS (Xcode project)")] public static void IOS() => Build(BuildTarget.iOS);
         [MenuItem("GameKit/Build/WebGL")] public static void WebGL() => Build(BuildTarget.WebGL);
+
+        /// <summary>The names TryParse takes, for help text (AgentBridge's Unknown request answer).</summary>
+        public const string TargetNames = "windows|android|aab|ios|webgl";
 
         public static bool TryParse(string name, out BuildTarget target, out bool appBundle)
         {
@@ -61,7 +61,8 @@ namespace GameKit.Editor
                 return;
             }
 
-            if (target == BuildTarget.WebGL) ConfigureWebGL();
+            development |= EditorUserBuildSettings.development;
+            if (target == BuildTarget.WebGL) SetWebGLCodeOptimization(development);
             AssetDatabase.SaveAssets();
 
             var scenes = new List<string>();
@@ -86,12 +87,16 @@ namespace GameKit.Editor
             var startGroup = BuildPipeline.GetBuildTargetGroup(startTarget);
             bool startAppBundle = EditorUserBuildSettings.buildAppBundle;
             bool startCustomKeystore = PlayerSettings.Android.useCustomKeystore;
-            development |= EditorUserBuildSettings.development;
+            var startCompression = PlayerSettings.WebGL.compressionFormat;
 
             BuildReport report;
             try
             {
                 if (target == BuildTarget.Android) EditorUserBuildSettings.buildAppBundle = appBundle;
+                // a dev WebGL build is for quick local checks: uncompressed loads from any static server and skips the
+                // slow Brotli pass; the project's own format (ProjectSetup: Brotli for itch.io) is put back below
+                if (target == BuildTarget.WebGL && development)
+                    PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
                 // a batch run (CI) has no keystore passwords, so a test APK is debug-signed instead of failing; the
                 // store AAB keeps the release keystore
                 if (target == BuildTarget.Android && !appBundle && Application.isBatchMode)
@@ -109,6 +114,7 @@ namespace GameKit.Editor
             {
                 EditorUserBuildSettings.buildAppBundle = startAppBundle;
                 PlayerSettings.Android.useCustomKeystore = startCustomKeystore;
+                PlayerSettings.WebGL.compressionFormat = startCompression;
             }
 
             var summary = report.summary;
@@ -117,6 +123,9 @@ namespace GameKit.Editor
                 .Append(AgentBridge.Timestamp()).Append('\n');
             text.Append("output ").Append(summary.outputPath).Append('\n');
             text.Append("development ").Append(development ? "yes" : "no").Append('\n');
+            if (target == BuildTarget.WebGL)
+                text.Append("compression ").Append(development ? WebGLCompressionFormat.Disabled : startCompression)
+                    .Append(development ? " (dev build)" : "").Append('\n');
             text.Append("size ").Append((summary.totalSize / (1024f * 1024f)).ToString("0.0")).Append(" MB, time ")
                 .Append(summary.totalTime.TotalSeconds.ToString("0")).Append(" s\n");
             if (target == BuildTarget.Android)
@@ -155,18 +164,15 @@ namespace GameKit.Editor
             }
         }
 
-        /// <summary>The size pass Magic Sort and Pixel Volley ship to itch.io with.</summary>
-        static void ConfigureWebGL()
+        /// <summary>
+        /// The WebGL code optimization lives in the per-machine build settings (Library/, not committed), so a fresh
+        /// clone would build with Unity's default; it is set on every WebGL build. Release builds get the size pass
+        /// Magic Sort and Pixel Volley ship to itch.io with, dev builds the fastest build. The project-wide WebGL
+        /// player settings (compression, template, stripping) are ProjectSetup's, written once, so a game's own
+        /// choice there survives every build.
+        /// </summary>
+        static void SetWebGLCodeOptimization(bool development)
         {
-            // itch.io serves .br files with Content-Encoding: br, so the browser decompresses them natively and no
-            // JavaScript decompressor ships. A host that does not set that header needs decompressionFallback = true.
-            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Brotli;
-            PlayerSettings.WebGL.decompressionFallback = false;
-            PlayerSettings.WebGL.dataCaching = true;
-            // full-window canvas, so the game fills the itch.io viewport and any iframe it is embedded in
-            PlayerSettings.WebGL.template = "PROJECT:Responsive";
-            // the first load is dominated by the download
-            PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.WebGL, ManagedStrippingLevel.High);
             // UnityEditor.WebGL lives in the WebGL module's own DLL: a direct reference would stop this whole assembly
             // (AgentBridge included) compiling on a machine or CI image without that module
             var settings = System.Type.GetType("UnityEditor.WebGL.UserBuildSettings, UnityEditor.WebGL.Extensions");
@@ -176,13 +182,12 @@ namespace GameKit.Editor
             var type = property?.PropertyType ?? field?.FieldType;
             if (type != null)
             {
-                var value = System.Enum.Parse(type, "DiskSizeLTO");
+                // UnityEditor.WebGL.WasmCodeOptimization (6000.6): BuildTimes, RuntimeSpeed, RuntimeSpeedLTO, DiskSize,
+                // DiskSizeLTO
+                var value = System.Enum.Parse(type, development ? "BuildTimes" : "DiskSizeLTO");
                 if (property != null) property.SetValue(null, value); else field.SetValue(null, value);
             }
             else Debug.LogWarning("[BuildMenu] WebGL code optimization not set: UnityEditor.WebGL.UserBuildSettings not found.");
-
-            var stripping = GraphicsSettings.GetRenderPipelineSettings<URPShaderStrippingSetting>();
-            stripping.stripUnusedPostProcessingVariants = true;
         }
 
         static void Finish(BuildTarget target, string text, bool succeeded)

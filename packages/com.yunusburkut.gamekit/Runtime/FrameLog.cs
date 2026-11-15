@@ -14,10 +14,14 @@ namespace GameKit
     /// second to <c>persistentDataPath/frame-log-*.csv</c> and shows fps, frame times, GC, draw/SetPass and
     /// CPU/GPU ms on F3 or a three-finger tap (position and memory are CSV-only).
     /// <para>
-    /// A line holds the window's average FPS, p99 and worst frame, how many frames ran past 17 ms, the
+    /// A line holds the second's average FPS, the p99 frame of the last 10 s, the second's worst frame and how
+    /// many of its frames ran past 17 ms, the
     /// scene and camera position at the worst frame (where to go and look), GC bytes per frame, draw
     /// calls, SetPass calls, CPU and GPU ms (gpu reads 0 where the graphics API has no timer queries), and
     /// system-used and GC-reserved memory in MB.
+    /// p99 spans 10 s because one second holds about 60 frames at 60 fps, where the 99th percentile is the
+    /// worst frame itself: p99_ms is the sustained tail (the 6th-worst of 600 frames), max_ms the single
+    /// worst hitch of the second.
     /// </para>
     /// The once-a-second string work allocates; the frame after a write is left out of the GC column so
     /// the log does not report its own cost.
@@ -26,12 +30,17 @@ namespace GameKit
     {
         const float WindowSeconds = 1f;
         const float SlowMs = 17f;
-        const int Capacity = 1024;
+        // p99 window: the last 10 one-second windows; 4096 frames hold 10 s up to 400 fps, above that the
+        // window is the last 4096 frames
+        const int RecentWindows = 10;
+        const int RecentCapacity = 4096;
         const string Header = "t_s,scene,fps,p99_ms,max_ms,slow_frames,worst_x,worst_y,worst_z,gc_bytes_per_frame,draw_calls,setpass_calls,cpu_ms,gpu_ms,sys_mb,gc_reserved_mb";
         // a Turkish locale writes 12.5 as "12,5" and shifts every CSV column
         static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
-        readonly float[] _frames = new float[Capacity];
+        readonly float[] _recent = new float[RecentCapacity];
+        readonly float[] _sorted = new float[RecentCapacity];
+        readonly int[] _windowCounts = new int[RecentWindows];
         readonly FrameTiming[] _timing = new FrameTiming[1];
         readonly StringBuilder _line = new StringBuilder(160);
 
@@ -42,7 +51,7 @@ namespace GameKit
         ProfilerRecorder _gcReserved;
         StreamWriter _file;
         string _scene = "";
-        string _overlay = "FrameLog…";
+        FrameLogOverlay _overlay;
         bool _show;
         bool _skipGc;
         float _windowTime;
@@ -50,6 +59,9 @@ namespace GameKit
         float _worstMs;
         Vector3 _worstAt;
         int _count;
+        int _recentNext;
+        int _recentFilled;
+        int _window;
         int _slow;
         long _gcBytes;
         int _gcFrames;
@@ -77,8 +89,13 @@ namespace GameKit
             _file.WriteLine(Header);
             Debug.Log($"FrameLog: {path} (F3 or a three-finger tap shows the numbers)");
 
+            // IMGUI dispatches its events every frame to any enabled component with OnGUI, so the overlay is its own
+            // component, enabled only while shown: a hidden overlay adds nothing to the frames being measured
+            _overlay = gameObject.AddComponent<FrameLogOverlay>();
+            _overlay.enabled = false;
+
             SceneManager.activeSceneChanged += OnSceneChanged;
-            _scene = SceneManager.GetActiveScene().name;
+            _scene = CsvField(SceneManager.GetActiveScene().name);
         }
 
         void OnDestroy()
@@ -92,16 +109,26 @@ namespace GameKit
             _file?.Dispose();
         }
 
-        void OnSceneChanged(Scene from, Scene to) => _scene = to.name;
+        void OnSceneChanged(Scene from, Scene to) => _scene = CsvField(to.name);
+
+        // a comma in a scene name ("Level 1, Boss") would shift every later column of the line
+        static string CsvField(string value) => value.Replace(',', ';');
 
         void Update()
         {
-            if (Keyboard.current != null && Keyboard.current.f3Key.wasPressedThisFrame) _show = !_show;
-            if (Touchscreen.current != null && Touchscreen.current.touches[2].press.wasPressedThisFrame) _show = !_show;
+            if ((Keyboard.current != null && Keyboard.current.f3Key.wasPressedThisFrame) ||
+                (Touchscreen.current != null && Touchscreen.current.touches[2].press.wasPressedThisFrame))
+            {
+                _show = !_show;
+                _overlay.enabled = _show;
+            }
 
             var dt = Time.unscaledDeltaTime;
             var ms = dt * 1000f;
-            if (_count < Capacity) _frames[_count++] = ms;
+            _count++;
+            _recent[_recentNext] = ms;
+            _recentNext = (_recentNext + 1) % RecentCapacity;
+            if (_recentFilled < RecentCapacity) _recentFilled++;
             _total += dt;
             _windowTime += dt;
             if (ms > SlowMs) _slow++;
@@ -123,8 +150,18 @@ namespace GameKit
 
         void Flush()
         {
-            Array.Sort(_frames, 0, _count);
-            var p99 = _frames[Mathf.Min(_count - 1, (int)(_count * 0.99f))];
+            _windowCounts[_window] = _count;
+            _window = (_window + 1) % RecentWindows;
+            int n = 0;
+            foreach (int frames in _windowCounts) n += frames;
+            n = Mathf.Min(n, _recentFilled);
+            // the newest n frames end just before _recentNext and may wrap round the ring
+            int start = (_recentNext - n + RecentCapacity) % RecentCapacity;
+            int head = Mathf.Min(n, RecentCapacity - start);
+            Array.Copy(_recent, start, _sorted, 0, head);
+            Array.Copy(_recent, 0, _sorted, head, n - head);
+            Array.Sort(_sorted, 0, n);
+            var p99 = _sorted[Mathf.Min(n - 1, (int)(n * 0.99f))];
             var fps = _count / _windowTime;
             var gcPerFrame = _gcFrames > 0 ? _gcBytes / _gcFrames : 0;
 
@@ -149,7 +186,7 @@ namespace GameKit
             _file.WriteLine(_line.ToString());
 
             if (_show)
-                _overlay = $"{fps:F0} fps   p99 {p99:F1} ms   max {_worstMs:F1} ms   >17ms: {_slow}\n" +
+                _overlay.Text = $"{fps:F0} fps   p99 (10 s) {p99:F1} ms   max {_worstMs:F1} ms   >17ms: {_slow}\n" +
                            $"GC {gcPerFrame} B/frame   draw {_draws.LastValue}   setpass {_setPass.LastValue}   cpu {cpu:F1}   gpu {gpu:F1}";
 
             _windowTime = 0f;
@@ -159,11 +196,6 @@ namespace GameKit
             _gcBytes = 0;
             _gcFrames = 0;
             _skipGc = true;
-        }
-
-        void OnGUI()
-        {
-            if (_show) GUI.Label(new Rect(10f, 10f, 900f, 50f), _overlay);
         }
     }
 }

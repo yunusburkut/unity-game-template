@@ -30,12 +30,15 @@ namespace GameKit
             _screen = new Vector2Int(Screen.width, Screen.height);
             if (_screen.x == 0 || _screen.y == 0) return;
 
-            var min = _applied.position;
-            var max = _applied.position + _applied.size;
-            _rect.anchorMin = new Vector2(min.x / _screen.x, min.y / _screen.y);
-            _rect.anchorMax = new Vector2(max.x / _screen.x, max.y / _screen.y);
+            var anchors = Anchors(_applied, _screen.x, _screen.y);
+            _rect.anchorMin = anchors.min;
+            _rect.anchorMax = anchors.max;
             _rect.offsetMin = Vector2.zero;
             _rect.offsetMax = Vector2.zero;
         }
+
+        /// <summary>The safe area in pixels as normalized anchors (min, max) of a screen width x height.</summary>
+        public static Rect Anchors(Rect safeArea, int width, int height) =>
+            Rect.MinMaxRect(safeArea.xMin / width, safeArea.yMin / height, safeArea.xMax / width, safeArea.yMax / height);
     }
 }

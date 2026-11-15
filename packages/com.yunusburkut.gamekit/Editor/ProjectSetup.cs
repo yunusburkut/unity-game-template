@@ -15,9 +15,11 @@ namespace GameKit.Editor
     /// <summary>
     /// Configures a fresh project for PC (Windows), mobile (Android, iOS) and WebGL: a URP asset and a quality
     /// level per tier (Mobile, PC), the Input System only, linear colour, IL2CPP ARM64 on Android, Play Mode
-    /// without domain or scene reload, and an empty Main scene in the build. Safe to run again: the identity,
-    /// the URP assets and the quality levels are written only the first time, so later tuning survives (a pack's
-    /// [ProjectSetupStep] may reapply its own settings; mobile-2d resets the renderer lists).
+    /// without domain or scene reload, a resizable PC window, the WebGL size pass and URP post-processing
+    /// stripping, and an empty Main
+    /// scene in the build. Safe to run again: the identity, the build defaults, the URP assets and the quality
+    /// levels are written only the first time, so later tuning survives (a pack's
+    /// [ProjectSetupStep] keeps the same promise; mobile-2d converts each renderer list and Main only once).
     /// new-game.ps1 runs it once:
     /// Unity -batchmode -quit -projectPath . -executeMethod GameKit.Editor.ProjectSetup.Run -gameCompany &lt;company&gt;
     /// </summary>
@@ -51,6 +53,7 @@ namespace GameKit.Editor
             Directory.CreateDirectory(Path.GetDirectoryName(ScenePath));
             AssetDatabase.Refresh();
 
+            bool fresh = PlayerSettings.companyName == "DefaultCompany";
             ConfigurePlayer();
             ConfigureEditor();
 
@@ -59,6 +62,8 @@ namespace GameKit.Editor
             var pc = CreatePipeline("PC", hdr: true, msaa: 4, shadowResolution: 2048, cascades: 2,
                                     softShadows: true, shadowDistance: 50f);
             ConfigureQuality(mobile, pc);
+            // after ConfigureQuality: the stripping setting lives in URP's global settings, there once URP is active
+            if (fresh) ConfigureBuildDefaults();
 
             bool mainReady = CreateMainScene();
 
@@ -113,7 +118,7 @@ namespace GameKit.Editor
             // 1 = Input System only. No public setter; Unity reads it at startup, so it takes effect on the
             // next Editor launch.
             var player = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset")[0]);
-            player.FindProperty("activeInputHandler").intValue = 1;
+            Set(player, "activeInputHandler", p => p.intValue = 1);
             player.ApplyModifiedPropertiesWithoutUndo();
 
             // Feel writes this define only for the target active when the Editor loads; without it on Android and
@@ -121,6 +126,45 @@ namespace GameKit.Editor
             if (Directory.Exists("Assets/Feel/NiceVibrations"))
                 foreach (var target in new[] { NamedBuildTarget.Standalone, NamedBuildTarget.Android, NamedBuildTarget.iOS, NamedBuildTarget.WebGL })
                     AddDefine(target, "MOREMOUNTAINS_NICEVIBRATIONS_INSTALLED");
+        }
+
+        /// <summary>
+        /// Project-wide build settings, written on a fresh project only, so a game that changes one later (a host
+        /// without Content-Encoding headers, a lower stripping level after a reflection crash) keeps its choice.
+        /// The WebGL part is the size pass Magic Sort and Pixel Volley ship to itch.io with; BuildMenu sets the
+        /// per-machine WebGL code optimization on each build.
+        /// </summary>
+        static void ConfigureBuildDefaults()
+        {
+            // itch.io serves .br files with Content-Encoding: br, so the browser decompresses them natively and no
+            // JavaScript decompressor ships. A host that does not set that header needs decompressionFallback = true.
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Brotli;
+            PlayerSettings.WebGL.decompressionFallback = false;
+            PlayerSettings.WebGL.dataCaching = true;
+            // full-window canvas, so the game fills the itch.io viewport and any iframe it is embedded in
+            PlayerSettings.WebGL.template = "PROJECT:Responsive";
+            // the first load is dominated by the download. Code reached only by reflection needs a link.xml entry.
+            PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.WebGL, ManagedStrippingLevel.High);
+
+            // PC: a resizable window in the phone's orientation, so the desktop build shows the same framing as the
+            // phone and the player can resize it (Unity's default opens full screen at the desktop resolution).
+            // Written once from the orientation set at this point; a game that locks another orientation later sets
+            // these two sizes with it (platform-targets).
+            PlayerSettings.fullScreenMode = FullScreenMode.Windowed;
+            PlayerSettings.resizableWindow = true;
+            bool portrait = PlayerSettings.defaultInterfaceOrientation == UIOrientation.Portrait
+                         || PlayerSettings.defaultInterfaceOrientation == UIOrientation.PortraitUpsideDown;
+            PlayerSettings.defaultScreenWidth = portrait ? 540 : 1280;
+            PlayerSettings.defaultScreenHeight = portrait ? 960 : 720;
+
+            // Every target, so builds of one commit match whichever target was built first. URP keeps the post
+            // effects some VolumeProfile asset in the project uses (scenes are not scanned): an override added only
+            // from code needs a profile asset that holds it, or this setting turned off.
+            if (GraphicsSettings.TryGetRenderPipelineSettings<URPShaderStrippingSetting>(out var stripping))
+                stripping.stripUnusedPostProcessingVariants = true;
+            else
+                Debug.LogWarning("[ProjectSetup] URP shader stripping settings not found: unused post-processing "
+                    + "variants are kept (Project Settings > Graphics > URP > Strip Unused Post Processing Variants).");
         }
 
         static string CommandLineValue(string name)
@@ -170,8 +214,8 @@ namespace GameKit.Editor
 
             // the shadow resolution and soft shadows have no public setters
             var serialized = new SerializedObject(pipeline);
-            serialized.FindProperty("m_MainLightShadowmapResolution").intValue = shadowResolution;
-            serialized.FindProperty("m_SoftShadowsSupported").boolValue = softShadows;
+            Set(serialized, "m_MainLightShadowmapResolution", p => p.intValue = shadowResolution);
+            Set(serialized, "m_SoftShadowsSupported", p => p.boolValue = softShadows);
             serialized.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(pipeline);
             return pipeline;
@@ -180,14 +224,22 @@ namespace GameKit.Editor
         /// <summary>
         /// Two quality levels, Mobile (0) and PC (1), each pointing at its URP asset. Phones and WebGL default
         /// to Mobile, desktop to PC. A game that wants more tiers adds them here, not by hand.
-        /// Written once: a project whose level 0 is already "Mobile" keeps its own tuning.
+        /// Written once: a project whose level 0 is already "Mobile" keeps its own tuning, except a pipeline
+        /// reference left empty (a deleted URP asset that the rerun created again) is pointed at the tier's asset.
         /// </summary>
         static void ConfigureQuality(UniversalRenderPipelineAsset mobile, UniversalRenderPipelineAsset pc)
         {
             var quality = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/QualitySettings.asset")[0]);
             var levels = quality.FindProperty("m_QualitySettings");
             if (levels.arraySize > 0 && levels.GetArrayElementAtIndex(MobileLevel).FindPropertyRelative("name").stringValue == "Mobile")
+            {
+                // without these the game silently falls back to the Built-in pipeline (pink materials)
+                if (GraphicsSettings.defaultRenderPipeline == null) GraphicsSettings.defaultRenderPipeline = pc;
+                RepointIfEmpty(levels.GetArrayElementAtIndex(MobileLevel), mobile);
+                if (levels.arraySize > PcLevel) RepointIfEmpty(levels.GetArrayElementAtIndex(PcLevel), pc);
+                quality.ApplyModifiedPropertiesWithoutUndo();
                 return;
+            }
 
             GraphicsSettings.defaultRenderPipeline = pc;
 
@@ -205,6 +257,9 @@ namespace GameKit.Editor
             quality.FindProperty("m_CurrentQuality").intValue = PcLevel;
 
             var perPlatform = quality.FindProperty("m_PerPlatformDefaultQuality");
+            if (perPlatform == null) Debug.LogWarning("[ProjectSetup] m_PerPlatformDefaultQuality not found: set each "
+                + "platform's default quality level by hand (Project Settings > Quality).");
+            else
             for (int i = 0; i < perPlatform.arraySize; i++)
             {
                 var entry = perPlatform.GetArrayElementAtIndex(i);
@@ -219,17 +274,38 @@ namespace GameKit.Editor
         static void SetLevel(SerializedProperty level, string name, RenderPipelineAsset pipeline, int vSyncCount,
                              int skinWeights, float lodBias, int anisotropic, bool reflectionProbes, int raycastBudget)
         {
-            level.FindPropertyRelative("name").stringValue = name;
-            level.FindPropertyRelative("customRenderPipeline").objectReferenceValue = pipeline;
+            Set(level, "name", p => p.stringValue = name);
+            Set(level, "customRenderPipeline", p => p.objectReferenceValue = pipeline);
             // ignored on phones, which run at Application.targetFrameRate (AppStartup)
-            level.FindPropertyRelative("vSyncCount").intValue = vSyncCount;
-            level.FindPropertyRelative("globalTextureMipmapLimit").intValue = 0; // full-resolution textures
-            level.FindPropertyRelative("skinWeights").intValue = skinWeights;
-            level.FindPropertyRelative("lodBias").floatValue = lodBias;
-            level.FindPropertyRelative("anisotropicTextures").intValue = anisotropic;
-            level.FindPropertyRelative("realtimeReflectionProbes").boolValue = reflectionProbes;
-            level.FindPropertyRelative("particleRaycastBudget").intValue = raycastBudget;
-            level.FindPropertyRelative("enableLODCrossFade").boolValue = true;
+            Set(level, "vSyncCount", p => p.intValue = vSyncCount);
+            Set(level, "globalTextureMipmapLimit", p => p.intValue = 0); // full-resolution textures
+            Set(level, "skinWeights", p => p.intValue = skinWeights);
+            Set(level, "lodBias", p => p.floatValue = lodBias);
+            Set(level, "anisotropicTextures", p => p.intValue = anisotropic);
+            Set(level, "realtimeReflectionProbes", p => p.boolValue = reflectionProbes);
+            Set(level, "particleRaycastBudget", p => p.intValue = raycastBudget);
+            Set(level, "enableLODCrossFade", p => p.boolValue = true);
+        }
+
+        static void RepointIfEmpty(SerializedProperty level, RenderPipelineAsset pipeline)
+        {
+            var reference = level.FindPropertyRelative("customRenderPipeline");
+            if (reference != null && reference.objectReferenceValue == null) reference.objectReferenceValue = pipeline;
+        }
+
+        // A Unity or URP update can rename a serialized field. Warn and go on, so one renamed field does not stop the
+        // setup halfway with the rest of the tier unwritten.
+        static void Set(SerializedObject owner, string name, System.Action<SerializedProperty> write) =>
+            Write(owner.FindProperty(name), name, write);
+
+        static void Set(SerializedProperty owner, string name, System.Action<SerializedProperty> write) =>
+            Write(owner.FindPropertyRelative(name), name, write);
+
+        static void Write(SerializedProperty property, string name, System.Action<SerializedProperty> write)
+        {
+            if (property != null) write(property);
+            else Debug.LogWarning("[ProjectSetup] serialized field " + name + " not found (renamed by a Unity or URP "
+                + "update?): set it by hand and update ProjectSetup.");
         }
 
         /// <summary>Call before replacing the open scenes: asks to save unsaved edits (no dialog in batch mode).

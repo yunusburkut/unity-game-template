@@ -20,6 +20,12 @@ namespace GameKit.Editor
     /// to deliver messages for a failed assembly, while the log stream always carries them.
     /// The report is written once compilation settles, so a domain reload cannot race it, and only after a compile
     /// really ran (or once per Editor session), so a fresh timestamp always means fresh code.
+    ///
+    /// Status-line contract: plugin/bin/gk-bridge turns the first line of each log into a PASS / FAIL / UNKNOWN gate,
+    /// and plugin/test-hooks.ps1 feeds it fixed lines. It matches these prefixes and fragments, so rewording one here
+    /// needs the same change in both readers (and a GameKit release): "REFRESHED", "no script changes",
+    /// "in Play Mode", "SKIPPED", "Editor restarted", "Unknown request", "OK  " / "FAILED  " (compile-player.log
+    /// adds the platform: "OK  ios"), "module is not installed", and tests.log's "&lt;TestStatus&gt;  &lt;n&gt; passed,".
     /// </summary>
     [InitializeOnLoad]
     internal static class AgentBridge
@@ -35,6 +41,8 @@ namespace GameKit.Editor
         const string PlayerCompilePath = Dir + "/compile-player.log";
         const string PlayerCompileDir = "Temp/AgentBridgePlayerScripts";
         const string CapturePendingKey = "AgentBridge.CaptureSeconds";
+        const string CaptureErrorsKey = "AgentBridge.CaptureErrors";
+        const char CaptureErrorSeparator = '\u001e'; // ASCII record separator: never in a log message
         const string CompileRanKey = "AgentBridge.CompileRan";
         const string SessionStartedKey = "AgentBridge.SessionStarted";
         const string RefreshAckKey = "AgentBridge.RefreshAck";
@@ -115,6 +123,13 @@ namespace GameKit.Editor
 
             // The reload that enters a capture's Play Mode runs this before the scene wakes up.
             _capturePending = SessionState.GetFloat(CapturePendingKey, 0f) > 0f;
+            // A capture's errors from before a reload (the refresh's compile, entering Play Mode with domain reload on)
+            // come back from SessionState, so capture.log holds every error since the request.
+            AssemblyReloadEvents.beforeAssemblyReload += KeepCaptureErrors;
+            string kept = SessionState.GetString(CaptureErrorsKey, "");
+            SessionState.EraseString(CaptureErrorsKey);
+            if (_capturePending && kept.Length > 0)
+                lock (Gate) CaptureErrors.InsertRange(0, kept.Split(CaptureErrorSeparator));
 
             // A reload that was no compile (entering Play Mode) inside a refresh's settle time lost its timer; restart it.
             if (SessionState.GetBool(RefreshAckKey, false) && !SessionState.GetBool(CompileRanKey, false))
@@ -128,6 +143,14 @@ namespace GameKit.Editor
                 SessionState.EraseBool(CompileRanKey);
                 _reportPending = false;
             }
+        }
+
+        static void KeepCaptureErrors()
+        {
+            if (!_capturePending) return;
+            lock (Gate)
+                if (CaptureErrors.Count > 0)
+                    SessionState.SetString(CaptureErrorsKey, string.Join(CaptureErrorSeparator.ToString(), CaptureErrors));
         }
 
         // ---- compilation ----
@@ -324,9 +347,11 @@ namespace GameKit.Editor
             _nextPoll = now + PollInterval;
 
             // A refresh's settle time holds the next request too, until its compile starts or the time runs out (the
-            // timer always clears itself above, so nothing waits on it for good).
+            // timer always clears itself above, so nothing waits on it for good). So does a capture from its request to
+            // its report: a test run or a compile check inside it would cut its Play Mode short or hitch its shots
+            // (a capture always ends: compile failed, its report, the user leaving Play Mode, or a restart).
             if (pendingBuild.Length > 0 || _refreshAckAt > 0 || EditorApplication.isUpdating || !File.Exists(RequestPath) ||
-                TestRunOpen()) return;
+                TestRunOpen() || _capturing || SessionState.GetFloat(CapturePendingKey, 0f) > 0f) return;
 
             string request;
             try
@@ -418,7 +443,7 @@ namespace GameKit.Editor
 
             WriteAllText(BridgePath, "Unknown request: '" + request + "'  " + Timestamp() + "\nSupported: refresh, "
                 + "compile ios|android, run-tests [playmode], play-capture [seconds], "
-                + "build windows|android|aab|ios|webgl [dev]\n");
+                + "build " + BuildMenu.TargetNames + " [dev]\n");
         }
 
         /// <summary>Runs a queued "target [dev]" build; build.log always ends up replacing its PENDING line.</summary>
@@ -631,6 +656,12 @@ namespace GameKit.Editor
 
         static void RunTests(TestMode mode)
         {
+            if (EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                WriteAllText(TestsPath, "SKIPPED  " + Timestamp() + "  in Play Mode: run the tests again after Play ends\n");
+                return;
+            }
+
             // The test runner asks to save dirty scenes first; in an unfocused Editor no one answers that dialog, and
             // its Cancel ends the run with no callback (tests.log would stay RUNNING), so every run refuses instead.
             var unsaved = new List<string>();
@@ -651,17 +682,31 @@ namespace GameKit.Editor
         }
 
         // A request taken under a running test job (a refresh queued by an edit, a capture) would recompile or enter Play
-        // Mode mid-run, so requests wait in request.txt until RunFinished or OnError rewrites tests.log. Ceiling: a run
-        // cancelled from the Test Runner window gets no callback (UTF's TestRunnerApi.IsRunActive is internal), so it
-        // holds them for 10 minutes (gk-bridge's run-tests deadline); a restart turns its RUNNING into FAILED.
+        // Mode mid-run, so requests wait in request.txt until RunFinished or OnError rewrites tests.log. Each finished
+        // test touches tests.log (ResultWriter.TestFinished), so the 10 minutes count from the last progress and a long
+        // suite stays open. Ceiling: a run cancelled from the Test Runner window gets no callback (UTF's
+        // TestRunnerApi.IsRunActive is internal), so it holds them for 10 minutes after its last test (gk-bridge reads
+        // the same write time); one test running over 10 minutes is taken for that, and a restart turns RUNNING into FAILED.
         static bool TestRunOpen() =>
             FirstLineStarts(TestsPath, "RUNNING") && File.GetLastWriteTime(TestsPath) > DateTime.Now.AddMinutes(-10);
 
         class ResultWriter : IErrorCallbacks
         {
+            static DateTime _lastBeat;
+
             public void RunStarted(ITestAdaptor testsToRun) { }
             public void TestStarted(ITestAdaptor test) { }
-            public void TestFinished(ITestResultAdaptor result) { }
+
+            public void TestFinished(ITestResultAdaptor result)
+            {
+                if ((DateTime.Now - _lastBeat).TotalSeconds < 10) return; // a heartbeat, not a write per test
+                _lastBeat = DateTime.Now;
+                try
+                {
+                    if (FirstLineStarts(TestsPath, "RUNNING")) File.SetLastWriteTime(TestsPath, _lastBeat);
+                }
+                catch (Exception e) when (e is IOException || e is UnauthorizedAccessException) { }
+            }
 
             // A build error or a failing IPrebuildSetup ends the run here, and RunFinished never comes.
             public void OnError(string message) =>
@@ -703,16 +748,40 @@ namespace GameKit.Editor
 
         // ---- io ----
 
+        // Unity 6 writes the project's Logs/Editor.log early in boot; an Editor that does not (an older one, or a launch
+        // with another -logFile) leaves it in the per-user log
+        static string EditorLogPath()
+        {
+            const string ProjectLog = "Logs/Editor.log";
+            if (File.Exists(ProjectLog)) return ProjectLog;
+            string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            switch (Application.platform)
+            {
+                case RuntimePlatform.OSXEditor: return Path.Combine(home, "Library/Logs/Unity/Editor.log");
+                case RuntimePlatform.LinuxEditor: return Path.Combine(home, ".config/unity3d/Editor.log");
+                default:
+                    return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "Unity", "Editor", "Editor.log");
+            }
+        }
+
         static string ScrapeEditorLogErrors()
         {
-            const string EditorLog = "Logs/Editor.log";
+            string log = EditorLogPath();
+            string found = ScrapeErrors(log);
+            // FAILED with no line would leave nothing to fix from: say where the errors were looked for
+            return found.Length > 0 ? found : "No CS error line found in " + log + "; see console.log or the Console\n";
+        }
+
+        static string ScrapeErrors(string path)
+        {
             const int MaxScraped = 40;
-            if (!File.Exists(EditorLog)) return string.Empty;
+            if (!File.Exists(path)) return string.Empty;
 
             var found = new List<string>(MaxScraped);
             try
             {
-                using (var stream = new FileStream(EditorLog, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 using (var reader = new StreamReader(stream))
                 {
                     string line;
