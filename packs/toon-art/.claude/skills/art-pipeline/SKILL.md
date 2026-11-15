@@ -11,8 +11,8 @@ outputs that a rebuild overwrites. Fix the script, rebuild, never patch an outpu
 ## The chain
 
 1. **Blender script** in `Tools/Blender/<thing>.py`, run headless:
-   `blender --background --python Tools/Blender/<thing>.py -- <args>`. It builds the mesh (and rig and clips), checks
-   itself (polycount, naming, palette rules: fail the run on a broken rule rather than export it), and exports
+   `blender --background --python-exit-code 1 --python Tools/Blender/<thing>.py -- <args>` (without the flag a
+   Python error exits 0). It builds the mesh (and rig and clips), checks itself (polycount, naming, palette rules: fail the run on a broken rule rather than export it), and exports
    `Assets/__GAME__/Game/Art/Models/<Thing>.fbx` at Unity scale. Check renders go to `Tools/Blender/checks/`
    (gitignored).
 2. **Manifest**: when Unity needs more than the mesh (pivots, walk heights, collider boxes, which piece is which
