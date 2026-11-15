@@ -2,6 +2,24 @@
     "hooks":  {
                   "PreToolUse":  [
                                      {
+                                         "matcher":  "mcp__Blender__.*",
+                                         "hooks":  [
+                                                       {
+                                                           "type":  "command",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/ensure-blender.ps1"
+                                                                    ],
+                                                           "timeout":  100
+                                                       }
+                                                   ]
+                                     },
+                                     {
                                          "matcher":  "Edit|Write|Bash|PowerShell",
                                          "hooks":  [
                                                        {
