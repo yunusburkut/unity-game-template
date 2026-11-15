@@ -3,10 +3,14 @@
     Starts a new Unity game repository from this template.
 
 .DESCRIPTION
-    Copies project\ to <Path>\<Name>, adds the opt-in packs from packs\ named in -Packs, replaces __GAME__ /
+    Copies project\ to <Path>\<Name>, adds the opt-in packs from packs\ named in -Packs (each pack's packages.json
+    merged into the manifest, its README's CLAUDE.md lines appended to the game's CLAUDE.md), replaces __GAME__ /
     __COMPANY__ in file names and contents, copies Feel from another local project (a paid Asset Store package,
     committed because game repos are private), runs ProjectSetup once in batch mode (URP Mobile + PC tiers, Input System only, Main
-    scene) and makes the first commit.
+    scene; killed after -SetupTimeoutMinutes) and makes the first commit "Start <Name> from unity-game-template@<sha>"
+    (body "Packs: a, b" when packs were added), the base gamekit:sync-template diffs from. It warns, and marks the sha -dirty, when project\, packs\ or this script
+    have uncommitted changes, and warns when the template HEAD is not on origin/main. Takes 2-5 minutes with
+    ProjectSetup: an agent runs it in the background.
 
 .EXAMPLE
     .\new-game.ps1 -Name SkyHopper
@@ -42,6 +46,9 @@ param(
     # Skip the batch-mode ProjectSetup run (run "GameKit > Set Up Project" from the menu later).
     [switch]$NoSetup,
 
+    # The batch-mode ProjectSetup run is killed after this long (a first import takes a few minutes).
+    [int]$SetupTimeoutMinutes = 30,
+
     [switch]$NoGit,
 
     # After the first commit, create a private GitHub repo named <Name> under the gh account and push main to it.
@@ -69,6 +76,20 @@ foreach ($pack in $Packs) {
     if ($available -notcontains $pack) { throw "Unknown pack '$pack'. Available: $($available -join ', ')." }
 }
 
+# the start commit records HEAD as the base gamekit:sync-template diffs from; it only describes the copy when the
+# copied paths are committed, and it only stays valid when HEAD is on origin/main (pushed, never rewritten)
+$templateDirty = $null
+if (-not $NoGit) {
+    $templateDirty = @(cmd /c "git -C `"$PSScriptRoot`" status --porcelain -- project packs new-game.ps1 2>nul")
+    if ($templateDirty) {
+        Write-Warning "The template has uncommitted changes under project/, packs/ or new-game.ps1; the start commit is marked -dirty and its base does not hold them:`n$($templateDirty -join "`n")"
+    }
+    cmd /c "git -C `"$PSScriptRoot`" merge-base --is-ancestor HEAD origin/main >nul 2>&1"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning 'Template HEAD is not on origin/main (unpushed or no remote): push the template before syncing this game, or the sync base may not exist there.'
+    }
+}
+
 if (-not $Unity) {
     $version = (Select-String -LiteralPath (Join-Path $template 'ProjectSettings\ProjectVersion.txt') -Pattern '^m_EditorVersion: (.+)$').Matches[0].Groups[1].Value
     $Unity = "C:\Program Files\Unity\Hub\Editor\$version\Editor\Unity.exe"
@@ -81,6 +102,8 @@ robocopy $template $dest /E /XD $generated /XF *.csproj *.sln /NFL /NDL /NJH /NJ
 if ($LASTEXITCODE -ge 8) { throw "robocopy failed copying the template ($LASTEXITCODE)." }
 
 Write-Host '2/6 Packs'
+$claudeBullets = New-Object System.Collections.Generic.List[string]
+$claudeSections = New-Object System.Collections.Generic.List[string]
 foreach ($pack in $Packs) {
     $source = Join-Path $packRoot $pack
     # merged before the rename below, so the pack's Assets\__GAME__ lands in the template's and both get renamed once
@@ -120,9 +143,41 @@ foreach ($pack in $Packs) {
         }
         [IO.File]::WriteAllText($manifestPath, $manifest, (New-Object System.Text.UTF8Encoding $false))
     }
+
+    # the README is never copied, so what the game's agents must know about the pack is lifted from it: the fenced
+    # block under "## CLAUDE.md'ye eklenecek satir" (bullets for a "## Packs" section), or a fenced markdown block that
+    # is a whole CLAUDE.md section (coop-multiplayer's "## Networking", which net-auditor reads). Single-quoted regexes
+    # keep the backticks literal; \u0131 keeps this script ASCII.
+    $readme = Join-Path $source 'README.md'
+    if (Test-Path -LiteralPath $readme) {
+        $readmeText = [IO.File]::ReadAllText($readme)
+        $m = [regex]::Match($readmeText, '(?ms)^## CLAUDE\.md''ye eklenecek sat\u0131r[ \t]*\r?$.*?^```[^\r\n]*\r?\n(.*?)\r?\n```')
+        if ($m.Success) { $claudeBullets.Add(($m.Groups[1].Value -replace '\r\n', "`n")) }
+        foreach ($s in [regex]::Matches($readmeText, '(?ms)^```markdown\r?\n(## .*?)\r?\n```')) {
+            $claudeSections.Add(($s.Groups[1].Value -replace '\r\n', "`n"))
+        }
+    }
+    # mobile-store's README step 1: game code reaches StoreReview through this reference (text insert, layout kept)
+    if ($pack -eq 'mobile-store') {
+        $asmdef = Join-Path $dest 'Assets\__GAME__\Game\__GAME__.Game.asmdef'
+        $asmText = [IO.File]::ReadAllText($asmdef)
+        if ($asmText -notmatch '"__GAME__\.Store"') {
+            $asmText = ([regex]'("references"\s*:\s*\[[^\]]*?)\s*\]').Replace($asmText, {
+                param($r) $r.Groups[1].Value + $(if ($r.Groups[1].Value -match '\[\s*$') { '' } else { ', ' }) + '"__GAME__.Store"]' }, 1)
+            [IO.File]::WriteAllText($asmdef, $asmText, (New-Object System.Text.UTF8Encoding $false))
+        }
+    }
     Write-Host "    added $pack"
 }
 if (-not $Packs) { Write-Host '    none' }
+if ($claudeBullets.Count -or $claudeSections.Count) {
+    # appended before the placeholder pass below, which fills in the blocks' __GAME__
+    $claudePath = Join-Path $dest 'CLAUDE.md'
+    $claude = [IO.File]::ReadAllText($claudePath).TrimEnd() + "`n"
+    if ($claudeBullets.Count) { $claude += "`n## Packs`n`n" + ($claudeBullets -join "`n") + "`n" }
+    foreach ($s in $claudeSections) { $claude += "`n$s`n" }
+    [IO.File]::WriteAllText($claudePath, $claude, (New-Object System.Text.UTF8Encoding $false))
+}
 
 # deepest first, so a renamed folder never invalidates a path still to be renamed
 Get-ChildItem -LiteralPath $dest -Recurse -Force |
@@ -171,9 +226,16 @@ if (-not $NoSetup) {
     if (Test-Path -LiteralPath $Unity) {
         $log = Join-Path $dest 'Logs\setup.log'
         New-Item -ItemType Directory -Force (Split-Path $log) | Out-Null
-        $run = Start-Process -FilePath $Unity -Wait -PassThru -NoNewWindow -ArgumentList @(
+        $run = Start-Process -FilePath $Unity -PassThru -NoNewWindow -ArgumentList @(
             '-batchmode', '-quit', '-projectPath', "`"$dest`"",
             '-executeMethod', "GameKit.Editor.ProjectSetup.Run", '-gameCompany', $Company, '-logFile', "`"$log`"")
+        $null = $run.Handle   # PowerShell 5.1: without the cached handle ExitCode reads empty after the exit
+        if (-not $run.WaitForExit($SetupTimeoutMinutes * 60000)) {
+            # a licence or package-resolve prompt, or a lock left by a crashed Editor, would otherwise wait forever
+            cmd /c "taskkill /T /F /PID $($run.Id) >nul 2>&1"
+            if (Test-Path -LiteralPath $log) { Get-Content -LiteralPath $log -Tail 30 | ForEach-Object { Write-Host "    $_" } }
+            throw "ProjectSetup did not finish within $SetupTimeoutMinutes min; Unity was killed. See $log"
+        }
         if ($run.ExitCode -ne 0) { throw "ProjectSetup failed (exit $($run.ExitCode)). See $log" }
         Write-Host "    done, log: $log"
     } else {
@@ -203,7 +265,16 @@ if (-not $NoGit) {
     git -C $dest update-index --chmod=+x .githooks/pre-commit
     # the template commit is the sync point gamekit:sync-template starts from
     $templateSha = git -C $PSScriptRoot rev-parse --short HEAD
-    git -C $dest commit -q -m "Start $Name from unity-game-template@$templateSha"
+    $marker = "unity-game-template@$templateSha"
+    $templateNote = ''
+    if ($templateDirty) {
+        # the copy holds edits no commit has, so the base cannot describe it; sync-template reads only the hex sha
+        $marker += '-dirty'
+        $templateNote = "`n`nThe template had uncommitted changes under project/, packs/ or new-game.ps1:`n$($templateDirty -join "`n")"
+    }
+    # sync.sh reads the pack list from this line; without it it guesses from which pack files still exist
+    $packsNote = if ($Packs) { "`n`nPacks: $($Packs -join ', ')" } else { '' }
+    git -C $dest commit -q -m "Start $Name from $marker$packsNote$templateNote"
     if ($LASTEXITCODE -ne 0) { throw "git commit failed ($LASTEXITCODE)." }
     # enabled after the first commit: with -NoSetup a pack's scripts have no .meta yet, and the hook would refuse it
     git -C $dest config core.hooksPath .githooks
