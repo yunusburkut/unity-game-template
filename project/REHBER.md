@@ -4,7 +4,7 @@
 
 | İstediğin | Yaz |
 |---|---|
-| Yeni oyunda ilk iş (bir kez) | `/grill-me CLAUDE.md ve DESIGN.md'deki TODO'ları doldur` (Claude sorar, sen cevaplarsın) |
+| Yeni oyunda ilk iş (bir kez) | `/gamekit:new-game şekillendir` (Claude sorar, sen cevaplarsın) |
 | Küçük değişiklik (S, 1-3 dosya) | Direkt iste: `topun hızını 1,2 katına çıkar` |
 | Özellik, çok dosyalı iş (M) | Direkt iste. Claude PLAN.md'ye spec kartı yazar, yapar, puanlatır. Sonda varsayımlarını söyler: yanlışsa söyle |
 | Büyük ya da belirsiz iş (L) | Direkt iste. Claude soru sorar: cevapla. Sonra seçersin: `devam` ya da (Auto modda) `/gamekit:feature` |

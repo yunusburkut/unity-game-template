@@ -37,9 +37,12 @@ WebGL is Brotli-compressed for itch.io.
 ## Git
 
 Scenes and prefabs merge through Unity's Smart Merge (`.gitattributes`), and a pre-commit hook in `.githooks/`
-refuses an asset without its `.meta`. A fresh clone turns both on with:
+refuses an asset without its `.meta`. A fresh clone turns both on with the same settings the new game was made with
+(use the Editor folder of the version in `ProjectSettings/ProjectVersion.txt`):
 
 ```
 git config core.hooksPath .githooks
+git config merge.unityyamlmerge.name "Unity SmartMerge"
 git config merge.unityyamlmerge.driver "'C:/Program Files/Unity/Hub/Editor/6000.6.0f1/Editor/Data/Tools/UnityYAMLMerge.exe' merge -h -p --force --fallback none %O %B %A %A"
+git config merge.unityyamlmerge.recursive binary
 ```

@@ -1,7 +1,7 @@
 {
     "name": "__GAME__.Game",
     "rootNamespace": "__GAME__.Game",
-    "references": ["__GAME__.Core", "UnityEngine.UI", "Unity.InputSystem"],
+    "references": ["__GAME__.Core", "GameKit", "UnityEngine.UI", "Unity.InputSystem"],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

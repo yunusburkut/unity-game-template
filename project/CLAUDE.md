@@ -16,16 +16,20 @@ Current state and handoff: @PLAN.md
 ## Assembly boundary
 
 `__GAME__.Core` (`Assets/__GAME__/Core`) is the simulation: value types and static step functions that take `dt` as a
-parameter. No `MonoBehaviour`, `GameObject`, `Physics`, `Time`, `Input` or scene APIs, only UnityEngine math types.
-`__GAME__.Game` is the Unity glue (input, views, scene wiring, Feel). `__GAME__.Editor` is tooling. The EditMode tests
-reference Core alone. This split is the whole architecture: do not add layers beneath it. The one exception is a
-throwaway `Prototypes/<Name>` asmdef that references only Core and is deleted with its verdict (`gamekit:prototype`).
+parameter. No `MonoBehaviour`, `GameObject`, `Physics`, `Time`, `Input` or scene APIs, only UnityEngine math types
+and data-only ScriptableObject configs (`<System>Config` with `ToTuning()`, no scene references; the shape is in
+`unity-architecture`). `__GAME__.Game` is the Unity glue (input, views, scene wiring, Feel). `__GAME__.Editor` is
+tooling. The EditMode tests reference Core alone. This split is the whole architecture: do not add layers beneath it.
+The one exception is a throwaway `Prototypes/<Name>` asmdef that references Core and the engine and package assemblies
+the question needs (Input System, uGUI, Feel), never Game, and is deleted with its verdict (`gamekit:prototype`).
 
 Shared tooling is the GameKit package (`Packages/manifest.json`, `com.yunusburkut.gamekit` from unity-game-template,
 pinned to a `gamekit-vX.Y.Z` tag): `AgentBridge`, `BuildMenu`, `ProjectSetup` (`GameKit.Editor`), `FrameLog`,
 `SafeAreaFitter` (`GameKit`). It is read-only here: a fix to it goes to the template, then the tag in the manifest moves.
 
-`Ease` / `Easing` in Core and `EasingTests` are the worked example of a Core type and its test. `SimulationStep.Delta`
+`Ease` / `Easing` in Core and `EasingTests` are the worked example of a Core type and its test. `CoreBoundaryTests` (EditMode) fails
+when Core declares a component, links a physics/input/Editor assembly, or its source uses `MonoBehaviour`,
+`GameObject`, `SceneManager`, `Time`, `Input` or `Physics`. `SimulationStep.Delta`
 (Game) is the clamped `dt` every Update-driven simulation uses. `FrameLog` (GameKit) writes a frame-time CSV in every
 Development Build (`unity-performance`). To fetch it (in Git Bash prefix adb with `MSYS_NO_PATHCONV=1`, or the
 device path is rewritten to a Windows one): Android `adb pull /sdcard/Android/data/<bundle id>/files/` (or
@@ -42,11 +46,13 @@ exact path is in logcat as `FrameLog: ...`), Windows
 - Dependencies wired in the Inspector are guaranteed; guard untrusted input only.
 - Every input path works on both targets: pointer (mouse and touch through the Input System's `Pointer`) for anything
   you tap, keys only as a PC extra. Never read `UnityEngine.Input` (the old manager is off). `platform-targets` has
-  the rules for input, UI scaling, the safe area and performance budgets.
+  the rules for input, UI scaling, the safe area and the quality tiers; the performance budgets are in
+  `unity-performance`.
 - The package manifest is deliberately small. Ask before adding a package or a framework (DI container, event bus,
   pooling, save system, Addressables).
-- Commits: `area: imperative summary` (area = core | game | ui | input | build | art | design | tools); the body says
-  why and ends with `Verified: gk-bridge refresh PASS <time>; Play Mode pending` (or what was checked; an UNKNOWN gate
+- Commits: `area: imperative summary` (area = core | game | ui | input | build | art | design | tools | template; a
+  `template: sync to unity-game-template@<sha>` subject is the marker `gamekit:sync-template` reads, so keep it
+  exact); the body says why and ends with `Verified: gk-bridge refresh PASS <time>; Play Mode pending` (or what was checked; an UNKNOWN gate
   is `Verified: compile unverified (<reason>)`), plus `Refs: #12` when one exists.
 
 ## Gotchas
@@ -57,13 +63,10 @@ exact path is in logcat as `FrameLog: ...`), Windows
 - `Assets/Feel` is a vendored paid package (committed, so the repo stays private) that dwarfs our code: never edit
   it, and scope searches to `Assets/__GAME__`.
   Feel's feedbacks compile into `MoreMountains.Tools`; reference that from `__GAME__.Game` the first time a feedback
-  is used (`feel-authoring`).
-- Phones run at `Application.targetFrameRate` (60, set in `AppStartup`), not vSync. Two quality levels exist: Mobile
-  (0, phones and WebGL) and PC (1), each with its own URP asset under `Assets/__GAME__/Settings`. Tune those, do not
-  add per-object platform branches.
+  is used (`feel-authoring`); `__GAME__.Game` already references `GameKit` (`SafeAreaFitter`, `FrameLog`).
+- Frame rate, the quality tiers (tune their URP assets, never per-object platform branches) and the Android back
+  gesture: `platform-targets`. Android builds target API 36.
 - The Editor compiles only when its window regains focus or on `gk-bridge refresh` (Agent bridge below).
-- Android builds target API 36. On Android 16 the back gesture may not arrive as `Keyboard.current.escapeKey`; test
-  back navigation on a phone before relying on it.
 - Never hand-edit `.unity`, `.prefab` or `.asset` YAML while the Editor is running (a PreToolUse hook enforces it);
   drive the Editor instead (`unity-editor-cli`). Commit before Editor-driven scene or prefab changes: `/rewind` cannot
   undo what the Editor wrote, and after a rewind run `gk-bridge refresh`.
@@ -135,6 +138,10 @@ When compacting, keep the files changed and the pending Play Mode checklist.
 ## Art
 
 3D art is made by Claude in headless Blender (scripts and the Blender MCP `*_for_cli` tools) with the global
-blender-skills (start with `blender-director`); the user never models by hand. A Blender window opens only when the
-user asks to see one.
+blender-skills (start with `blender-director`; a game asset from a reference image starts with `blender-image-to-3d`,
+and every Unity delivery follows `unity-export`); the user never models by hand. A Blender window opens only when the
+user asks to see one: only the `*_for_cli` and docs tools keep Blender closed, and any other Blender MCP tool starts a
+Blender window (gamekit `ensure-blender` hook), so call one only then.
 Scripts that generate art live in `Tools/Blender/`; their outputs are rebuilt, never hand-edited.
+Every asset that is not ours or that an AI made (you included: Blender scripts, generated textures, sounds) gets a
+`docs/asset-sources.md` row in the same commit; `launch-review` reads it before a store submit.

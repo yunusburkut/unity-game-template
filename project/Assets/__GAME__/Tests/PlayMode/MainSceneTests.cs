@@ -17,7 +17,7 @@ namespace __GAME__.Tests.PlayMode
         public IEnumerator MainScene_RunsWithoutErrors()
         {
             yield return SceneManager.LoadSceneAsync(Scene);
-            Assert.AreEqual(Scene, SceneManager.GetActiveScene().name, "Main scene did not load; is it in the build settings?");
+            Assert.AreEqual(Scene, SceneManager.GetActiveScene().name, "Main sahnesi yüklenmedi; build settings'te var mı?");
 
             var end = Time.realtimeSinceStartup + RunSeconds;
             while (Time.realtimeSinceStartup < end) yield return null;

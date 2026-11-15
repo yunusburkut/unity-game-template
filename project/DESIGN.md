@@ -33,9 +33,12 @@ choice is cut.
   blue/purple, green/yellow): TODO, each with its backup cue: shape, icon or text (player-clarity CL09, CL37).
 - Readability: the player and hazards hold the extreme values, the background a narrower range; detail stays out of
   the play area. TODO: exceptions.
+- Voice: TODO (player-clarity §E defaults unless stated: person, word budget, words never used).
+- Carriers: TODO (the characters, world objects and narrator that carry instructions; player-clarity CL05).
 - References: TODO (3-5 games: what to take, what to avoid; take the direction, never their characters or art).
-- Made with: TODO (the Blender style skill or the pack that executes this Look, for example `lowpoly-style` or
-  `toon-art`).
+- Made with: TODO (the pack or the Blender style sheet that executes this Look, for example the `toon-art` pack or
+  `lowpoly-style`; style sheets are not in the skill listing: `blender-director` reads them from
+  `~/.claude/spares/blender-skills/<name>/SKILL.md`, so route art through it).
 
 ## Rules (as built)
 
@@ -46,6 +49,15 @@ field, calculated, constant) | Meaning`; the output range (min and max over the 
 each; flag any reachable value the game cannot use, such as negative damage or a divide by zero); one worked example
 with the real values from the Config asset. An edge case is written `If <condition>: <exact outcome>`; one with no
 outcome goes to Open questions.
+
+## Levels
+
+Written and read by `level-beat-review`; fill it once the first level exists.
+
+- Units: beat = TODO, segment = TODO, act = TODO, world = TODO (what each is in this game).
+- Escalation operators: TODO (each config knob that raises difficulty without a new mechanic).
+- One line per level: `Level <n>: <moment sentence> | clean time <s> | peak C <value>`.
+TODO
 
 ## Platforms
 
@@ -58,7 +70,7 @@ outcome goes to Open questions.
 
 ## Architecture
 
-- Rules: `__GAME__.Core`, plain value types and static steps, tested in EditMode.
+- Rules: `__GAME__.Core`, plain value types and static steps, testable in EditMode (tests only after the user's OK).
 - Unity glue: `__GAME__.Game`, views listen to the simulation and never decide rules.
 - Feel: presentation only; the simulation does not know it exists.
 

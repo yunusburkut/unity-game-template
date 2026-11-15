@@ -63,7 +63,7 @@
         productName: {{{ JSON.stringify(PRODUCT_NAME) }}},
         productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
         showBanner: unityShowBanner,
-        // phones report a pixel ratio of 3 and more; 2 keeps the bottles sharp at a lighter fill cost
+        // phones report a pixel ratio of 3 and more; 2 keeps the image sharp at a lighter fill cost
         devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
       };
 
@@ -80,6 +80,11 @@
         }).catch((message) => {
           alert(message);
         });
+      };
+      // a missing loader (wrong upload folder, renamed build) would otherwise leave the bar at 0% forever
+      script.onerror = () => {
+        document.querySelector("#unity-loading").style.display = "none";
+        unityShowBanner("Could not load " + loaderUrl + ". Check that the Build folder was uploaded next to index.html.", "error");
       };
       document.body.appendChild(script);
     </script>

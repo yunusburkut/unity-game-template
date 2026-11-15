@@ -39,6 +39,31 @@ namespace __GAME__.Tests.EditMode
         }
 
         [Test]
+        public void SerializedValues_NeverChange()
+        {
+            // Scenes, prefabs and ScriptableObjects store the number, not the name. A renumbered member
+            // silently swaps the curve in every saved tuning, so these anchors pin the whole range.
+            Assert.AreEqual(0, (int)Ease.Linear);
+            Assert.AreEqual(1, (int)Ease.SineIn);
+            Assert.AreEqual(10, (int)Ease.QuartIn);
+            Assert.AreEqual(12, (int)Ease.QuintIn);
+            Assert.AreEqual(17, (int)Ease.CircIn);
+            Assert.AreEqual(19, (int)Ease.BackIn);
+            Assert.AreEqual(21, (int)Ease.ElasticOut);
+            Assert.AreEqual(22, (int)Ease.BounceOut);
+        }
+
+        [Test]
+        public void SerializedValues_AreUnique()
+        {
+            // An explicit number copied by mistake would make two names load as the same curve.
+            var values = (int[])Enum.GetValues(typeof(Ease));
+            var names = Enum.GetNames(typeof(Ease));
+            Assert.AreEqual(names.Length, new System.Collections.Generic.HashSet<int>(values).Count,
+                            "iki Ease aynı sayıyı paylaşıyor");
+        }
+
+        [Test]
         public void Linear_LeavesProgressUntouched()
         {
             // Linear is the "no shaping" option, so anything it changes is a behaviour change for
