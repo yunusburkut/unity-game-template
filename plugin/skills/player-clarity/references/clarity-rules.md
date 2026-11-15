@@ -1,9 +1,9 @@
 # Clarity rules: telling players what to do
 
-**Rule IDs** are **CL01–CL22**, local to this skill. Append new ones and never renumber.
+**Rule IDs** are **CL01–CL38**, local to this skill. Append new ones and never renumber.
 
 **Tags:**
-- `(src: KEY)` is a source in §H.
+- `(src: KEY)` is a source in §K.
 - `(start)` is a starting value to tune in Play Mode.
 - `[inferred]` is an extrapolation with no direct source.
 
@@ -155,7 +155,8 @@ Write it into `DESIGN.md` once; these are the defaults:
 
 Each of these is a sign that the UI could sit in any game (src: TELLS):
 
-- a centred modal with a title, a body and an OK button;
+- a centred modal with a title, a body and an OK button. The one allowed modal confirms a destructive action
+  ("Delete save"), with focus on Cancel; it is never a hint or a tutorial step;
 - an objective tracker, a checklist or a "Mission:" line;
 - a pulsing arrow, or a glow on everything that can be touched ("yellow paint");
 - glass, blur, gradients, or a hairline border with a wide shadow;
@@ -178,12 +179,102 @@ None of these is a rule; each is a precedent to offer as a prototype option.
 | Wrong screen (multiplayer) | Your hint shows on the partner's screen, so they have to say it | Spaceteam, Keep Talking |
 | Shared countdown (multiplayer) | A 3-2-1 for a synchronised action, riding an existing input | Bread & Fred |
 
-## H. Sources
+## H. The HUD: what earns a place
+
+**CL23, inventory first.** List every piece of information the player needs and mark each one:
+- **Always:** health, the score that matters.
+- **Contextual:** shows only when it applies (ammo while aiming).
+- **On demand:** behind a button or on the pause screen.
+- **Diegetic:** in the world (CL05, rung 2).
+
+For a phone, also rank each one for cuts: must keep, should keep, can hide, always hide.
+
+**CL24, the necessity rule.** An element stays on the HUD only if the player makes a decision with it during play.
+Otherwise it moves to Contextual or On demand. Never ask the player to track more than four things at once.
+(src: COWAN, CCGS)
+
+**CL25, HUD states.** Define what the HUD shows in Pause, Dialogue or cutscene, Death or fail, and Loading. Nothing
+gameplay-related stays on screen while the player cannot act on it. (src: CCGS)
+
+**CL26, the notification contract.** (src: CCGS)
+- During intense play, queue or drop toasts that are not critical.
+- Merge repeats: "+5 coins ×3", not three toasts.
+- At most two on screen at once.
+- Critical messages (danger, the failure cause) skip the queue.
+- Every timer and auto-dismiss has a stated duration. Text the player must act on stays at least 5 s (and CL04).
+
+## I. Text that survives translation
+
+The code side (invariant culture for saved numbers, ordinal compares) is `unity-code-review`. These rules cover what
+the player sees. CL27 and CL29 apply once a second language is planned (DESIGN.md Platforms or Decisions); until then
+a single-language game keeps only CL28, CL30 and CL31.
+
+**CL27, never a key on screen.** Player-facing strings live in the string table: the Unity Localization package, or
+one strings ScriptableObject until a second language is real. UI code has no string literal the player sees, and no
+text is baked into a texture. A missing string falls back to the base language, never to the key name; `{count}` or
+`ui.hud.score` on screen is a bug. Each key carries a note: where it shows, its maximum length, what each placeholder
+means.
+
+**CL28, room to grow.** A text box leaves room for 40 % more length. German and Finnish run that much longer than
+English, and Turkish suffixes lengthen words. Use TMP Auto Size with a minimum that is not below the body size
+(CL33), or Overflow Ellipsis. Check each screen once with a pseudo-lengthened string: wrap every string in
+`[!! … !!]` and pad it by 40 %.
+
+**CL29, named placeholders.** Variables use named placeholders (`{count}`, `{player}`), never concatenation or
+positional ones. Plurals come from the language's rules, never `count == 1 ? "" : "s"`: English says "3 apples",
+Turkish "3 elma". With the Localization package use Smart Strings plural; with the ScriptableObject table each plural
+form is its own key, picked in code from the language's rule.
+
+**CL30, the player's formats.** Numbers, decimals and dates shown to the player use the player's locale
+(`CurrentCulture`, or the selected Locale), never string concatenation.
+
+**CL31, Turkish casing and glyphs.**
+- Upper and lower case for shown text use the tr-TR culture (`ToUpper(CultureInfo.GetCultureInfo("tr-TR"))`), so
+  i → İ and ı → I. `ToUpperInvariant` is for IDs only.
+- The TMP font asset and each fallback cover ç ğ ı İ ö ş ü Ç Ğ Ö Ş Ü. A static atlas lists them in its character
+  set; a dynamic asset needs a source font that has them. A missing glyph shows as a box.
+
+## J. Access
+
+Flashes, shake and haptics are `game-feel` (≤ 3 flashes a second, a shake slider, a haptics switch). Touch target
+sizes are `platform-targets`. Every game passes the rest before launch.
+
+**CL32, contrast.** (src: WCAG)
+- Text at least 4.5:1 against what is behind it (SC 1.4.3); large text (24 px, or 19 px bold) at least 3:1.
+- UI parts and icons that carry meaning at least 3:1 (SC 1.4.11).
+- Text over gameplay gets a backing plate or an outline. Subtitles: 7:1 on a backing box.
+- AAA 7:1 elsewhere is advice, never a failure.
+
+**CL33, text size.** Body text at least about 18 px at the 1080 CanvasScaler reference. No gameplay-critical text is
+smaller, checked on the smallest target phone. (src: CCGS)
+
+**CL34, input.** (src: CCGS)
+- No required simultaneous presses. Every hold has a toggle option.
+- Sustained input above 3 presses a second offers a toggle or auto-repeat.
+- When timing is not the challenge itself, a timing window has a multiplier from 0.5× to 3×, or a skip.
+
+**CL35, sound.** Separate volume sliders for Master, Music, SFX and UI (one AudioMixer group each). Every sound that
+changes what the player should do has a visual cue (CL02). No essential cue lives only above 4 kHz *(start)*:
+high-frequency hearing loss is common. (src: CCGS)
+
+**CL36, pause and replay.** Pause is reachable at any time in single-player. Online, the only exception is a moment
+the network cannot pause. A tutorial step can be recalled from the pause menu. (src: CCGS)
+
+**CL37, colour backups.** Every HUD and state colour has its meaning and its backup (shape, icon, text) on the
+`DESIGN.md` Look > Palette line (CL09).
+
+**CL38, not assessed is not passed.** A check that could not be made (no screenshot, no build, no colour values) is
+reported as NOT ASSESSED, with what was missing. It is never a pass.
+
+## K. Sources
 
 - **ABTEST:** Andersen et al., CHI 2012, 45,000+ players and 8 tutorial designs.
   https://grail.cs.washington.edu/projects/game-abtesting/chi2012/
 - **AVCLUB:** https://www.avclub.com/not-every-co-op-game-is-friendslop
 - **BABA:** https://www.gamedeveloper.com/disciplines/road-to-the-igf-hempuli-oy-s-i-baba-is-you-i-
+- **CCGS:** Claude-Code-Game-Studios accessibility, HUD and interaction-pattern templates (MIT, Donchitos 2026). A
+  checklist with no primary source cited for its numbers: treat them as `(start)` values.
+  https://github.com/Donchitos/Claude-Code-Game-Studios
 - **CELESTE:** https://digitaltrends.com/gaming/celeste-review
 - **CLIP:**
   - Zach Gage's "three reads" (GDC 2018): https://gigazine.net/gsc_news/en/20180501-game-design-subway-legibility
@@ -228,5 +319,6 @@ None of these is a rule; each is a precedent to offer as a prototype option.
 - **WARIO:**
   - Microgames: https://www.mariowiki.com/Microgame
   - Iwata Asks: https://iwataasks.nintendo.com/interviews/wii/warioware_smooth_moves/0/2
+- **WCAG:** WCAG 2.2, SC 1.4.3 Contrast (Minimum) and SC 1.4.11 Non-text Contrast. https://www.w3.org/TR/WCAG22/
 - **XAG:** Xbox Accessibility Guideline 101.
   https://learn.microsoft.com/en-us/gaming/accessibility/xbox-accessibility-guidelines/101

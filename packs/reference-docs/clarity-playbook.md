@@ -5,7 +5,8 @@ context hints and the event narration. This is a research and method doc, writte
 `difficulty-rhythm.md`. Player-facing strings are Turkish. Decisions stay with `docs/gdd.md` and the user: this doc
 proposes, and §H lists what is still open. The procedure that applies it is `~/.claude/skills/player-clarity/SKILL.md`.
 
-**Rule IDs** are **CL01–CL22**. Append new ones and never renumber.
+**Rule IDs** are **CL01–CL22** here. CL23 and later (localisation, access, HUD) live only in the gamekit plugin's
+`player-clarity/references/clarity-rules.md`. Append new ones there and never renumber.
 
 **Tags:**
 - `(src: KEY)` is a source in §I.

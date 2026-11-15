@@ -8,6 +8,8 @@
 | Küçük değişiklik (S, 1-3 dosya) | Direkt iste: `topun hızını 1,2 katına çıkar` |
 | Özellik, çok dosyalı iş (M) | Direkt iste. Claude PLAN.md'ye spec kartı yazar, yapar, puanlatır. Sonda varsayımlarını söyler: yanlışsa söyle |
 | Büyük ya da belirsiz iş (L) | Direkt iste. Claude soru sorar: cevapla. Sonra seçersin: `devam` ya da (Auto modda) `/gamekit:feature` |
+| Bir fikri önce dene (atılacak kod) | `prototip: kancadan kancaya sallanmak akıcı hissettiriyor mu` · `dene bakalım ...`. Claude soruyu ölçülebilir yazar, `Prototypes/` altında hızlıca kurar; sen oynarsın, sonuç (PROCEED / PIVOT / KILL) DESIGN.md Decisions'a yazılır, prototip silinir (PIVOT'ta bir sonraki denemeye kadar kalır) |
+| Türün alışılmış ayarları | `tür varsayılanları: platformer` (kamera, his, ilk sürüme girmeyecekler) |
 | Gözetimsiz yaptır | Auto modda `/gamekit:feature <istek>` (kart hazırsa yalnız `/gamekit:feature`). Bitene kadar yeni iş verme, Play'e girme, Claude Code'u kapatma. İlerleme ve durdurma: ⋮ menüsü > Background tasks (terminalde `/workflows`) |
 | Yarım işi sürdür | `devam` |
 | Boyut yanlış (Claude'un ilk satırında yazar) | `bu S` · `bu M` · `bu L` |

@@ -67,7 +67,7 @@ oyuna göre eklenecek paketler (`packages.md`) ve 2026 mağaza kuralları (`ship
 |---|---|
 | Core / Game / Editor / Tests assembly ayrımı, `Easing` örneği ve testleri, Main sahnesini hatasız çalıştıran PlayMode testi, telefonda 60 fps (`AppStartup`), clamp'li `SimulationStep` | `project/Assets/__GAME__/` |
 | CLAUDE.md, DESIGN.md (kararlar ve playtest kaydı dahil), CLAUDE.md'ye import edilen `PLAN.md`, README, `.editorconfig`, VS Code eklenti önerisi, `lean-code` kuralı | `project/` |
-| Tek dal akışı: her iş `main`'de, `area: özet` + `Verified:` commit biçimi, M/L işte puanlı review (her reviewer ≥9/10); her `git push` onay ister | `project/CLAUDE.md`, `project/.claude/settings.json` |
+| Tek dal akışı: her iş `main`'de, `area: özet` + `Verified:` commit biçimi, M/L işte puanlı review (her reviewer ≥9/10); her `git push` ve yayın aracı (`butler push`, `steamcmd`, `gh release`) onay ister, force push yasak | `project/CLAUDE.md`, `project/.claude/settings.json` |
 | Git: LF, Unity Smart Merge (`.gitattributes` + `new-game.ps1` sürücüyü kaydeder), eksik `.meta`'yı reddeden pre-commit hook, isteğe bağlı LFS satırları | `project/.gitattributes`, `.githooks/` |
 | İzinler; C# LSP, context7 ve gamekit eklentileri | `project/.claude/settings.json` |
 
@@ -85,12 +85,12 @@ oyuna göre eklenecek paketler (`packages.md`) ve 2026 mağaza kuralları (`ship
 | İçerik | Nerede |
 |---|---|
 | `pipeline` skill'i: istem → PLAN.md'de spec kartı → plan → her birimde derleme kapısı → doğrulama → 10 üzerinden puanlı review (her reviewer ≥9) → teslim | `plugin/skills/pipeline/` |
-| 21 skill daha: mimari, performans, debug, review, test, doğrulama, refactor-pass, editor CLI, platformlar, Feel (+ tarifler), game-feel, player-clarity, level-beat-review, launch-review, sync-template, visual-explainer, Unity'nin resmi 4 skill'i | `plugin/skills/` |
+| 24 skill daha: new-game (herhangi bir oturumdan yeni oyun), mimari, performans, debug, review, test, doğrulama, refactor-pass, editor CLI, platformlar, Feel (+ tarifler), game-feel, player-clarity, level-beat-review, launch-review, sync-template, visual-explainer, prototype (ayrı asmdef'te deneme, PROCEED / PIVOT / KILL kararı), genre-defaults (türe göre başlangıç ayarları), Unity'nin resmi 4 skill'i | `plugin/skills/` |
 | "Visual Clarity" output style'ı: Türkçe, görsel öncelikli, ASD-STE100 sade dil, QUICK / STANDARD / VISUAL EXPLAINER seviyeleri, dürüst doğrulama raporu; seçilince Concise'ın yerini alır | `plugin/output-styles/` |
 | 8 agent: scout (bağlam), builder (tek birim: yaz, kapı, commit), unity-reviewer, bug-hunter, perf-auditor, clarity-reviewer, design-critic, launch-auditor | `plugin/agents/` |
 | `gk-bridge` komutu: AgentBridge isteğini gönderir, bekler, `PASS`/`FAIL`/`UNKNOWN` (exit 0/1/2) döner | `plugin/bin/` |
 | `/gamekit:feature [istek]` workflow'u: kartı (yoksa önce yazar) gözetimsiz yapar, yalnız istenince | `plugin/workflows/` |
-| Hook'lar: görev yönlendirici (S/M/L), Unity YAML koruma, `.cs`/`.asmdef`/`.asmref` düzenlemesinden ve `git rm`/`git mv`'den sonra `refresh`, derleme hatası ya da derlenmemiş script varken turun bitmesini bir kez engelleyen Stop self-check | `plugin/hooks/` |
+| Hook'lar: görev yönlendirici (S/M/L), Unity YAML koruma, düzenlenen `.json`/`.asmdef`/`.asmref` hâlâ geçerli JSON mu kontrolü, `.cs`/`.asmdef`/`.asmref` düzenlemesinden ve `git rm`/`git mv`'den sonra `refresh`, derleme hatası ya da derlenmemiş script varken turun bitmesini bir kez engelleyen Stop self-check | `plugin/hooks/` |
 
 Oyunda kullanım rehberi: [`project/REHBER.md`](project/REHBER.md) (yeni oyunlara kopyalanır; eski oyunlara `/gamekit:sync-template` getirir).
 
@@ -147,3 +147,33 @@ GameKit'i tag atmadan denemek için: `.\new-game.ps1 -Name Deneme -LocalGameKit`
 Eski oyunlar (bu düzenden önce açılanlar) kendi `AgentBridge` / `BuildMenu` kopyalarını taşır. Geçiş için oyunda
 `/gamekit:sync-template GameKit'e geçir` yaz: kopyaları siler, sahnenin GUID ile kullandığı bileşeni (`SafeAreaFitter` gibi;
 taşınırsa "Missing Script" olur) bırakıp söyler. Plugin'i ise kullanıcı ayarından zaten alırlar.
+
+## Teşekkür
+
+Kontrol listelerinin bir kısmı (prototip kararı, denge, erişilebilirlik, HUD, yayın ve uzun süre testleri gibi) ve
+`genre-defaults` tür sayfaları, Donchitos'un [Claude-Code-Game-Studios](https://github.com/Donchitos/Claude-Code-Game-Studios)
+reposundan uyarlandı. MIT lisansı, metni aşağıda:
+
+```text
+MIT License
+
+Copyright (c) 2026 Donchitos
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

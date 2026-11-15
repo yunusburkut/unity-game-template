@@ -1,11 +1,11 @@
 ---
 name: player-clarity
-description: How the game tells players what to do and what happened — onboarding, hints, attribution, results screen, player-facing strings, HUD labels, colour-blind cues, non-template UI ("oyuncu anlamıyor", "ipucu", "ne oldu", "AI yapmış gibi olmasın"). Use before writing UI text or HUD. How it feels is game-feel; uGUI layout is ui-ugui.
+description: How the game tells players what to do and what happened — onboarding, hints, attribution, player-facing strings, HUD, colour-blind cues and access, non-template UI ("oyuncu anlamıyor", "ipucu", "ne oldu", "AI yapmış gibi olmasın"). Use before writing UI text or HUD. How it feels is game-feel; uGUI layout is ui-ugui.
 ---
 
 # Telling players what to do
 
-The rules, numbers and sources are in `references/clarity-rules.md` (CL01–CL22). This skill is the procedure.
+The rules, numbers and sources are in `references/clarity-rules.md` (CL01–CL38). This skill is the procedure.
 `DESIGN.md` names the game's own carriers (its characters, world, signature objects) and its voice; if it does not,
 ask once and write the answer there.
 
@@ -35,11 +35,13 @@ can say out loud in five seconds.
 
 ## Hard rules
 
-- **Screen space is scarce, on a phone most of all.** A new HUD element needs the user's yes on where it goes, inside
-  the safe area and out of the thumb zone (`platform-targets`).
-- **The template tells in `clarity-rules.md` §F are out:** no centred modal with a title, a body and an OK button, no
-  objective tracker, no pulsing arrow, no glow on everything touchable, no glass, gradient, emoji or stock icon, no
-  bouncing easing on UI, no character who says the solution.
+- **Screen space is scarce, on a phone most of all.** A new HUD element passes the necessity rule (CL24) and has a
+  place in the HUD inventory and its states (CL23, CL25). It needs the user's yes on where it goes, inside the safe
+  area and out of the thumb zone (`platform-targets`).
+- **The template tells in `clarity-rules.md` §F are out:** no centred modal with a title, a body and an OK button
+  (the one exception confirms a destructive action, focus on Cancel, never a hint), no objective tracker, no pulsing
+  arrow, no glow on everything touchable, no glass, gradient, emoji or stock icon, no bouncing easing on UI, no
+  character who says the solution.
 - **Icons come from the game's own art**, never from an icon font or a stock pack.
 - **Never colour alone (CL09).** Pair a colour with a shape, a direction, a name or an icon.
 - **One input per action.** A carrier that needs a new key or gesture is out unless it rides an existing one.
@@ -48,6 +50,8 @@ can say out loud in five seconds.
   device used (`platform-targets`). Never "click" on a phone.
 - **Attribution and key labels sit in the middle third (CL10).** Corner text does not survive a vertical crop, and on
   a phone the corners sit under notches and thumbs.
+- **Every game passes the access baseline before launch (§J, CL32–CL37).** A check you could not make is NOT
+  ASSESSED, never passed (CL38).
 
 ## Building it
 
@@ -60,8 +64,9 @@ can say out loud in five seconds.
 - **Moments vs states:** a one-time moment is raised as an event the view listens to; a state is polled.
 - **Per-frame cost:** write text only when it changes and build no strings per frame (`unity-performance`). Every
   mutable static gets a `SubsystemRegistration` reset.
-- **Strings:** player-facing strings and Inspector text are in the language `CLAUDE.md` names. If that is Turkish,
-  check the font has ç ğ ı İ ö ş ü before shipping it.
+- **Strings:** player-facing strings and Inspector text are in the language `CLAUDE.md` names. Once a second language is
+  planned they come from the string table with named placeholders; always room for 40 % more length, the player's number format, tr-TR casing and a
+  font that covers ç ğ ı İ ö ş ü (§I, CL27–CL31).
 - **Reading time:** a line stays up at least as long as 17–20 characters per second needs, and never times out before
   it can be read (CL04, CL15).
 
@@ -77,4 +82,5 @@ can say out loud in five seconds.
 
 - `game-feel`: how long a label stays, how loud a narration is, the timing of an attribution cue.
 - `level-beat-review`: where a lesson sits in a level, and the "one new idea per segment" order.
-- `ui-ugui`, `platform-targets`: layout, scaling, safe area and input prompts per device.
+- `ui-ugui`, `platform-targets`: layout, scaling, safe area and input prompts per device; screen states and menu
+  behaviour (Back, focus, the confirm dialog).

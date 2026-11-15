@@ -1,6 +1,6 @@
 ---
 name: unity-architecture
-description: Deciding where new game code belongs — Core simulation vs Game glue, ownership of state, ScriptableObject tunables, and when an abstraction is justified. Use when adding a gameplay system, moving code across the Core/Game boundary, wiring dependencies, or choosing how two systems talk.
+description: Deciding where new game code belongs — Core simulation vs Game glue, ownership of state, ScriptableObject tunables, where saving lives, and when an abstraction is justified. Use when adding a gameplay system or a save, moving code across the Core/Game boundary, wiring dependencies, or choosing how two systems talk.
 ---
 
 # Where code goes
@@ -37,6 +37,15 @@ concrete reason not to.
   MonoBehaviour wiring things once in `Awake`, not a service locator.
 - Avoid global mutable state. If a `static` is genuinely right, it needs the `SubsystemRegistration` reset (Play Mode
   reload is disabled).
+
+## Saving
+
+- The save data is a plain `[Serializable]` type in Core with an `int version`. Validate and migrate
+  in Core too (data in, data out), so an EditMode test can cover an old version and a corrupt file when tests are
+  asked for; `JsonUtility` is not a math type, so (de)serialising stays in Game.
+- File I/O and `JsonUtility` live in one Game class that owns the path (`Application.persistentDataPath` plus a fixed name), the
+  atomic write and the `.bak` fallback (`unity-code-review` item 4). Nothing else touches the file.
+- Save at checkpoints and on pause (`platform-targets` App lifecycle).
 
 ## Cross-system communication
 

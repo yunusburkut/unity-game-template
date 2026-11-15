@@ -107,6 +107,10 @@ These are the code habits that keep whatever the tier bought:
   emissive + Bloom, not a shadow-casting point light.
 - **Particles**: cap `maxParticles` on every system, avoid soft particles and per-particle lights,
   cut counts on the Mobile tier.
+- **Custom shaders**: few texture samples in the fragment stage and none inside a loop; `step` / `smoothstep` /
+  `lerp` over a dynamic branch; a blur in two passes (horizontal, then vertical); a heavy effect has a cheaper
+  fallback on the low tier. Keywords, the SRP Batcher CBUFFER and `half` precision are in `unity-performance`; watch
+  the variant count in the build log.
 - **No `Camera.main`, no `FindObjectsByType`, no per-frame `Text` rebuilds** — `unity-performance`.
 - **Keep the simulation in `Update` with `SimulationStep.Delta`.** On a slow device `Time.deltaTime`
   grows; the clamp keeps things from tunnelling and the solver deterministic enough to reason
@@ -123,7 +127,8 @@ These are the code habits that keep whatever the tier bought:
 - Menus and paused screens can drop to 30 fps (`targetFrameRate`) — free battery.
 - `OnDemandRendering.renderFrameInterval` lets a static screen (a puzzle board waiting for input)
   render less often while input stays responsive.
-- Measure thermal behaviour with a 20-minute session on the device, not a 30-second capture.
+- Measure thermal behaviour with a soak run on the device (`unity-performance` Soak run, 30 min or more), not a
+  30-second capture.
 
 ## 6. Physics and frame pacing on PC
 

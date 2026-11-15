@@ -131,5 +131,17 @@ InitTestScene*.unity*
 *.keystore
 *.jks
 
+# iOS / App Store signing (certificate, App Store Connect API key, provisioning profile) and local secrets
+*.p12
+*.p8
+*.mobileprovision
+*.pem
+.env
+.env.*
+
+# Claude Code local files
+.claude/settings.local.json
+CLAUDE.local.md
+
 # JetBrains Rider
 .idea/

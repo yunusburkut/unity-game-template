@@ -1,6 +1,6 @@
 ---
 name: launch-review
-description: Auditing store pages and launch plans on Steam, Google Play, the App Store and itch.io — price, model, tags, capsule, icon, screenshots, trailer, ASO, demo, Next Fest, soft launch, review risks, creator outreach, wishlists. Use when asked "what should we charge", "free or paid", "will Apple reject this", or to check a store rumour.
+description: Auditing store pages, launch plans and the upload build on Steam, Google Play, the App Store and itch.io — price, model, tags, store art, ASO, demo, soft launch, review risks, wishlists, patch notes, hotfixes. Use when asked "what should we charge", "free or paid", "will Apple reject this", "is this build ready to upload", to write patch notes or patch a shipped build, or to check a store rumour.
 ---
 
 # Auditing the launch
@@ -124,7 +124,8 @@ hot" review costs more than a missing feature.
 
 - WebGL build from `GameKit > Build > WebGL` (the itch.io size pass is already applied). Set the
   embed size to the game's reference resolution, enable fullscreen, and test the uploaded build on a
-  phone browser too.
+  phone browser too. An art-heavy build can pass itch's per-file cap: see the itch.io row in
+  `references/release-build.md` before `butler push`.
 - A playtest page is a research tool: one question you want answered ("do strangers understand the
   mechanic without text?"), a feedback link, and a short devlog. Restricted / password pages keep it
   off search until it is ready.
@@ -153,6 +154,14 @@ hot" review costs more than a missing feature.
 | Store rating | Mobile | Keep above ~4.0; prompt only happy players |
 | Crash-free sessions | All | Close to 100 %; one launch crash on a popular device is a launch-killer |
 | Creator placements, launch week | All | Sequenced small → mid → large |
+
+## Shipping a build
+
+Before a store upload or a public itch.io page, run `references/release-build.md`: version and tag, a release (not
+development) build, the code and secrets scan, asset licences from `docs/asset-sources.md` (and Steam's AI-content
+disclosure), smoke on the built player, the per-store rows, release day, patch notes, and patching a shipped build
+(main only, the next PATCH tag). Its verdict is HAZIR, BELİRSİZ or HAZIR DEĞİL; a row nobody could check is `[?]`
+and makes it BELİRSİZ, never HAZIR.
 
 ## Production lesson
 

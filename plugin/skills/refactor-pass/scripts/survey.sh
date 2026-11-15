@@ -133,7 +133,7 @@ smell 'Application\.Quit\('                                              'Applic
 echo
 echo "================ SMELL HITS (read the enclosing method before acting)"
 smell 'GetComponent(s)?(InChildren|InParent)?<'                         'GetComponent family — fine in Awake, cache elsewhere'
-smell 'FindObjectOfType|FindObjectsByType|FindObjectsOfType|GameObject\.Find|FindWithTag|Camera\.main' 'Scene scans / Camera.main — Inspector reference instead'
+smell 'FindFirstObjectByType|FindAnyObjectByType|FindObjectsByType|GameObject\.Find|FindWithTag|Camera\.main' 'Scene scans / Camera.main — Inspector reference instead'
 smell '\.tag\s*(==|!=)'                                                  'tag compare — CompareTag'
 smell '\.material\b'                                                     'renderer.material — instantiates; use sharedMaterial / MaterialPropertyBlock'
 smell '\$"|string\.Format\(|string\.Concat\(|\+\s*"|"\s*\+'              'String building — allocation if per frame (attribute text and const literals already dropped)' \
@@ -149,6 +149,7 @@ smell '[\(,=]\s*(\(\)|\(?[a-zA-Z_][a-zA-Z0-9_]*\)?)\s*=>'                  'Lamb
 smell 'Physics(2D)?\.(Raycast|SphereCast|BoxCast|CapsuleCast|OverlapSphere|OverlapBox|OverlapCapsule|OverlapCircle|OverlapPoint)\(' 'Physics queries — confirm NonAlloc / preallocated buffer'
 smell 'Time\.deltaTime'                                                  'deltaTime reads — SimulationStep.Delta where a simulation steps?'
 smell '\bin\s+[A-Z][A-Za-z]*Tuning\b'                                    'in-tuning parameters — every computed member on the struct must be readonly'
+smell '\.(velocity|drag|angularDrag)\b|\bPhysicMaterial\b|FindObjectsOfType|FindObjectOfType|CinemachineVirtualCamera|OnCameraSetup|Execute\(ScriptableRenderContext' 'pre-Unity-6 API (.velocity/.drag only on Rigidbody/Rigidbody2D; CharacterController/NavMeshAgent .velocity are fine) — see unity-code-review item 11'
 
 echo
 echo "================ DONE"

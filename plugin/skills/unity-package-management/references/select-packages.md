@@ -51,7 +51,14 @@ HTTP (the npm `-/v1/search` endpoint is not available — it 404s). For keyword 
 | Text / UI | `com.unity.ugui` | uGUI + TextMeshPro (bundled). UI Toolkit ships with the Editor. |
 | Camera framing | `com.unity.cinemachine` | Great for almost any 3D and many 2D games. |
 | Testing | `com.unity.test-framework` | Enables `unity test`; usually already present. |
-| Large/streamed assets | `com.unity.addressables` | Add when the game has many assets or needs content updates. |
+| Large/streamed assets | `com.unity.addressables` | Add when the game has many assets or needs content updates. Rules below. |
+
+**When Addressables is added:** store every `LoadAssetAsync` handle and call `Addressables.Release` on it in the
+owner's `OnDestroy` (only if a load started); release every `InstantiateAsync` result with
+`Addressables.ReleaseInstance`. Check `handle.Status == AsyncOperationStatus.Succeeded` before reading `Result`. Group
+by loading context (menu, level N, shared, always loaded), not by asset type. LZ4 for local bundles, LZMA for remote
+downloads. Load scenes with `Addressables.LoadSceneAsync` and release them on unload. Test in both the "Use Asset
+Database" and "Use Existing Build" play modes: only the second matches the device.
 
 ## Render pipeline (pick one; usually set by the template)
 

@@ -18,7 +18,8 @@ Current state and handoff: @PLAN.md
 `__GAME__.Core` (`Assets/__GAME__/Core`) is the simulation: value types and static step functions that take `dt` as a
 parameter. No `MonoBehaviour`, `GameObject`, `Physics`, `Time`, `Input` or scene APIs, only UnityEngine math types.
 `__GAME__.Game` is the Unity glue (input, views, scene wiring, Feel). `__GAME__.Editor` is tooling. The EditMode tests
-reference Core alone. This split is the whole architecture: do not add layers beneath it.
+reference Core alone. This split is the whole architecture: do not add layers beneath it. The one exception is a
+throwaway `Prototypes/<Name>` asmdef that references only Core and is deleted with its verdict (`gamekit:prototype`).
 
 Shared tooling is the GameKit package (`Packages/manifest.json`, `com.yunusburkut.gamekit` from unity-game-template,
 pinned to a `gamekit-vX.Y.Z` tag): `AgentBridge`, `BuildMenu`, `ProjectSetup` (`GameKit.Editor`), `FrameLog`,
@@ -108,7 +109,8 @@ method in `__GAME__.Editor` (its asmdef already references `Unity.Pipeline.Attri
 The task router sizes each task S, M or L. S: inspect the affected code, implement it, `gk-bridge refresh`, commit,
 then say what to verify in Play Mode, on PC and, when input, UI or performance changed, on a phone. M and L run the
 `gamekit:pipeline` skill: the prompt becomes a spec card in PLAN.md Now, then plan, build with a gate per unit, verify,
-a scored review until every reviewer gives 9/10, and the handoff. `/gamekit:feature` runs it unattended, only when I
+a scored review until every reviewer gives 9/10, and the handoff. A design question ("does X feel good?") goes to
+`gamekit:prototype` instead: one PLAN.md Now line with its question, no spec card. `/gamekit:feature` runs it unattended, only when I
 ask. `review et` or `puanla` runs only its review loop (score, fix, re-score until 9); `devam` continues the card in PLAN.md Now; `kabul` hands
 off a reviewed card that stayed below 9 (or whose handoff stopped), its open findings under Known issues; `kartı
 Next'e taşı` parks the card. Gameplay
@@ -119,6 +121,10 @@ When a task ends, update PLAN.md (Now, Next, Pending Play Mode checks) in the sa
 A Play Mode check I report as passing leaves Pending; one I report as failing becomes a Known issue.
 A rule or architecture decision made in chat goes into DESIGN.md Decisions in the same commit. When I report a
 playtest, log it under DESIGN.md Playtests before fixing anything; bugs from it go to PLAN.md Known issues.
+A Known issue carries a severity tag: `[yüksek]` crash, data loss, cannot progress or blocks a build/ship; `[orta]` a
+feature broken with a workaround; `[düşük]` cosmetic or polish. A `review <Base>: ` line keeps the review rubric's
+tag, format and place (`gamekit:pipeline`); it blocks a release or earns a hotfix only when it is also a `[yüksek]`
+case above.
 
 Work straight on `main`: no feature branches, no PRs. Commit after each step that compiles.
 Push only when I ask. With no `origin` yet, the first push is `gh repo create __GAME__ --private --source . --remote origin

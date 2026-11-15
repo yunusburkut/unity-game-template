@@ -86,6 +86,19 @@ Harder means turning an existing knob, never a new button or a new screen: compr
 element expire, require two actions in sequence or at once, do the same action while carrying a constraint, remove a
 safety. Each new knob in the game's configs is an escalation operator; list them in `DESIGN.md`.
 
+## Difficulty axes
+
+Rate each level on five axes and change at most one or two at a time: execution (speed, precision), knowledge (rules
+the player must know), resource (margin left), time pressure, decision complexity. Note per axis whether the player
+controls it (picks a harder route) or not, and which of its numbers are Config knobs and which are fixed by design.
+
+- **Knowledge wall**: a skill the level assumes but nothing taught.
+- **Death spiral**: a loss in one system makes the next harder (fewer resources, harder fight, fewer resources). Add
+  a floor or a catch-up.
+- **First failure and first competence** are designed beats, both within the first hour (the first 5 minutes on
+  mobile). Early on, at most one new mechanic (a new verb or rule, not a segment's develop or twist step) per 5
+  minutes of play *(start)*.
+
 ## Difficulty is a dial, not a level rewrite
 
 Modes change only knobs (checkpoint density, timer length, hazard speed, hints), never geometry or beat order, and never

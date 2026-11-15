@@ -306,7 +306,12 @@ than by zooming out.
 | Tail | 200 ms–2 s, conveys the space | [SRC] |
 | Sub-bass weight layer | 40–120 Hz, sidechained so it doesn't mask the transient (inaudible on phone speakers) | [SRC] |
 | Ducking on impact | −3 to −6 dB, attack 5–20 ms, release 150–400 ms | [CONV] |
+| Max concurrent instances per event | 1–4 for frequent sounds (footsteps, pickups, hits), past it the new play is skipped (Feel's default; stealing the oldest needs own code); 1 for UI clicks | [CONV] |
+| Retrigger cooldown, same event | 30–80 ms: ten hits in one frame play once or twice, louder, not ten times | [CONV] |
 | Audio ↔ haptic sync tolerance | < 12–15 ms | [COMM] |
+
+In Feel, `MMF_MMSoundManagerSound` carries the cap (Maximum Concurrent Instances, default 3) and every feedback's
+Timing > Cooldown Duration carries the cooldown. Past the cap Feel skips the new play; it does not steal the oldest.
 
 Fire audio on the same frame as, or before, the visual. Audio latency is what players perceive as input lag. Many
 phone players play muted: every event must still read without sound.

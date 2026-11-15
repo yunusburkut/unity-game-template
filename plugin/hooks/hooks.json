@@ -514,6 +514,90 @@
                                                             "shell":  "bash",
                                                             "command":  "d=\"${CLAUDE_PROJECT_DIR:-.}/Logs/agent\"; [ -f \"$d/bridge.log\" ] && [ ! -s \"$d/request.txt\" ] && printf 'refresh\\n' > \"$d/request.txt\"; exit 0",
                                                             "timeout":  5
+                                                        },
+                                                        {
+                                                            "type":  "command",
+                                                            "if":  "Edit(*.json)",
+                                                            "command":  "powershell.exe",
+                                                            "args":  [
+                                                                         "-NoProfile",
+                                                                         "-NonInteractive",
+                                                                         "-ExecutionPolicy",
+                                                                         "Bypass",
+                                                                         "-File",
+                                                                         "${CLAUDE_PLUGIN_ROOT}/hooks/check-json.ps1"
+                                                                     ],
+                                                            "timeout":  10
+                                                        },
+                                                        {
+                                                            "type":  "command",
+                                                            "if":  "Write(*.json)",
+                                                            "command":  "powershell.exe",
+                                                            "args":  [
+                                                                         "-NoProfile",
+                                                                         "-NonInteractive",
+                                                                         "-ExecutionPolicy",
+                                                                         "Bypass",
+                                                                         "-File",
+                                                                         "${CLAUDE_PLUGIN_ROOT}/hooks/check-json.ps1"
+                                                                     ],
+                                                            "timeout":  10
+                                                        },
+                                                        {
+                                                            "type":  "command",
+                                                            "if":  "Edit(*.asmdef)",
+                                                            "command":  "powershell.exe",
+                                                            "args":  [
+                                                                         "-NoProfile",
+                                                                         "-NonInteractive",
+                                                                         "-ExecutionPolicy",
+                                                                         "Bypass",
+                                                                         "-File",
+                                                                         "${CLAUDE_PLUGIN_ROOT}/hooks/check-json.ps1"
+                                                                     ],
+                                                            "timeout":  10
+                                                        },
+                                                        {
+                                                            "type":  "command",
+                                                            "if":  "Write(*.asmdef)",
+                                                            "command":  "powershell.exe",
+                                                            "args":  [
+                                                                         "-NoProfile",
+                                                                         "-NonInteractive",
+                                                                         "-ExecutionPolicy",
+                                                                         "Bypass",
+                                                                         "-File",
+                                                                         "${CLAUDE_PLUGIN_ROOT}/hooks/check-json.ps1"
+                                                                     ],
+                                                            "timeout":  10
+                                                        },
+                                                        {
+                                                            "type":  "command",
+                                                            "if":  "Edit(*.asmref)",
+                                                            "command":  "powershell.exe",
+                                                            "args":  [
+                                                                         "-NoProfile",
+                                                                         "-NonInteractive",
+                                                                         "-ExecutionPolicy",
+                                                                         "Bypass",
+                                                                         "-File",
+                                                                         "${CLAUDE_PLUGIN_ROOT}/hooks/check-json.ps1"
+                                                                     ],
+                                                            "timeout":  10
+                                                        },
+                                                        {
+                                                            "type":  "command",
+                                                            "if":  "Write(*.asmref)",
+                                                            "command":  "powershell.exe",
+                                                            "args":  [
+                                                                         "-NoProfile",
+                                                                         "-NonInteractive",
+                                                                         "-ExecutionPolicy",
+                                                                         "Bypass",
+                                                                         "-File",
+                                                                         "${CLAUDE_PLUGIN_ROOT}/hooks/check-json.ps1"
+                                                                     ],
+                                                            "timeout":  10
                                                         }
                                                     ]
                                       }

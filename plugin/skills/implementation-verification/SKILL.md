@@ -30,7 +30,9 @@ not run is reported as unverified, never as passed.
 8. Visual or startup change with the Editor open: `gk-bridge play-capture` in Bash (foreground: it ends within
    110 s), then open the three screenshots it lists.
    It enters Play Mode, records every error, and leaves by itself (about 5 s plus compile). It shows the first seconds
-   only, so it never replaces the user's checklist.
+   only, so it never replaces the user's checklist. A still proves layout, clipping, presence and text; never timing,
+   motion, feel or audio, which go to the user's checklist. To capture a hard-to-reach state, use a debug scene or an
+   Editor-only entry point, never a change to game logic.
 
 ## Spec card
 
@@ -41,6 +43,13 @@ compiles, never a behaviour. An item that needs Play Mode stays unticked and mov
 check failed or could not run stays unticked with the state on its line (`- [ ] <item> - failed: <why>` or `- not
 run: <why>`), so a later session and the reviewers can tell them apart. Never reword an item to make it pass.
 
+- A behaviour item (what the player sees) is never ticked from reading code: code shows intent, not what the game
+  does. `dosya:satır` ticks only a code-level claim; a behaviour needs play-capture, a test run or Play Mode (user).
+- Evidence older than a later commit touching the same file is stale: run its check again before the handoff.
+- A step or subagent report that names a file not on disk or a commit that does not exist has failed, however fluent
+  it reads: check with `test -e <path>` (Bash; `Test-Path` in PowerShell) and `git cat-file -e <sha>`.
+- A pass with zero executed checks is "not verified", never done.
+
 ## The handoff
 
 End with a short list of what to verify in Play Mode: concrete actions and what should happen, not a generic "test
@@ -48,6 +57,24 @@ it". Add a line for the phone when input, UI or performance changed (Device Simu
 first pass; a real device for feel and frame rate). Call out separately anything that needs an Inspector or scene
 change (a new serialized field left empty, a layer mask, a reference to assign), because nothing in the code reveals
 it.
+
+After a bug fix the list is targeted, not a full-game pass: the exact bug scenario (it must not come back), related
+edge cases in the same system, and every downstream reader of the fixed code path. Each line says what to do, what
+passing looks like and what failing looks like. An open [yüksek] Known issue is named first: it blocks a playtest or
+release build.
+
+## Before a playtest build (not every change)
+
+Gameplay checks are the user's: give them as Pending Play Mode checks.
+
+1. Rapid input: mash or double-tap each action; try odd orders (pause during a transition, back button mid-animation).
+2. Soak: the `unity-performance` Soak run (its length and pass rules live there only).
+3. Stress: the largest entity count the design allows.
+4. Regression: re-check each polish change by name, not "everything still works".
+5. Audio: each action the design gives a sound plays it, and the levels are balanced.
+
+The frame-time and GC sweep is `perf-auditor`; the weakest-device run goes to Pending when none is to hand. A metric
+with no committed budget is reported as unverified, never as passing.
 
 Do not escalate a small change into a test run or a build. If automated verification genuinely looks worth it, say why
 in a sentence and ask (`gk-bridge run-tests`, `unity-testing`).

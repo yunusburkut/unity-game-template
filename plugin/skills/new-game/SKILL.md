@@ -112,10 +112,18 @@ command to retry.
    - `cwd: "C:\GitHub\<Name>"` and `use_worktree: false` (a worktree has no Library or Feel and cannot compile);
    - `background` (80+ characters): the game was just made from the template, the idea is in DESIGN.md First idea,
      and whether it is on GitHub;
-   - `prompt`: read REHBER.md and DESIGN.md First idea; ask the user the open questions one at a time (genre, camera,
-     core loop, orientation, gamepad, PC and phone input, session length, art direction); then fill every TODO in
-     CLAUDE.md and DESIGN.md, log the decisions under DESIGN.md Decisions, and commit `design: ...`; write no game
-     code before the user approves the design.
+   - `prompt`: read REHBER.md and DESIGN.md First idea; once the genre is known, load `gamekit:genre-defaults` and
+     offer its defaults as the starting answers; ask the user the open questions one at a time (genre, camera, core
+     loop of 2-4 steps, goal and fail state, orientation, gamepad, PC and phone input, session length, 3-5 pillars
+     with their tests, 1-3 anti-pillars, the look: mood, palette, references, which Blender style skill or pack makes
+     it); if the idea is thin, offer three starts: the core verb, a mashup of two known games, or the feeling worked
+     backward. Then fill every TODO in CLAUDE.md and DESIGN.md (Pillars, Look and the kill condition included;
+     Rules (as built) stays TODO until a card builds a rule),
+     keeping what the user removed in their own words and marking an inferred line *guessed*. Push back past 7
+     features and propose cuts; list the systems each feature implies (combat: damage, health, hit detection, AI,
+     death and respawn; inventory: item data, slots, UI, save) and put only the riskiest in PLAN.md Next (it holds at most 5). Log the
+     decisions under DESIGN.md Decisions and commit `design: ...`; never quote a market number from memory; write no
+     game code before the user approves the design.
 
    Without that tool (a terminal session), tell the user to run `claude` in `C:\GitHub\<Name>` and send
    `/grill-me CLAUDE.md ve DESIGN.md'deki TODO'ları doldur`.

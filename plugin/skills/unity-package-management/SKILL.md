@@ -1,6 +1,6 @@
 ---
 name: unity-package-management
-description: Use when adding, removing, upgrading or discovering Unity (UPM) packages from outside the Editor — headless or CI installs via PackageManager.Client, verifying ids and versions, choosing packages by genre, platform and monetization. Triggers on "install a Unity package", "add com.unity.*", "which packages for a [genre] game".
+description: Use when adding, removing, upgrading or discovering Unity (UPM) packages from outside the Editor — headless or CI installs via PackageManager.Client, verifying ids and versions, choosing packages by genre, platform and monetization — or when upgrading the Unity Editor version. Triggers on "install a Unity package", "add com.unity.*", "which packages for a [genre] game".
 allowed-tools:
   - Bash
   - Read
@@ -254,6 +254,23 @@ package fails to resolve, `_request.Error.message` is logged; read it and check 
 against the registry. The Editor's own log (including the `[PackageInstaller]` lines) is the
 stdout you streamed with `-logFile -` above — read it there, not via `unity logs` (which shows
 the CLI's own log, not the Editor's).
+
+## Upgrading the Editor
+
+1. Commit first: git is the undo.
+2. Read `ProjectSettings/ProjectVersion.txt` for the from version; the user names the to version.
+3. Read Unity's upgrade guide for every version jump in the span (6000.5 to 6000.6 is one jump) and list the renamed
+   or removed APIs. Grep `Assets/` for each.
+4. The user opens the project in the new Editor and lets the packages resolve (Unity offers updated versions of the
+   `com.unity.*` packages). GameKit stays on its `#gamekit-vX.Y.Z` tag; `Assets/Feel` is vendored, so check its
+   release notes for the new Unity version before blaming the upgrade.
+5. Compile gate: `gk-bridge refresh` (exit 0 only), then `gk-bridge compile android` and `gk-bridge compile ios`.
+6. Fix the obsolete API: CS0619 is an error and fails the gate; CS0618 is a warning in `Logs/agent/compile.log`. Fix
+   each one or list it in the handoff.
+7. Record one DESIGN.md Decisions line: `YYYY-MM-DD: Unity <from> -> <to>. Why.`
+
+Knowledge gap: when the pinned Unity is newer than what you know, the manual and the upgrade guide are the source.
+Write down what you could not confirm; never fill a gap from memory.
 
 ## Import & save headlessly (generate `.meta` files)
 

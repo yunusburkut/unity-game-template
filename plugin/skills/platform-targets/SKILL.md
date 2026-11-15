@@ -65,7 +65,14 @@ and reimports, which takes minutes: ask before starting one.
   missing. IL2CPP, ARM64 only. Store releases need a keystore, which is the user's to create and keep out of git.
 - iOS produces an Xcode project in `Builds/iOS`; it is signed and built on a Mac.
 - WebGL uses the itch.io size pass from Magic Sort and Pixel Volley (Brotli compression with `decompressionFallback`
-  off, which itch.io serves; the Responsive template, high stripping, disk-size LTO).
+  off, which itch.io serves; the Responsive template, high stripping, disk-size LTO). The web target is WebGL 2.
+- Test a WebGL build over http(s), never by double-clicking `index.html`: from `file://` the browser blocks its
+  requests, and Brotli without the fallback also needs a server that sends `Content-Encoding: br`. An itch.io draft
+  page is the simplest real check.
+- A headless shot exists on every Windows machine: `& "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe" --headless --screenshot=<png> --window-size=1280,720 <url>`
+  (msedge is not on PATH).
+  Headless often falls back to software WebGL, which is often many times slower than the GPU, so a shot needs the GPU
+  or a cheap scene. No script ships for this; write one only when a second WebGL check needs it.
 
 ## Platform code
 

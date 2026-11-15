@@ -66,7 +66,7 @@ Determine what the user is asking for:
 - Avoid "shotgun debugging" with multiple simultaneous changes
 
 **Color and visibility:**
-- **Ensure text is readable by default:** When choosing colors, ensure text contrasts with its background — but respect intentional low-contrast uses (disabled states, placeholder text, decorative elements)
+- **Ensure text is readable by default:** When choosing colors, ensure text contrasts with its background (at least 4.5:1, `player-clarity` CL32) — but respect intentional low-contrast uses (disabled states, placeholder text, decorative elements)
 - **Check visibility for new elements:** After creating UI elements, verify they have non-zero size and are within parent bounds. Elements intentionally created hidden (for later toggling, animation, etc.) are fine
 
 **Specification adherence:**
@@ -194,6 +194,12 @@ When the user describes a position (e.g., "top right", "bottom bar", "left side"
 - Use Layout Groups instead of manual positioning where possible
 - Set Raycast Target = false on non-interactive images
 - Use sprite atlases for performance
+- Split canvases by change rate: a changing element dirties and rebuilds its whole Canvas, so the HUD (timers, score) sits on its own Canvas or a nested sub-Canvas, apart from static frames and labels
+- Hide or fade a group with a `CanvasGroup` (alpha, interactable, blocksRaycasts), not per-element alpha and not SetActive every frame. A screen hidden for a long time: disable its Canvas component (layout kept, no drawing)
+- Set `Canvas.sortingOrder` explicitly per layer (HUD, Menus, Popups) instead of relying on hierarchy order
+- Long lists and grids in a ScrollRect pool their items, never Instantiate/Destroy per scroll
+- UI never owns or changes game state: it reads the controller's state and calls the controller (direct reference or Inspector-wired UnityEvent); the rules live in Core
+- UI CPU stays within about 1–2 ms of the frame on the target phone; read the Profiler's UI module before restructuring
 
 **Never use** `EditorApplication.ExecuteMenuItem("Window/TextMeshPro/Import TMP Essential Resources")`, unless the user asks for an interactive TMP Essentials installation. It opens a modal dialog that blocks whatever invoked it until a human dismisses it.
 
@@ -209,6 +215,29 @@ Before completing any UI that contains interactive elements, verify:
 4. **Button.onClick should be wired** (via inspector or script) — only when scripts or logic were requested
 
 If the first three are missing, interactive elements will exist visually but fail silently.
+
+## Screens
+
+A screen that loads or lists data defines its loading, empty and error states before it is built; every screen defines
+what Back does. Empty = one image from the game's art, one line, one action.
+
+**Navigation:**
+- Esc, the Android back button and the close button do the same thing (`platform-targets`). With one menu, Back
+  closes it; a screen stack (Push, Pop) waits for nested screens. At the root, Back asks to quit on PC and Android;
+  iOS and WebGL have no quit.
+- Opening a screen selects its one primary button (`EventSystem.current.SetSelectedGameObject`), so the keyboard
+  works at once. PC can be driven keyboard-only.
+- Closing a sub-screen or a modal returns the selection to the button that opened it.
+- A modal blocks input behind it with a full-screen raycast blocker image. The only modal confirms a destructive
+  action: focus on Cancel, never used as a hint (`player-clarity` §F).
+
+**Behaviour:**
+- Buttons act on release (`Button.onClick` already does), never on press.
+- A confirm button names its action ("Delete save", "Quit"), never "OK" or "Yes".
+- No loading indicator for a load under 2 s; above that, show one. Never a blank black screen.
+- Error text never blames the player and never says "invalid": it says what to do.
+- Labels leave room for 40 % longer text (`player-clarity` CL28).
+- Mouse targets at least 32 px; touch targets per `platform-targets`. A swipe never starts in a system gesture edge.
 
 ## Understanding
 

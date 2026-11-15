@@ -32,7 +32,8 @@ Non-negotiable, in every phase:
 
 Rewrite the user's prompt into this card under PLAN.md `## Now` (replace the TODO line; a game without PLAN.md gets
 one with `## Now`, `## Next`, `## Pending Play Mode checks` and `## Known issues`). The card adds facts the
-prompt left implicit (files, targets, existing helpers) and a checkable done; it never adds requirements.
+prompt left implicit (files, targets, existing helpers) and a checkable done; it never adds requirements. A
+question ("does X work?", "does it feel good?") is not a card: it is a spike, `gamekit:prototype`.
 
 Now already holds another card: ask whether to finish it (`devam`) or park it. Parking commits the card as it stands
 (ticks included), then puts Now back to its TODO line and adds one line to Next, `<goal> - parked, card at <short sha>`
@@ -54,14 +55,38 @@ Review: <after each round: r1 unity-reviewer 8, clarity-reviewer 9 (its findings
 ```
 
 - Each Accept line is observable: "the ball bounces off paddles at the same speed on PC and phone", not "bounce works";
-  its evidence can show that outcome (a compile pass shows only that it compiles).
+  its evidence can show that outcome (a compile pass shows only that it compiles). Pick the evidence by what the item
+  is; a mixed item takes the evidence of its riskiest part:
+
+  | Item | Evidence |
+  |---|---|
+  | Core rule, formula, state step | `dosya:satır` (an EditMode test only with the user's OK). The line names its bounds: zero or minimum input, the cap, an empty collection, the invalid case (dead target, missing reference) when the rule can meet one |
+  | Two systems talking (save/load round trip, an event across Core/Game) | play-capture or Play Mode (user) |
+  | Look, juice, timing, feel | Play Mode (user), with a number or a reference: "hit stop 60-80 ms", "shake ends before the next input" |
+  | UI, HUD | play-capture, one shot per screen touched, inside the safe area |
+  | A tuning value only | the ScriptableObject value at `dosya:satır`, plus one Play Mode spot check |
+
+- A subjective line ("feels snappy", "looks good", "intuitive", "works correctly") cannot be ticked. Rewrite it into
+  2-3 binary candidates before building: input to visible response within 1 frame at 60 fps; the menu in at most 2
+  taps from any screen; 4 of 5 testers pick the right option first time. M: pick one, note it under Assumptions; L: ask.
+- Ready to leave phase 1: `Not:` is filled, what the card depends on is done, and a card that touches per-frame code
+  states a budget or `no per-frame cost - <why>`.
+- A tuning or rule-change card adds these lines (DESIGN.md Rules changes in the same commit):
+  ```
+  Tune: | Parameter | Old | New | Why | In range? |   (DESIGN.md or the field's [Range]; outside: a one-line reason)
+  Rule: Was: <the DESIGN.md Rules line, quoted> / Now: <the new line>
+  Affected systems: <every reader of the value or rule>
+  - [ ] No regression: <old behaviour that must keep working> - evidence: ...   (under Accept)
+  ```
 - Base is the card's key. Every commit for the card after Base carries the body line `Card: <Base>`, and its Known
   issues lines start `review <Base>: `. The card's commits are `git log --format=%h --grep='^Card: <Base>'
   <Base>..HEAD`: other work in that span (an S task between sessions, another card while this one was parked) is not
   this card's. A repaired Base reads `Base: <sha> (önce: <x>)` (Longer than one session): the key is the sha, and the
   range adds `--grep='^Card: <x>'` for the commits made before the repair.
 - M: write the smallest reasonable reading under Assumptions and go on; the handoff names them and moves them to
-  DESIGN.md Decisions, so the user can correct them.
+  DESIGN.md Decisions, so the user can correct them. Own calls made while building go there too: every choice a player
+  could notice that the card does not state (a speed, duration, colour, string, an edge case it never names), one
+  line each with `dosya:satır`.
 - L: show the card, ask the open questions (AskUserQuestion, recommendation first), and wait. With the answers (or
   none to ask), write them into the card (`Open questions: none`), put each design choice in DESIGN.md Decisions,
   commit both, and end the turn with one line: "`devam` = burada yaparım · `/gamekit:feature` = gözetimsiz yapar".
@@ -79,6 +104,7 @@ Then load the skills the card needs, and only those:
 | Input, UI, a screen, a build | `platform-targets`, `ui-ugui` |
 | Player-facing text, hints, HUD | `player-clarity` |
 | A level or difficulty | `level-beat-review` |
+| A genre's core system (jump, match, idle economy, deck) | `genre-defaults` |
 | Per-frame code | `unity-performance` |
 | A bug | `gamekit:bug-hunter` agent first, then `unity-debugging` |
 
@@ -159,6 +185,9 @@ in the body.
 
 ## 7 Handoff
 
+First compare the card's own commits (`git show --stat` over the `--grep='^Card: <Base>'` list, never a plain diff
+of the range) against Scope and Not: each addition outside Scope or inside Not is named in the handoff as kept, or
+moved to Next; a cut lands after the review, so it needs a `gk-bridge refresh` and its own Pending check.
 In the last commit (its body lists the scores): the card's Assumptions copied to DESIGN.md Decisions, PLAN.md Now back
 to its TODO line (nothing moves up from Next: a Next item reaches Now only through phase 1, when the
 user asks for it), Pending Play Mode checks written as concrete actions with the expected result, for PC and, when
@@ -168,7 +197,8 @@ item still unticked that is not a Play Mode check, go to Known issues as `review
 line the final review no longer lists leaves the file (other lines, another card's or the user's, stay); a [karar]
 item (with its options or the playtest to run) and a builder's needed extra go to PLAN.md Next. What 6.4 already
 wrote stays as it is: never a second copy.
-Then tell the user, in this order: what now works, the assumptions taken, the scores, what stayed unverified, the
+Then tell the user, in this order: what now works, the assumptions and own calls taken (each to keep or change: a
+change is a fix now or a Next item), the scores, what stayed unverified, the
 decisions waiting for them in Next, the Play Mode checklist, and that `push et` sends the commits to GitHub.
 
 ## Longer than one session

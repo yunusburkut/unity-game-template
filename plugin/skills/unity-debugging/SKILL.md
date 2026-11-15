@@ -16,8 +16,10 @@ One repro that shows *this* bug, the same way every time. In order of preference
    EditMode test. Propose it; write or run it only with permission (`unity-testing`).
 2. **Live Editor probe.** `unity command script run` reads scene, asset and component state without Play Mode;
    entering Play Mode smoke-tests `Awake` / `OnEnable` / `Start`.
-3. **The user's repro, instrumented.** Exact steps: scene, PC or phone, Editor or build, first or second Play session.
-   Probes land in `Logs/agent/console.log` (step 4), so read the result there instead of asking for a paste.
+3. **The user's repro, instrumented.** It names: scene or level and the exact steps; expected vs actual; PC, phone or
+   WebGL; Editor or build (version or sha); first or second Play session; how often (always, mostly, sometimes, rare);
+   regression or not (last good sha if known). Ask once for a missing field, then mark it `?` rather than guess. Probes
+   land in `Logs/agent/console.log` (step 4), so read the result there instead of asking for a paste.
 4. **Device.** A Development Build on the phone logs to `adb logcat -s Unity` (Android) or the Xcode console (iOS).
    Editor-only bugs and device-only bugs have different causes; find out which first.
 5. **Regression.** Read `git log` / `git diff` for the area first. A bisect costs the user one Play Mode check per
@@ -43,6 +45,11 @@ has run since; `gk-bridge refresh` compiles without focus) and `Logs/agent/conso
 | Fine in the Editor, missing or pink in the build | A shader variant stripped, an asset loaded by path from outside `Resources`, or an `#if UNITY_EDITOR` path |
 | Type or member missing only in an IL2CPP build | Code stripping removed it: a `link.xml` entry or `[Preserve]` |
 | Keys do nothing in the Editor | Game View not focused |
+| Memory grows over a session or with each reload | An event subscribed with no unsubscribe (often a static event holding a destroyed view), a static cache that never evicts, an Addressables handle never released, `Instantiate` without `Destroy`, a `RenderTexture` or `Texture2D` never released or destroyed |
+
+A leak is measured before code changes: take a baseline (FrameLog `sys_mb` / `gc_reserved_mb`, or the Memory Profiler
+in a Development Build), repeat the suspect cycle 5-10 times (load and unload the level, open and close the screen),
+and compare. The report names the mechanism; the fix is shown by the same cycle returning to baseline.
 
 ## 4. Hypothesise, then probe
 
@@ -61,6 +68,10 @@ One change at the root cause, no "while I'm here". A regression test only at a s
 and only with permission. Remove every `[DBG-` line. Name the confirmed cause in the handoff and the commit message,
 hand the runtime check back as a Play Mode checklist (`implementation-verification`), and call anything checked only by
 reading unverified.
+
+**Same bug twice: look for the pattern.** When `git log` shows this bug class fixed before, or three or more PLAN.md
+Known issues lines sit in one system, find what they share and fix that once (`unity-architecture`), not one more
+instance.
 
 **Three failed fixes: stop.** When each fix exposes a new problem somewhere else, the design is wrong, not the
 hypothesis. Take it to the user (`unity-architecture`) before a fourth attempt.
