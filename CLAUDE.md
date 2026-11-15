@@ -27,6 +27,7 @@ Everything goes straight on `main`: no branches, no PRs. Commit subject `area: s
 
 | Changed | Run |
 |---|---|
+| Anything (one entry for all checks below) | `.\test-all.ps1` (static + hooks + plugin validate, about 6 s); `-Full` adds `test-template.ps1` |
 | `project/`, `packs/`, `packages/`, `new-game.ps1` | `.\test-template.ps1` (about 5 min; `-Packs <changed pack>`, `-Tests` for the game's tests) |
 | `plugin/` | `claude plugin validate plugin` (the missing-version warning is intended), then `claude plugin update gamekit@unity-game-template` |
 | `plugin/hooks/`, a skill's `references/` index | Also `powershell -NoProfile -ExecutionPolicy Bypass -File plugin\test-hooks.ps1` (fixed payloads through the hooks, the genre index and source keys); a new hook path gets a case there |
