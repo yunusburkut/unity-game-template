@@ -1,9 +1,13 @@
 ---
 name: art-pipeline
-description: Making and rebuilding __GAME__'s generated 3D art — Blender build scripts in Tools/Blender that export FBX plus a JSON manifest, the AssetPostprocessor that pins their import, the Editor builder that turns them into materials and prefabs, the __GAME__/Toon shader and its outline. Use when adding or changing a model, prop, kit piece, clip or material, after rebuilding art, or before judging or changing the look. Modelling inside Blender itself is the global blender-skills (start with blender-director).
+description: Making or changing __GAME__'s generated 3D art - a model, prop, kit piece, clip or material, a rebuild, judging the look. Blender script -> FBX + JSON manifest -> postprocessor -> builder prefab; the __GAME__/Toon shader and its outline.
 ---
 
 # Art pipeline
+
+This skill is the Unity side of generated art: the script's contract, the import, the builder and the shader.
+Modelling inside Blender itself is the global Blender skills (start with `blender-director`; from a reference image,
+`blender-image-to-3d`), and the export arguments are the `unity-export` skill.
 
 Art is **generated, never hand-edited**. A Blender script is the source; the FBX, the materials and the prefabs are
 outputs that a rebuild overwrites. Fix the script, rebuild, never patch an output.
@@ -26,8 +30,20 @@ outputs that a rebuild overwrites. Fix the script, rebuild, never patch an outpu
    makes the materials and prefabs **in place** (same path, same GUID, so scenes keep their references). It is
    rerunnable: it strips what it made last time first.
 
-`examples/` in the template's `packs/toon-art` holds a real script (`city_assets.py`, Pixel Volley), a manifest-writing
-kit module (`kit_common.py`, Mixtrol) and a postprocessor (`LevelKitModelPostprocessor.cs.txt`) to copy the shape from.
+Examples live only in the template, never in a game: `C:\GitHub\unity-game-template\packs\toon-art\examples\`.
+
+- **Start from** `toon_prop.py` + `PropBuilder.cs.txt`: the whole chain for one prop, generic and runnable. The script
+  builds, checks (triangle budget, palette roles, pivot, identity transform) and exports with the `unity-export`
+  preset into `Game/Art/Models/`, and writes the manifest; the C# file pins the import and rebuilds the materials and
+  prefab in place.
+- `kit_common.py` (Mixtrol): a large real kit module for a modular level kit (pieces, hosts, colliders, walk heights,
+  a palette atlas). Read it for those patterns only: it imports Mixtrol's `kit_palette.py` (not included, so it does
+  not run here), its paths are Mixtrol's (`Art/LevelKit`, `Game/Art/LevelKit`, outside the folder that gets outline
+  normals), and its ticket numbers are Mixtrol's. Its export call does follow the preset.
+- `LevelKitModelPostprocessor.cs.txt` (Mixtrol): a postprocessor with texture rules (a point-filtered palette atlas).
+- `city_assets.py` (Pixel Volley): the modelling helpers of a toy-town set. Pre-contract: its export
+  (`FBX_SCALE_UNITS`, `bake_space_transform=True`, a manual half turn) and its output folder are not the template's;
+  never copy them, copy the export from `toon_prop.py`.
 
 ## Axes and scale
 
@@ -46,6 +62,17 @@ the shader and keeps the colours.
   must read (characters, carried things), not the whole level.
 - Outline width is in 1080p pixels, so it reads the same on a phone and a monitor.
 - A mesh outside `Game/Art/Models/` gets no smoothed normals; its outline may split at hard edges.
+- Bake or paint only the base map for a toon asset (`bake_maps.py --maps basecolor`, or a palette atlas); Smoothness
+  is a material value. No normal, AO or mask map: the shader samples none, and `OutlineNormalsPostprocessor`
+  overwrites the tangents under `Game/Art/Models/`. The `unity-export` skill has the per-shader texture table.
+- Lighting it takes: the main light with its shadows (fading out at the shadow distance), point and spot lights in the
+  same two bands (Forward and Forward+), light layers, fog, and ambient from light probes. It does not sample baked
+  lightmaps or shadowmask: light toon objects in real time and give them baked light through probes.
+- Keep the URP renderer's **Depth Priming Mode on Disabled** (the default). Depth priming draws the opaque list with
+  ZTest Equal, and the outline hull, which is not in the depth prepass, disappears.
+- After changing `Toon.shader`, run `__GAME__/Art/Check Toon Shader` (ProjectSetup runs it too): it compiles every
+  pass for the main keyword sets and logs `[toon-art] Toon shader OK` or each error. A shader error otherwise shows
+  only as a pink object in Play Mode.
 - Tune the look on a reference scene from the game camera, on both quality tiers, before changing every material.
 
 ## Rules

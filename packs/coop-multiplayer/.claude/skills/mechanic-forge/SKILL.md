@@ -1,7 +1,18 @@
 ---
 name: mechanic-forge
-description: Generating, mutating and critiquing __GAME__ co-op mechanics, rooms and segments with the design corpus (docs/design-corpus) — the 25-field mechanic card, the Pass A–J pipeline, the 13-axis rubric and the recipe modes, including tier-1 recovery design ("make this failure recoverable in place"). Use when asked for new mechanic, device, room or segment ideas, "give me N ideas", "what else can the swap / cauldron / plate do", "mutate this", "make it more social", "how can this be trolled", "why is this boring after ten minutes", "this feels flat", "make it harder without new keys", "make it work for 3–4 players", "find the clip moments", "anti-grief pass", "what would kill this idea", or before handing a mechanic to implementation. Divergent work — the go/no-go gate is coop-chaos-design.
+description: A __GAME__ co-op mechanic, room, segment card through design corpus. Use for "mutate this", "make it more social", "how can this be trolled", "boring after ten minutes", "harder without new keys", "3-4 players", "recoverable". Batches are idea-forge.
 ---
+
+<!-- The full trigger set, kept here because the listing budget caps the description at 250 characters: generating,
+mutating and critiquing co-op mechanics, devices, rooms and segments with docs/design-corpus (the 25-field card,
+Pass A-J, the 13-axis rubric, the recipe modes, tier-1 recovery design "make this failure recoverable in place");
+"what else can the swap / cauldron / plate do", "this feels flat", "make it work for 3-4 players", "find the clip
+moments", "anti-grief pass", "what would kill this idea", before handing a mechanic to implementation. A batch of N
+ideas in its own context is the idea-forge agent; the go/no-go gate is coop-chaos-design. -->
+
+**Mode split.** This skill works one card (or a small set) in the main conversation. "Give me N ideas" as a batch
+goes to the `idea-forge` agent, which runs this same procedure in its own context. Whether a card ships is
+`coop-chaos-design`, never this skill and never the generic `design-critic`.
 
 > Written for Mixtrol (2–4 player 2.5D co-op platformer, FishNet over Unity Relay). Where this file states a
 > Mixtrol fact (its keys, devices, levels, decisions), treat it as a worked example and use __GAME__'s own from
@@ -11,15 +22,19 @@ description: Generating, mutating and critiquing __GAME__ co-op mechanics, rooms
 
 The corpus in `docs/design-corpus/` is the method; this skill is how to run it. Read the README there
 once for the ID scheme, the precedence rule and the Mixtrol deltas (the reference game). Never load a whole catalog — grep
-rows. IDs live in three places, so search all of them:
+rows. IDs live in three places, so search all of them with the Grep tool (not a shell `rg`, which is not on
+PATH here):
 
-```
-rg "^(\| |- \*\*|\d+\. \*\*)OP27\b" docs/design-corpus .claude/skills ~/.claude/skills   # one row by ID (FE rows are bullets, MD a numbered list)
-rg -i "^\| (P|RC|RA)\d+ .*recover" docs/design-corpus      # candidates by keyword when you have no ID yet
-```
+- One row by ID: pattern `^(\| |- \*\*|\d+\. \*\*)OP27\b` over `docs/design-corpus` and `.claude/skills`
+  (MD rows are a numbered list, most others table rows).
+- Candidates by keyword when you have no ID yet: pattern `^\| (P|RC|RA)\d+ .*recover`, case-insensitive, over
+  `docs/design-corpus`.
+- FR, FS, FP and FX rows are in the gamekit plugin: load the `gamekit:game-feel` skill and read its
+  `references/feedback-stack.md` (section 2 FR, 3 FS, 4 FP, 6 FX). FE01–FE20 are retired: that section became
+  "Per-action target (fill in per game)", so cite the action's row there instead.
 
-Rows: P, FC, RC, CS, EO, AG, DC in `grammar.md`; OP, OB, CQ, RQ, RA, MD in `generator.md`; FR, FS, FP, FE,
-FX in `~/.claude/skills/game-feel/references/feedback-stack.md`; AP here; RX, WC in `references/recipes.md`.
+Rows: P, FC, RC, CS, EO, AG, DC in `grammar.md`; OP, OB, CQ, RQ, RA, MD in `generator.md`; FR, FS, FP, FX in
+`gamekit:game-feel`'s `references/feedback-stack.md`; AP here; RX, WC in `references/recipes.md`.
 
 **Where to start when you have no ID:**
 
@@ -38,7 +53,7 @@ light Pass J cut) → critique (the rubric) → simplification (the full Pass J 
 and the kill test). A list of twenty names is the shallow-novelty failure the corpus was written
 against. Produce at least two candidates through the passes so the rubric has something to compare.
 
-**If a candidate contradicts a recorded decision** (a GDD rule, the two-tier split as written, one key
+**If a candidate contradicts a recorded decision** (a DESIGN.md rule, the two-tier split as written, one key
 per action), do not resolve it: carry on, and end the answer with a "Decisions for the user" list.
 
 ## What is fixed before any idea
@@ -64,7 +79,7 @@ per action), do not resolve it: carry on, and end the answer with a "Decisions f
 | B Dependency | Why can the best player not do it alone? | A crate, a jump + air dash or a solo push at ×0.3 solves it (DC02) |
 | C Mutation | Change exactly **one** of ownership, information, timing, resource, position, cost (OP) | Two changed at once. The swap table is the native ownership axis — use it before inventing another |
 | D Sabotage | One legal action with existing keys that can hurt locally | The harm is permanent, or needs a key the saboteur does not have |
-| E Readability | Who caused it, and can the screen say so (FP11, FP27, `Blame` / `BlameBoard` in `Core/Level/Blame.cs`)? | The blame label would name the victim for the partner's act (P37 without AG8) |
+| E Readability | Who caused it, and can the screen say so (FP11, FP27, the game's blame label if it has one; Mixtrol's was `Blame` / `BlameBoard` in `Core/Level/Blame.cs`)? | The blame label would name the victim for the partner's act (P37 without AG8) |
 | F Recovery | Fail-forward, rescue, role inversion, mutation (RC, P61–P70) | The only recovery is death, or tier 1 takes longer than 8 s |
 | G Escalation | Harder through timing, distance, combination, owner (EO) | It adds a key, a UI screen or a second loss engine — the swap is the floor, and a beat carries at most one loss engine (today the chase) on top |
 | H Clip | Accidental failure, deliberate troll, accidental hero — each 5–10 s | Any of the three needs narration to follow (RX23) |
@@ -123,9 +138,9 @@ recoverable" → RX15 + RX21, "ready to build" → RX26.
 
 ## Kill test
 
-State the cheapest experiment that could prove the idea weak, **before** building it: a Gym zone
-(`Assets/Scenes/Gym.unity`, zones 200 m apart, reached from the zone bar (GymZoneBar)) built from existing prefabs,
-and the observed
+State the cheapest experiment that could prove the idea weak, **before** building it: a zone in the game's gym or
+test scene, built from existing prefabs (if there is none yet, a scratch scene; Mixtrol's was `Assets/Scenes/Gym.unity`,
+zones 200 m apart, reached from its zone bar), and the observed
 behaviour that kills it. Typical killers: a stranger pair solves it without speaking; one player idles
 more than ~10 s; a troll stall has no answer; nobody laughs on the third attempt; the blame label names
 the wrong player. If no cheap test exists, the idea is too big — Pass J it.
@@ -135,14 +150,14 @@ the wrong player. If no cheap test exists, the idea is too big — Pass J it.
 When the card survives, convert it without changing its intent (RX26): states and transitions → a Core
 value-type `State` + static `Solver` taking `dt`; tunables → a Config ScriptableObject flattened to a
 `Tuning` struct; authority → field 20; events → field 21, reset at the top of `Step`; presentation →
-the action's row in `~/.claude/skills/game-feel/references/feedback-stack.md`; reset guarantees → what
+the action's row in `gamekit:game-feel`'s `references/feedback-stack.md`; reset guarantees → what
 respawn restores (today: players, the cauldron, and the crates and push blocks a `CarryHome` holds —
 never one on a plate); network edge cases → simultaneous input, one-trip lag, disconnect. Then
-`unity-architecture` for placement and `unity-performance` for anything per frame. Tests only if the
-user asks (`unity-testing`).
+`gamekit:unity-architecture` for placement and `gamekit:unity-performance` for anything per frame. Tests only if the
+user asks (`gamekit:unity-testing`).
 
-**Then, in order:** `coop-chaos-design` decides whether it ships → `level-beat-review` places it →
-`game-feel` picks how it reads → `feel-authoring` wires it.
+**Then, in order:** `coop-chaos-design` decides whether it ships → `gamekit:level-beat-review` places it →
+`gamekit:game-feel` picks how it reads → `gamekit:feel-authoring` wires it.
 
 ## Anti-patterns
 

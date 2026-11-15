@@ -76,7 +76,7 @@ okunan.
 
 ### Tasarım korpusundan gelenler (2026-09-22)
 
-Bunlar `docs/design-corpus` ile eklendi (kimlikler `~/.claude/skills/game-feel/references/feedback-stack.md`'de).
+Bunlar `docs/design-corpus` ile eklendi (kimlikler gamekit eklentisinin `plugin/skills/game-feel/references/feedback-stack.md` dosyasında).
 Çoğunun henüz oynatıcı alanı yok; eklenince bu tabloya yazılır.
 
 | Klip | Nereye | Korpus | Not |

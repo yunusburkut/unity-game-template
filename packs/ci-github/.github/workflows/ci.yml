@@ -1,14 +1,22 @@
-# Tests and builds __GAME__ on GitHub's Linux runners with GameCI (game.ci). Every push to main and every pull
-# request runs the EditMode and PlayMode tests, then builds Windows, Android and WebGL through BuildMenu, the same
-# path the menu and the agent bridge use. A v* tag also pushes the WebGL build to itch.io.
+# Tests and builds __GAME__ on GitHub runners with GameCI (game.ci). Every push to main and every pull request that
+# changes more than Markdown runs the EditMode and PlayMode tests. A v* tag, or a manual run (Actions > CI > Run
+# workflow), also builds Windows, Android and WebGL through BuildMenu, the same path the menu and the agent bridge
+# use; a v* tag then pushes the WebGL build to itch.io. iOS to TestFlight is there but commented out (see the ios job). Builds are not run on every push: three Unity builds per
+# agent commit would spend the private repo's Actions minutes on work nobody downloads. Run the workflow by hand
+# before tagging when a change touches platform code (an Android or WebGL compile error shows only in a build).
 # Secrets and variables: packs/ci-github/README.md in unity-game-template.
+# Third-party actions are pinned to a commit SHA (the tag is in the comment); to bump one, read the new tag's SHA
+# with `gh api repos/<owner>/<repo>/commits/<tag> --jq .sha`.
 name: CI
 
 on:
   push:
     branches: [main]
+    # paths-ignore does not apply to tag pushes, so a v* tag always runs
     tags: ['v*']
+    paths-ignore: ['**/*.md', 'docs/**']
   pull_request:
+    paths-ignore: ['**/*.md', 'docs/**']
   workflow_dispatch:
 
 permissions:
@@ -18,10 +26,9 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-  UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-  UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+# The Unity credentials are set only on the two GameCI steps, so no other action or script sees them.
+# GAMEKIT_TOKEN lets Package Manager clone GameKit from the private unity-game-template repo; the job's own
+# GITHUB_TOKEN reaches only this repo.
 
 jobs:
   test:
@@ -38,39 +45,59 @@ jobs:
           path: Library
           key: Library-test-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
           restore-keys: Library-test-
-      - uses: game-ci/unity-test-runner@v4
+      - uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           testMode: all
           githubToken: ${{ secrets.GITHUB_TOKEN }}
+          gitPrivateToken: ${{ secrets.GAMEKIT_TOKEN }}
 
   build:
     needs: test
-    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # on Linux the Windows player is Mono; an IL2CPP Windows build needs a Windows runner
+          # Windows runs on a Windows runner (twice the minutes) so the build uses the project's own scripting backend:
+          # a Linux runner can build only a Mono Windows player, and an IL2CPP setting would fail there
           - targetPlatform: StandaloneWindows64
             buildMethod: GameKit.Editor.BuildMenu.Windows
+            os: windows-2022
           - targetPlatform: Android
             buildMethod: GameKit.Editor.BuildMenu.Android
+            os: ubuntu-latest
           - targetPlatform: WebGL
             buildMethod: GameKit.Editor.BuildMenu.WebGL
+            os: ubuntu-latest
+          # iOS (off): uncomment this entry and the ios job at the end of the file. A Linux runner writes the Xcode
+          # project (Builds/iOS); the ios job on a Mac signs it and uploads it to TestFlight.
+          # - targetPlatform: iOS
+          #   buildMethod: GameKit.Editor.BuildMenu.IOS
+          #   os: ubuntu-latest
     steps:
       # the Android image does not fit next to the runner's preinstalled tools
       - if: matrix.targetPlatform == 'Android'
-        uses: jlumbroso/free-disk-space@v2
+        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
       - uses: actions/checkout@v7
       - uses: actions/cache@v6
         with:
           path: Library
           key: Library-${{ matrix.targetPlatform }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
           restore-keys: Library-${{ matrix.targetPlatform }}-
-      - uses: game-ci/unity-builder@v6
+      - uses: game-ci/unity-builder@eb1b9fba120c6e62c9fb7a7a81d6c107ce004c45 # v6.0.0
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           targetPlatform: ${{ matrix.targetPlatform }}
           buildMethod: ${{ matrix.buildMethod }}
+          gitPrivateToken: ${{ secrets.GAMEKIT_TOKEN }}
           # BuildMenu writes Builds/<Target> and keeps the version numbers set in Player Settings
           versioning: None
       - if: always()
@@ -87,8 +114,52 @@ jobs:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
           ITCH_GAME: ${{ vars.ITCH_GAME }}
           VERSION: ${{ github.ref_name }}
+          # a fixed butler release, not LATEST; newer ones: https://broth.itch.zone/butler/linux-amd64
+          BUTLER_VERSION: 15.32.0
         run: |
-          curl -sSfL -o butler.zip https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
+          curl -sSfL -o butler.zip "https://broth.itch.zone/butler/linux-amd64/$BUTLER_VERSION/archive/default"
           unzip -q butler.zip -d butler
           chmod +x butler/butler
           butler/butler push Builds/WebGL "$ITCH_GAME:html5" --userversion "$VERSION" --if-changed
+
+  # iOS to TestFlight (off; uncomment together with the iOS matrix entry above). Runs on a v* tag only, on a macOS
+  # runner (ten times the Linux minutes). Signing is automatic and cloud-managed through an App Store Connect API key
+  # (App Store Connect > Users and Access > Integrations, role Admin, which cloud-managed distribution signing
+  # needs); the key lives in secrets, never in the repo. Secrets: APP_STORE_CONNECT_KEY_ID,
+  # APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_KEY_P8 (the .p8 file's text); variable APPLE_TEAM_ID. The app's
+  # record must exist in App Store Connect with the Player Settings bundle id, and each upload needs a higher iOS
+  # build number (Player Settings > iOS > Build), since versioning: None keeps the project's numbers.
+  # Check that the runner image's default Xcode meets App Store Connect's current minimum SDK.
+  # ios:
+  #   needs: build
+  #   if: startsWith(github.ref, 'refs/tags/')
+  #   runs-on: macos-latest
+  #   steps:
+  #     - uses: actions/download-artifact@v8
+  #       with:
+  #         name: Build-iOS
+  #     - name: Archive, sign and upload to TestFlight
+  #       env:
+  #         KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+  #         ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+  #         KEY_P8: ${{ secrets.APP_STORE_CONNECT_KEY_P8 }}
+  #         TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+  #       run: |
+  #         set -euo pipefail
+  #         # artifacts drop the executable bit, and Unity's Xcode build phases run these scripts
+  #         find Builds/iOS -name '*.sh' -exec chmod +x {} +
+  #         KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+  #         printf '%s' "$KEY_P8" > "$KEY_PATH"
+  #         AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY_PATH"
+  #               -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER_ID")
+  #         xcodebuild archive -project Builds/iOS/Unity-iPhone.xcodeproj -scheme Unity-iPhone \
+  #           -configuration Release -destination 'generic/platform=iOS' \
+  #           -archivePath "$RUNNER_TEMP/App.xcarchive" \
+  #           DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic "${AUTH[@]}"
+  #         # destination upload sends the signed build straight to App Store Connect (TestFlight)
+  #         /usr/libexec/PlistBuddy -c 'Add :method string app-store-connect' \
+  #           -c 'Add :destination string upload' -c "Add :teamID string $TEAM_ID" \
+  #           -c 'Add :signingStyle string automatic' "$RUNNER_TEMP/ExportOptions.plist"
+  #         xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/App.xcarchive" \
+  #           -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" "${AUTH[@]}"
+  #         rm -f "$KEY_PATH"

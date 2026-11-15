@@ -3,7 +3,13 @@
 # The one exception is the "Paint" material on the truck and the bag: it stays a separate submesh, which the game
 # tints with the picture's colors.
 #
-# blender -b --factory-startup -P Tools/Blender/city_assets.py -- <unity project folder> [preview.png]
+# blender -b --factory-startup --python-exit-code 1 -P Tools/Blender/city_assets.py -- <unity project folder> [preview.png]
+#
+# PRE-CONTRACT EXAMPLE (Pixel Volley, kept for its modelling helpers): export() below uses FBX_SCALE_UNITS,
+# bake_space_transform=True and a manual half turn, main() writes to Assets/PixelVolley/Art, and nothing checks the
+# models before export. None of that is the template's contract: copy the export (the unity-export preset) and
+# check() from toon_prop.py, and write to Assets/__GAME__/Game/Art/Models, where OutlineNormalsPostprocessor bakes
+# the outline normals.
 #
 # The style is a toy town: chunky proportions, every edge rounded off, smooth shading on the rounds and flat faces
 # kept flat (weighted normals), so the toon shader draws clean bands instead of facets.
@@ -550,6 +556,7 @@ def write_palette(path):
 
 
 def export(obj, path):
+    # pre-contract (see the header): not the unity-export preset; toon_prop.py has the one to copy
     for other in bpy.context.scene.objects:
         other.select_set(False)
     obj.select_set(True)

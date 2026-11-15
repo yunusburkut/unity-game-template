@@ -1,0 +1,130 @@
+// Steps 3 and 4 of the art-pipeline chain for toon_prop.py, generic: the import pin for the generated models and the
+// builder that turns SM_<Thing>.fbx + SM_<Thing>.json into __GAME__/Toon materials and a prefab, in place. Copy the
+// two classes into Assets/__GAME__/Editor/Art/PropModelPostprocessor.cs and PropBuilder.cs and rename them for the
+// thing they build. The builder is written for the template's Editor assembly (__GAME__.Editor), next to ToonShader.
+using System.IO;
+using System.Linq;
+using UnityEditor;
+using UnityEngine;
+
+namespace __GAME__.Editor.Art
+{
+    /// <summary>
+    /// Pins the import of the generated models under Game/Art/Models (the unity-export skill's Unity side): one metre
+    /// is one metre, axis conversion baked, no rig or clips, no imported materials (the builder assigns them).
+    /// OutlineNormalsPostprocessor bakes the outline normals into the same folder; this one never touches tangents.
+    /// </summary>
+    internal sealed class PropModelPostprocessor : AssetPostprocessor
+    {
+        const string Folder = "Assets/__GAME__/Game/Art/Models/";
+
+        // Raise when a setting below changes, so the models reimport.
+        public override uint GetVersion() => 1;
+
+        void OnPreprocessModel()
+        {
+            if (!assetPath.StartsWith(Folder) || !assetPath.EndsWith(".fbx")) return;
+            var importer = (ModelImporter)assetImporter;
+            importer.globalScale = 1f;
+            importer.useFileScale = true;
+            importer.bakeAxisConversion = true;
+            importer.animationType = ModelImporterAnimationType.None;
+            importer.importAnimation = false;
+            importer.materialImportMode = ModelImporterMaterialImportMode.None;
+            importer.importCameras = false;
+            importer.importLights = false;
+            importer.isReadable = false;
+            importer.meshCompression = ModelImporterMeshCompression.Off;
+        }
+    }
+
+    /// <summary>
+    /// Rebuilds every prop that has a manifest under Game/Art/Models: one __GAME__/Toon material per palette role and a
+    /// prefab per model. Both are written in place (same path, same GUID), so scenes keep their references; a rerun
+    /// rewrites the prefab from scratch, which is how it strips what it made last time. Never edit the outputs by hand.
+    /// </summary>
+    internal static class PropBuilder
+    {
+        const string Models = "Assets/__GAME__/Game/Art/Models";
+        const string Materials = "Assets/__GAME__/Game/Art/Materials";
+        const string Prefabs = "Assets/__GAME__/Game/Prefabs/Props";
+
+        // The JSON toon_prop.py writes; field names match it exactly, and vectors and colours are {x,y,z} / {r,g,b,a}
+        // objects, which JsonUtility reads straight into Vector3 and Color.
+        [System.Serializable]
+        sealed class Manifest
+        {
+            public string mesh;
+            public int triangles;
+            public string[] roles;
+            public Color[] colors;          // sRGB, as authored
+            public float[] smoothness;
+            public bool outline;
+            public Vector3 colliderCenter;
+            public Vector3 colliderSize;
+        }
+
+        [MenuItem("__GAME__/Art/Rebuild Props")]
+        public static void RebuildAll()
+        {
+            Directory.CreateDirectory(Materials);
+            Directory.CreateDirectory(Prefabs);
+            foreach (string json in Directory.GetFiles(Models, "*.json"))
+                Rebuild(json.Replace('\\', '/'));
+            AssetDatabase.SaveAssets();
+        }
+
+        static void Rebuild(string jsonPath)
+        {
+            var manifest = JsonUtility.FromJson<Manifest>(File.ReadAllText(jsonPath));
+            string fbxPath = Path.ChangeExtension(jsonPath, ".fbx");
+            Mesh mesh = AssetDatabase.LoadAllAssetsAtPath(fbxPath).OfType<Mesh>().FirstOrDefault(m => m.name == manifest.mesh);
+            if (mesh == null) throw new System.InvalidOperationException($"{fbxPath} has no mesh {manifest.mesh}");
+            if (mesh.subMeshCount != manifest.roles.Length)
+                throw new System.InvalidOperationException(
+                    $"{manifest.mesh}: {mesh.subMeshCount} submeshes, manifest names {manifest.roles.Length} roles");
+
+            var materials = new Material[manifest.roles.Length];
+            for (int i = 0; i < materials.Length; i++)
+                materials[i] = RoleMaterial(manifest.roles[i], manifest.colors[i], manifest.smoothness[i], manifest.outline);
+
+            string name = manifest.mesh.Replace("SM_", "");
+            var root = new GameObject(name);
+            try
+            {
+                // the imported mesh is still Z up (see toon_prop.py's header): a child turned 90 on X stands it up
+                var view = new GameObject("Mesh");
+                view.transform.SetParent(root.transform, false);
+                view.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                view.AddComponent<MeshFilter>().sharedMesh = mesh;
+                view.AddComponent<MeshRenderer>().sharedMaterials = materials;
+
+                var box = root.AddComponent<BoxCollider>();
+                box.center = manifest.colliderCenter;
+                box.size = manifest.colliderSize;
+
+                PrefabUtility.SaveAsPrefabAsset(root, $"{Prefabs}/{name}.prefab");
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+            Debug.Log($"[PropBuilder] {name}: {manifest.triangles} triangles, {materials.Length} materials");
+        }
+
+        // one material per role, shared by every prop that uses the role; updated in place so its GUID survives
+        static Material RoleMaterial(string role, Color srgb, float smoothness, bool outline)
+        {
+            string path = $"{Materials}/M_{role}.mat";
+            var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            bool created = material == null;
+            if (created) material = new Material(ToonShader.Shader ?? Shader.Find("Universal Render Pipeline/Lit"));
+            ToonShader.Apply(material, outline);
+            material.SetColor("_BaseColor", srgb);      // Color properties take sRGB in a linear project
+            material.SetFloat("_Smoothness", smoothness);
+            if (created) AssetDatabase.CreateAsset(material, path);
+            else EditorUtility.SetDirty(material);
+            return material;
+        }
+    }
+}

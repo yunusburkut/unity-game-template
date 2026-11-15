@@ -247,7 +247,9 @@ coupling: the authority model decides the solver's shape, so settle it before bu
 
 **2. The architecture is already right for this, and that is not an accident.** Value types, static step
 functions, `dt` as a parameter, collision resolution pushed to the caller, no `Time` access, no scene
-APIs. That is a deterministic simulation core — exactly the shape a rollback or server-authoritative
+APIs. That is a deterministic simulation core, reproducible on one build. Rollback or lockstep still needs a
+fixed tick and per-tick recorded inputs, and float results can differ across devices (`gamekit:unity-architecture`,
+"The split, concretely"). It is exactly the shape a rollback or server-authoritative
 netcode needs. This is the project's largest existing asset going into a co-op pivot and it should not be
 compromised to make the coupling easier. If a proposed mechanic requires `MovementSolver` to touch a
 `GameObject`, the mechanic is wrong, not the architecture.
@@ -277,4 +279,4 @@ See `reference-teardowns.md` for the full source list. The claims specific to th
   [AUTOMATON WEST](https://automaton-media.com/en/news/20211011-3784/)
 - PEAK's stamina-and-afflictions layer over free-form climbing —
   [Game Developer](https://www.gamedeveloper.com/production/how-co-op-climbing-hit-peak-achieved-2-million-sales-for-less-than-200-000-)
-- The 240 ms perceive-decide-act budget — `~/.claude/skills/game-feel/references/sources.md`
+- The 240 ms perceive-decide-act budget — `gamekit:game-feel`'s `references/sources.md`

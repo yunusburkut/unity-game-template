@@ -4,7 +4,7 @@ The working document. `reference-teardowns.md` is the evidence and `coop-mechani
 mechanical decision; this is how a level gets drawn.
 
 Two kinds of number appear below. **Sourced** values come from the reference games or from
-`~/.claude/skills/game-feel/references/` and are cited. **Starting values** are derived from Mixtrol's own
+`gamekit:game-feel`'s `references/` and are cited. **Starting values** are derived from Mixtrol's own
 geometry — the `LevelPalette` grid is 1.25 m, `CameraFollow` frames the group at 24–40 m — and are
 marked *(starting value)*. Tune those in Play Mode and write the result back into this file. Never quote
 a starting value as if it were evidence.
@@ -227,7 +227,8 @@ Horizontal loses the altitude readout, so the biome has to carry more of that lo
   checkpoint, and each segment opens below the last peak and above the last opening (`difficulty-rhythm.md`
   DR01, DR03, DR14). A biome is a Bölüm for this purpose.
 - **The last biome is the one in the trailer.** Build it first if you can; it is the asset the marketing
-  plan depends on (`go-to-market.md`).
+  plan depends on (Mixtrol's `go-to-market.md`, not shipped; trailer and store-art planning is
+  `gamekit:launch-review`).
 
 ## Feeding the level editor
 

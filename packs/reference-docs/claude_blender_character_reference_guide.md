@@ -1,5 +1,10 @@
 # Claude Code + Blender Character Reference Guide
 
+**Scope:** this is one character's brief (Mixtrol's small antenna character), kept as a worked example of what a
+brief for `blender-image-to-3d` holds. The process lives in that skill (gated phases, renders matched to the
+reference camera, validation); the export lives in `unity-export`, the one Blender-to-Unity contract. Where this
+brief and those skills differ, the skills win.
+
 ## Goal
 Recreate the supplied character in Blender as quickly and reliably as possible for Unity use.
 
@@ -123,7 +128,10 @@ Bake secondary motion into animations.
 Avoid runtime physics for antenna/limb follow-through unless specifically required.
 
 ## Unity Export
-Export FBX with:
+Export with the `unity-export` preset, rigged variant (`bpy.ops.export_scene.fbx` with `axis_forward='-Z'`,
+`axis_up='Y'`, `apply_scale_options='FBX_SCALE_ALL'`, `add_leaf_bones=False`, `use_armature_deform_only=True`,
+`bake_anim=True`, `bake_anim_use_all_actions=True`; the importer side uses `bakeAxisConversion`). Blender's FBX
+defaults add leaf bones and leave a -90 X root in Unity. The FBX must carry:
 - Mesh
 - Armature
 - Skin weights
@@ -137,7 +145,8 @@ Unity:
 - Jump: Loop Time OFF
 
 ## Claude Code Execution Rules
-Do not build everything in one pass.
+Do not build everything in one pass. The order below is this character's path through the gated phases of
+`blender-image-to-3d`; run those phases, with their evidence renders, and use this list for what each one covers here.
 
 Use this order:
 1. Analyze reference

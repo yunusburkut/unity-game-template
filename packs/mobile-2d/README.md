@@ -12,10 +12,13 @@ Magic Sort gibi 2D (sprite tabanlı) oyunlar için. Paket eklenince:
 
 Mobil kurulumun geri kalanı (dokunmatik giriş, safe area, 60 fps, kalite seviyeleri) template'ten gelir.
 
-Elle yapılacak bir şey yok. **GameKit > Set Up Project**'i tekrar çalıştırmak bu adımı da yeniden uygular: URP
-asset'lerinin renderer listesi tek 2D renderer'a döner, `Main` sahnesindeki ışıklar silinir ve kamera yeniden
-ortografik size 5'e, (0, 0, -10)'a ayarlanır. Bunları değiştirdiysen önce commit et. Açık sahnede kaydedilmemiş
-değişiklik varsa Unity önce kaydetmeyi sorar; iptal edersen `Main` sahnesine dokunulmaz.
+Elle yapılacak tek şey: aşağıdaki satır oyunun `CLAUDE.md`'sinde yoksa ekle (bu README oyuna kopyalanmaz, satır
+eklenmezse agent'lar 2D kurallarını bilmez).
+
+**GameKit > Set Up Project**'i tekrar çalıştırmak güvenli: varsayılan renderer'ı zaten 2D olan URP asset'ine
+dokunulmaz, `Main` sahnesi de içinde bir `Light2D` varken değiştirilmez. Sonradan eklediğin renderer'lar, kamera
+ayarı ve ışıklar korunur. `Main` açık değilse arka planda (additive) açılıp kapatılır; açık sahnelerin değişmez.
+`Main` açık ve kaydedilmemiş değişiklik içeriyorsa Unity önce kaydetmeyi sorar; kaydetmezsen `Main`'e dokunulmaz.
 
 ## CLAUDE.md'ye eklenecek satır
 

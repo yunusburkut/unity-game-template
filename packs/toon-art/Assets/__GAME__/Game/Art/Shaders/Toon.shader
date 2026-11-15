@@ -5,8 +5,17 @@
 // plastic bag. The outline is an inverted hull pushed out by a fixed number of pixels (at 1080p, so it reads the same
 // on a phone and a monitor) along the smoothed normal OutlineNormalsPostprocessor bakes into the tangent, so
 // hard-edged and skinned models get an unbroken line too. A material without an outline has that pass switched off
-// (ToonShader.Apply / the Outline toggle), so it pays no second draw. Real main light and shadows; SRP batcher and
-// GPU instancing friendly. Merged from Pixel Volley (lighting) and Mixtrol (outline).
+// (ToonShader.Apply / the Outline toggle), so it pays no second draw. Merged from Pixel Volley (lighting) and Mixtrol
+// (outline).
+//
+// Lighting: the real main light with its shadows (cascades, soft shadows and the fade at the shadow distance), point
+// and spot lights banded the same way (Forward and Forward+, with their shadows), light layers, fog, and ambient
+// from the light probes / SH. Baked lightmaps and shadowmask are not sampled: toon objects are lit in real time and
+// take baked light through probes; the Meta pass still gives the lightmapper their albedo for bounce. Passes:
+// ForwardLit, Outline (SRPDefaultUnlit), ShadowCaster, DepthOnly, DepthNormals (SSAO, decals) and Meta. SRP batcher,
+// GPU instancing, the GPU Resident Drawer (DOTS instancing) and LOD cross-fade are supported.
+// The outline is drawn in the opaque list, which depth priming switches to ZTest Equal: keep the renderer's Depth
+// Priming Mode on Disabled (the URP default), or the outline vanishes.
 Shader "__GAME__/Toon"
 {
     Properties
@@ -42,6 +51,8 @@ Shader "__GAME__/Toon"
     {
         Tags { "RenderType" = "Opaque" "RenderPipeline" = "UniversalPipeline" "Queue" = "Geometry" }
 
+        // The URP pass files included below (ShadowCaster, DepthOnly, DepthNormals, Meta) read _BaseMap, _BaseMap_ST
+        // and _BaseColor from here, the names URP/Lit uses.
         HLSLINCLUDE
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
@@ -77,11 +88,22 @@ Shader "__GAME__/Toon"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
-            #pragma multi_compile_instancing
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
+            #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+            #pragma multi_compile _ _LIGHT_LAYERS
+            #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
+            #pragma multi_compile _ LOD_FADE_CROSSFADE
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Fog.hlsl"
+            #pragma multi_compile_instancing
+            #pragma instancing_options renderinglayer
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DOTS.hlsl"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #if defined(LOD_FADE_CROSSFADE)
+                #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/LODCrossFade.hlsl"
+            #endif
 
             struct Attributes
             {
@@ -97,6 +119,10 @@ Shader "__GAME__/Toon"
                 float2 uv : TEXCOORD0;
                 float3 positionWS : TEXCOORD1;
                 half3 normalWS : TEXCOORD2;
+                half fogFactor : TEXCOORD3;
+                #if defined(_MAIN_LIGHT_SHADOWS_SCREEN)
+                    float4 shadowCoord : TEXCOORD4;
+                #endif
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -110,27 +136,77 @@ Shader "__GAME__/Toon"
                 output.positionWS = position.positionWS;
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
+                output.fogFactor = ComputeFogFactor(position.positionCS.z);
+                #if defined(_MAIN_LIGHT_SHADOWS_SCREEN)
+                    output.shadowCoord = GetShadowCoord(position);
+                #endif
                 return output;
+            }
+
+            // a point or spot light: the same band as the sun, scaled by its falloff and its shadow
+            half3 AdditionalToon(Light light, half3 albedo, half3 normal, uint meshRenderingLayers)
+            {
+                #if defined(_LIGHT_LAYERS)
+                    if (!IsMatchingLightLayer(light.layerMask, meshRenderingLayers)) return 0;
+                #endif
+                half band = smoothstep(_RampOffset - _RampSoftness, _RampOffset + _RampSoftness, dot(normal, light.direction));
+                return albedo * light.color * (band * light.distanceAttenuation * light.shadowAttenuation);
             }
 
             half4 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
+                #if defined(LOD_FADE_CROSSFADE)
+                    LODFadeCrossFade(input.positionCS);
+                #endif
                 half3 albedo = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv).rgb * _BaseColor.rgb;
                 half3 normal = normalize(input.normalWS);
                 half3 view = GetWorldSpaceNormalizeViewDir(input.positionWS);
+                uint meshRenderingLayers = 0;
+                #if defined(_LIGHT_LAYERS)
+                    meshRenderingLayers = GetMeshRenderingLayer();
+                #endif
 
-                Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
+                #if defined(_MAIN_LIGHT_SHADOWS_SCREEN)
+                    float4 shadowCoord = input.shadowCoord;
+                #else
+                    float4 shadowCoord = TransformWorldToShadowCoord(input.positionWS);
+                #endif
+                // this overload fades the shadow out toward the shadow distance; no shadowmask is sampled (see top)
+                half4 shadowMask = half4(1, 1, 1, 1);
+                Light light = GetMainLight(shadowCoord, input.positionWS, shadowMask);
+                half mainOn = light.distanceAttenuation;
+                #if defined(_LIGHT_LAYERS)
+                    if (!IsMatchingLightLayer(light.layerMask, meshRenderingLayers)) mainOn = 0;
+                #endif
                 half facing = dot(normal, light.direction);
                 // two flat bands with a narrow edge between them, and shadows cut to the same edge
                 half band = smoothstep(_RampOffset - _RampSoftness, _RampOffset + _RampSoftness, facing);
                 half shadow = smoothstep(0.3, 0.7, light.shadowAttenuation);
-                half lit = band * shadow;
+                half lit = band * shadow * mainOn;
 
                 // the shade keeps its color: richer and cooler instead of grayer
                 half3 shadeAlbedo = lerp(Luminance(albedo).xxx, albedo, _ShadeSaturation) * _ShadeColor.rgb;
                 half3 color = lerp(shadeAlbedo, albedo * light.color, lit);
                 color += albedo * SampleSH(normal) * _AmbientStrength;
+
+                // point and spot lights; a per-vertex setting on the URP asset is lit per pixel too, for the band
+                #if defined(_ADDITIONAL_LIGHTS) || defined(_ADDITIONAL_LIGHTS_VERTEX)
+                    InputData inputData = (InputData)0;     // LIGHT_LOOP_BEGIN reads these two in Forward+
+                    inputData.positionWS = input.positionWS;
+                    inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.positionCS);
+                    uint pixelLightCount = GetAdditionalLightsCount();
+                    #if USE_CLUSTER_LIGHT_LOOP
+                        [loop] for (uint lightIndex = 0; lightIndex < min(URP_FP_DIRECTIONAL_LIGHTS_COUNT, MAX_VISIBLE_LIGHTS); lightIndex++)
+                        {
+                            CLUSTER_LIGHT_LOOP_SUBTRACTIVE_LIGHT_CHECK
+                            color += AdditionalToon(GetAdditionalLight(lightIndex, input.positionWS, shadowMask), albedo, normal, meshRenderingLayers);
+                        }
+                    #endif
+                    LIGHT_LOOP_BEGIN(pixelLightCount)
+                        color += AdditionalToon(GetAdditionalLight(lightIndex, input.positionWS, shadowMask), albedo, normal, meshRenderingLayers);
+                    LIGHT_LOOP_END
+                #endif
 
                 // things darken a little toward the ground they stand on
                 half contact = saturate((input.positionWS.y - _GroundY) / _ContactHeight);
@@ -143,9 +219,9 @@ Shader "__GAME__/Toon"
                 half spot = smoothstep(0.45, 0.55, pow(saturate(dot(normal, halfway)), exponent));
                 half fresnel = (1.0 - saturate(dot(normal, view))) * (0.4 + 0.6 * saturate(facing + 0.3));
                 half rim = smoothstep(_RimEdge - 0.04, _RimEdge + 0.04, fresnel);
-                color += light.color * _Smoothness * (spot * _SpecularStrength * lit + rim * _RimStrength * (0.3 + 0.7 * shadow));
+                color += light.color * mainOn * _Smoothness * (spot * _SpecularStrength * lit + rim * _RimStrength * (0.3 + 0.7 * shadow));
 
-                return half4(color, 1.0);
+                return half4(MixFog(color, input.fogFactor), 1.0);
             }
             ENDHLSL
         }
@@ -160,7 +236,14 @@ Shader "__GAME__/Toon"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
+            #pragma multi_compile _ LOD_FADE_CROSSFADE
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Fog.hlsl"
             #pragma multi_compile_instancing
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DOTS.hlsl"
+
+            #if defined(LOD_FADE_CROSSFADE)
+                #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/LODCrossFade.hlsl"
+            #endif
 
             struct Attributes
             {
@@ -175,6 +258,7 @@ Shader "__GAME__/Toon"
             {
                 float4 positionCS : SV_POSITION;
                 float2 uv : TEXCOORD0;
+                half fogFactor : TEXCOORD1;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -196,14 +280,18 @@ Shader "__GAME__/Toon"
                 positionCS.xy += direction * pixel * _OutlineWidth * positionCS.w;
                 output.positionCS = positionCS;
                 output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
+                output.fogFactor = ComputeFogFactor(positionCS.z);
                 return output;
             }
 
             half4 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
+                #if defined(LOD_FADE_CROSSFADE)
+                    LODFadeCrossFade(input.positionCS);
+                #endif
                 half3 albedo = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv).rgb * _BaseColor.rgb;
-                return half4(albedo * _OutlineColor.rgb, 1.0);
+                return half4(MixFog(albedo * _OutlineColor.rgb, input.fogFactor), 1.0);
             }
             ENDHLSL
         }
@@ -217,46 +305,13 @@ Shader "__GAME__/Toon"
             ColorMask 0
 
             HLSLPROGRAM
-            #pragma vertex Vert
-            #pragma fragment Frag
-            #pragma multi_compile_instancing
+            #pragma vertex ShadowPassVertex
+            #pragma fragment ShadowPassFragment
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
-
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
-
-            float3 _LightDirection;
-            float3 _LightPosition;
-
-            struct Attributes
-            {
-                float4 positionOS : POSITION;
-                float3 normalOS : NORMAL;
-                UNITY_VERTEX_INPUT_INSTANCE_ID
-            };
-
-            float4 Vert(Attributes input) : SV_POSITION
-            {
-                UNITY_SETUP_INSTANCE_ID(input);
-                float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
-                float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
-                #if _CASTING_PUNCTUAL_LIGHT_SHADOW
-                    float3 lightDirection = normalize(_LightPosition - positionWS);
-                #else
-                    float3 lightDirection = _LightDirection;
-                #endif
-                float4 positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, lightDirection));
-                #if UNITY_REVERSED_Z
-                    positionCS.z = min(positionCS.z, UNITY_NEAR_CLIP_VALUE);
-                #else
-                    positionCS.z = max(positionCS.z, UNITY_NEAR_CLIP_VALUE);
-                #endif
-                return positionCS;
-            }
-
-            half4 Frag() : SV_Target
-            {
-                return 0;
-            }
+            #pragma multi_compile _ LOD_FADE_CROSSFADE
+            #pragma multi_compile_instancing
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DOTS.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/ShadowCasterPass.hlsl"
             ENDHLSL
         }
 
@@ -268,26 +323,46 @@ Shader "__GAME__/Toon"
             ColorMask R
 
             HLSLPROGRAM
-            #pragma vertex Vert
-            #pragma fragment Frag
+            #pragma vertex DepthOnlyVertex
+            #pragma fragment DepthOnlyFragment
+            #pragma multi_compile _ LOD_FADE_CROSSFADE
             #pragma multi_compile_instancing
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DOTS.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/DepthOnlyPass.hlsl"
+            ENDHLSL
+        }
 
-            struct Attributes
-            {
-                float4 positionOS : POSITION;
-                UNITY_VERTEX_INPUT_INSTANCE_ID
-            };
+        // the normals buffer that SSAO (its default source), decals and other screen effects read
+        Pass
+        {
+            Name "DepthNormals"
+            Tags { "LightMode" = "DepthNormals" }
+            ZWrite On
 
-            float4 Vert(Attributes input) : SV_POSITION
-            {
-                UNITY_SETUP_INSTANCE_ID(input);
-                return TransformObjectToHClip(input.positionOS.xyz);
-            }
+            HLSLPROGRAM
+            #pragma vertex DepthNormalsVertex
+            #pragma fragment DepthNormalsFragment
+            #pragma multi_compile _ LOD_FADE_CROSSFADE
+            #pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RenderingLayers.hlsl"
+            #pragma multi_compile_instancing
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DOTS.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/DepthNormalsPass.hlsl"
+            ENDHLSL
+        }
 
-            half Frag() : SV_Target
-            {
-                return 0;
-            }
+        // only the lightmapper draws this: the surface color that baked bounce light picks up
+        Pass
+        {
+            Name "Meta"
+            Tags { "LightMode" = "Meta" }
+            Cull Off
+
+            HLSLPROGRAM
+            #pragma vertex UniversalVertexMeta
+            #pragma fragment UniversalFragmentMetaUnlit
+            #pragma shader_feature EDITOR_VISUALIZATION
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/UnlitMetaPass.hlsl"
             ENDHLSL
         }
     }

@@ -3,13 +3,18 @@
 How this genre actually sells. Same rule as the other documents: sourced numbers are cited, everything
 else is marked as a target to be set rather than a fact.
 
+**Not a game's plan file.** This is Mixtrol's genre study. `gamekit:launch-review` creates each game's own
+`docs/go-to-market.md` with its own headings, and the launch auditor treats that file's decisions as the baseline;
+do not copy this one there. Read it as an example of the research behind such a plan.
+
 ## The one economic fact that shapes every decision below
 
 **A co-op game multiplies at the point of sale.** One person buys it, then brings 1–3 friends into a
 session, and each of those friends is a candidate buyer of the same $5 game — often within the hour.
 A single-player rage game does not do this: one viewer buying it produces one player. That multiplier is
-why Chained Together and PEAK each cleared 10 million units while the solo games in the same design
-tradition, with comparable streaming fame, did not.
+why PEAK passed 2 million sales on a budget under $200 K (Game Developer, in Sources) and both PEAK and
+Chained Together went on to roughly 10 million units *(est., unsourced here: verify before quoting)*, while the solo
+games in the same design tradition, with comparable streaming fame, did not.
 
 Everything below is downstream of protecting that multiplier.
 
@@ -41,8 +46,8 @@ Steam overlay.
 
 The trade is real and it goes both ways:
 
-- **Everyone buys** maximises revenue per group, and it is what Chained Together and PEAK do at 10 M units
-  each. It only works if the price is low enough that four purchases are trivial.
+- **Everyone buys** maximises revenue per group, and it is what Chained Together and PEAK do, at an estimated 10 M units
+  each *(est.; the cited figure is PEAK's 2 M)*. It only works if the price is low enough that four purchases are trivial.
 - **Remote Play Together** maximises the number of sessions that actually happen, which maximises clips —
   at the cost of three of four sales.
 

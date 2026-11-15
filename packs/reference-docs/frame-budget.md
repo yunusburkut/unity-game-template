@@ -13,12 +13,13 @@ not done** — it needs a modest laptop and a profiler, and it is MIX-53's remai
 | Simulation (characters, carried object, mechanisms) | 2 | All `Update`, allocation-free |
 | Rendering (Synty geometry, draw calls) | 9 | The largest share and the one to measure first |
 | Particles and Feel | 2 | Spiky by nature; measure during a swap puff and a death |
-| Networking (FishNet tick, 60 Hz) | 1 | Only on tick frames |
-| Headroom | 2.6 | |
+| Networking (FishNet tick, 120 Hz) | 2 | Two ticks per 60 FPS frame, about 1 ms each |
+| Headroom | 1.6 | |
 
 Networking is deliberately small. Characters are client-authoritative, so there is no prediction or
-reconcile pass; the tick rate is 30, not 60; and the only per-frame network work is comparing
-already-computed state against what was last sent.
+reconcile pass, and the only network work is comparing already-computed state against what was last sent, once
+per tick. The tick rate lives in the NetworkManager prefab's TimeManager; it has been 120 Hz since 2026-10-11 (the
+coop pack's networking rule), so at 60 FPS every frame runs two ticks. Re-derive this row if the tick changes.
 
 ## Method
 
@@ -35,9 +36,10 @@ already-computed state against what was last sent.
 
 ## Frame log (2026-10-04)
 
-`Game/FrameLog.cs` makes itself in **development players only** (not the Editor) and writes one CSV line per
+`FrameLog` (GameKit package, `GameKit` namespace; games do not keep their own copy) makes itself in **development players only** (not the Editor) and writes one CSV line per
 second to `persistentDataPath/frame-log-*.csv` (`%USERPROFILE%\AppData\LocalLow\<company>\<product>\`; the path
-is also in the player log). Columns: average fps, p99 and worst frame ms, frames over 17 ms, scene and camera
+is also in the player log). Columns: average fps, p99_ms over the last 10 s (the sustained tail, about the 6th-worst
+of 600 frames at 60 fps), max_ms (the second's single worst frame), frames over 17 ms in that second, scene and camera
 x/y/z at the worst frame, GC bytes per frame, draw calls, SetPass calls, CPU/GPU ms, system-used and GC-reserved MB.
 **F3** or a three-finger tap shows fps, frame times, GC, draw/SetPass and CPU/GPU ms on screen (not position or
 memory). Development players always collect frame timings; GPU ms reads 0 where the

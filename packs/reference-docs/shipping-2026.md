@@ -55,12 +55,14 @@ every year; recheck the dates before a release.
 
 ## WebGL on itch.io
 
-- `BuildMenu` builds Brotli-compressed files with no JavaScript decompressor: itch.io serves `.br` files with
+- A release WebGL build (ProjectSetup writes the setting once; `BuildMenu` dev builds are uncompressed) ships
+  Brotli-compressed files with no JavaScript decompressor: itch.io serves `.br` files with
   `Content-Encoding: br` over HTTPS. A host that does not set that header needs `decompressionFallback = true`.
 - WebGL2 stays the default graphics API. WebGPU is supported in Unity 6.6 but opt-in; add it only with WebGL2 kept as
   the fallback (`PlayerSettings.SetGraphicsAPIs(BuildTarget.WebGL, ...)`) and test Safari and Firefox.
 - Push a build with butler (itch.io's CLI): `butler push Builds/WebGL <user>/<game>:html5 --userversion 0.3`. The
-  `ci-github` pack does it on every `v*` tag. After the first push, mark the html5 channel "Playable in browser" on the
+  `ci-github` pack does it on every `v*` tag; it needs the `GAMEKIT_TOKEN` secret (a fine-grained PAT, Contents
+  read-only on `unity-game-template`). After the first push, mark the html5 channel "Playable in browser" on the
   game's edit page once.
 
 ## Steam

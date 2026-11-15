@@ -20,15 +20,24 @@ Google Play ve App Store'da yayınlanacak mobil oyunlar için: mağaza puan iste
    Android Resolver > Force Resolve**). Android build'i almadan önce bir kez çalıştır.
 3. **Project Settings > Mobile Notifications > Android**: zamanlamayı **inexact** seç. Exact alarm izni Play
    politikasında kısıtlı; oyun bildirimine gerekmez.
-4. Android 13+ bildirim izni ister: ilk bildirimi planlamadan önce `Unity.Notifications.Android.PermissionRequest`
+4. Aynı sayfada **Android > Request Permission on App Launch** ve **iOS > Request Authorization on App Launch**
+   kutularını kapat. Paket bunları açık getirir; açık kalırsa izin penceresi ilk açılışta, oyuncu bir şey görmeden
+   çıkar ve iOS'ta reddedilen izin bir daha sorulamaz.
+5. Android 13+ bildirim izni ister: ilk bildirimi planlamadan önce `Unity.Notifications.Android.PermissionRequest`
    (iOS'ta `AuthorizationRequest`) ile sor, oyuncu bir değer gördükten sonra, ilk açılışta değil.
-5. Puan isteğini bir kazançtan sonra çağır. Play ve Apple pencereyi sınırlar; Play'de test için internal test
-   track'i kullan (yerel APK'da pencere çıkmaz).
+6. Puan isteğini bir kazançtan sonra çağır. Android'de bölüm başında `StoreReview.Prepare(this)` çağırırsan pencere
+   beklemeden çıkar. `host` sahne değişince yok olmayan bir nesne olsun (ör. `DontDestroyOnLoad` bootstrap); yok
+   olursa istek sessizce durur. Play ve Apple pencereyi sınırlar; Play'de test için internal test track'i kullan
+   (yerel APK'da pencere çıkmaz).
 
 ## CLAUDE.md'ye eklenecek satır
 
+Bu README oyuna kopyalanmaz: satır oyunun `CLAUDE.md`'sinde yoksa ekle, yoksa agent'lar `StoreReview`'u bilmez.
+
 ```
-- Store rating: `__GAME__.Store.StoreReview.Request(this)` after a win, never after a loss or on first launch; it may show
-  nothing. Notifications: com.unity.mobile.notifications with inexact scheduling; ask permission after the player has
-  seen value, not on first launch. `__GAME__.Game.asmdef` references `__GAME__.Store`.
+- Store rating: `__GAME__.Store.StoreReview.Request(host)` after a win, never after a loss or on first launch; it may
+  show nothing. On Android call `StoreReview.Prepare(host)` at level start; `host` must outlive the flow (a
+  DontDestroyOnLoad object). Game code that calls it needs `"__GAME__.Store"` in `__GAME__.Game.asmdef` references;
+  add it if it is missing. Notifications: com.unity.mobile.notifications with inexact scheduling and the
+  permission-on-app-launch toggles off; ask permission after the player has seen value, not on first launch.
 ```

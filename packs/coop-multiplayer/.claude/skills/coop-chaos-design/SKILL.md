@@ -1,7 +1,17 @@
 ---
 name: coop-chaos-design
-description: Deciding whether a proposed __GAME__ co-op mechanic ships — will it produce chaos, comedy and clips, can it be griefed, which failure tier it lands in — and where it belongs in the Core/Game split. Use when a specific mechanic or coupling is on the table and the question is "should we build this", "is this fun", "will this be funny", "how do I connect two players", "should they be chained / tethered / carry something together", "can a player ruin this for the other", how a mechanic scales from 2 to 4 players, or before writing any coupling code. Convergent gate — generating or mutating ideas is mechanic-forge.
+description: Ship gate for one __GAME__ co-op mechanic (chaos, clips, griefing, failure tier, Core/Game split). Use for "should we build this", "is this fun", "bu mekanik eğlenceli mi", "tether or carry together?", "can a player ruin this", before coupling code.
 ---
+
+<!-- The full trigger set, kept here because the listing budget caps the description at 250 characters: a specific
+mechanic or coupling is on the table and the question is "should we build this", "is this fun", "will this be funny",
+"how do I connect two players", "should they be chained / tethered / carry something together", "can a player ruin
+this for the other", how it scales from 2 to 4 players, or any coupling code is about to be written. Convergent gate;
+generating or mutating ideas is mechanic-forge. -->
+
+**Routing in a co-op game.** "Is this mechanic fun / should we build it" comes here first, before
+`gamekit:prototype` (a throwaway spike only when this gate says the card ships but one row needs measuring) and
+instead of the generic `design-critic` (levels and numbers, not the co-op gate rows).
 
 > Written for Mixtrol (2–4 player 2.5D co-op platformer, FishNet over Unity Relay). Where this file states a
 > Mixtrol fact (its keys, devices, levels, decisions), treat it as a worked example and use __GAME__'s own from
@@ -13,7 +23,8 @@ Mixtrol is a **2–4 player 2.5D co-op platformer (a horizontal lane plus vertic
 primary coupling is the control swap**: Space plays the move you hold of your partner's (GDD "Ana
 Mekanik — Hareket Takası"). The cauldron and the plates are the scenes the swap plays out in. Evidence is in
 `docs/reference-teardowns.md`; the method is `docs/design-corpus/` (cite its items by ID); the game as
-it stands against that method is `docs/design-audit.md`.
+it stands against that method is `docs/design-audit.md` (the pack ships it empty; the first audit fills it, format
+in its header).
 
 This skill is the gate. Ideas come from `mechanic-forge`; a card that reaches here either ships, ships
 with a named weakness, or goes back.
@@ -73,8 +84,8 @@ hazard, not a co-op mechanic.
 ## Sabotage is legal; stalling is not
 
 - Trolling through normal keys is the comedy (DESIGN.md). Keep it.
-- **No indefinite stall without a counter** (AG1). Open holes live in `docs/design-audit.md`.
-  **Accepted exception (DA-13):** a held swapped move may be kept forever — at 2 players an idle
+- **No indefinite stall without a counter** (AG1). Open holes live in `docs/design-audit.md`; an accepted
+  exception gets a DA row there too. **Mixtrol's accepted exception (its DA-13):** a held swapped move may be kept forever — at 2 players an idle
   partner stalls just as well, and the dependency is the pillar.
 - **At two players a majority is one against one.** Vote and group counters (P09, AG2) degenerate; the
   counters that work are **timed** (expires on its own) and **reversible** (the victim can undo it).
@@ -87,8 +98,9 @@ hazard, not a co-op mechanic.
 ## Forgiveness goes to the connection, not the individual
 
 - **Do not raise coyote time or the jump buffer to absorb co-op chaos.** `coyoteTime` and
-  `jumpBufferTime` in `Assets/__GAME__/Core/Data/PlayerMovement.asset` (both under 0.15 s) are right. Individual forgiveness makes players harder
-  to blame. Above 0.15 s is a red flag — `game-feel` has the bands.
+  `jumpBufferTime` (in Mixtrol `Assets/__GAME__/Core/Data/PlayerMovement.asset`; wherever the game's movement config
+  lives) stay under 0.15 s. Individual forgiveness makes players harder
+  to blame. Above 0.15 s is a red flag — `gamekit:game-feel` has the bands.
 - **Put the forgiveness in the coupling:** the swap's visible ask-back before a partner presses. That window is co-op's coyote time. (The difficulty dial does not turn it —
   `level-beat-review` has the four knobs.)
 - **Floor any grace window at 240 ms** — the perceive-decide-act loop — and at **≥ 1 s** where two
@@ -100,8 +112,9 @@ hazard, not a co-op mechanic.
 Networking is built (FishNet host + client). A card must fit it, not the other way round.
 
 - The world — table, cauldron, crate holder, plates, doors, floors, seesaw, checkpoints, deaths — is the
-  **host's**. New world state goes through `NetworkMechanisms` (index into the hierarchy-ordered list)
-  or a SyncVar, never a new `NetworkObject` without cause.
+  **host's**. New world state goes through the game's mechanism registry (Mixtrol's `NetworkMechanisms`:
+  index into the hierarchy-ordered list) or a SyncVar, never a new `NetworkObject` without cause
+  (`.claude/rules/networking.md`).
 - Characters are their **owner's**. A partner's swapped move lands **one round trip late**
   (`NetworkInput`): never gate a beat on two machines agreeing inside 1 s.
 - **Prefer a discrete state the host decides over shared physics** (RX13).

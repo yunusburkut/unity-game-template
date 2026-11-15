@@ -1,4 +1,10 @@
 """
+EXAMPLE FROM MIXTROL, read for its patterns (pieces, hosts, colliders, walk heights, a palette atlas, the manifest).
+It does not run outside Mixtrol: it imports kit_palette.py, which is not included, and its paths (REPO two levels
+up from Art/LevelKit, Assets/Mixtrol/..., FBX_DIR in Game/Art/LevelKit) and ticket numbers are Mixtrol's. In a game the
+script lives in Tools/Blender and exports to Assets/__GAME__/Game/Art/Models (where OutlineNormalsPostprocessor bakes
+the outline normals); toon_prop.py is the runnable starting point. Its export() call is the unity-export preset.
+
 Level kit - shared helpers for the headless Blender build (build_levelkit.py), whatever the theme.
 
 Every piece is authored in piece space: Blender metres, +Z up, +X along the lane, -Y toward the camera, the origin at

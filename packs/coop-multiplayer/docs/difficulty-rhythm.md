@@ -1,8 +1,20 @@
 # Difficulty rhythm
 
-**Status:** draft, revision 2, 2026-10-01. This is a research and method doc, written in English. Decisions stay with `docs/gdd.md` and the user (`docs/design-corpus/README.md:42-54`). Where this doc disagrees with a decision, it proposes a change in §E and does not override the decision.
+**Status:** draft, revision 2, 2026-10-01. This is a research and method doc, written in English. Decisions stay with `DESIGN.md` (Mixtrol's `docs/gdd.md`, "GDD" below) and the user (`docs/design-corpus/README.md`, "Which source wins"). Where this doc disagrees with a decision, it proposes a change in §E and does not override the decision.
 
-**Rule IDs.** The rules are **DR01–DR28**. The DR prefix is not used anywhere else in the repo. Catalogs are appended to and never renumbered. DR16 is open and DR20 is frozen, but both keep their IDs.
+> **In a game made from the template.** The maintained DR01–DR28 are the distilled copy in the
+> `gamekit:level-beat-review` plugin skill (`references/difficulty-rhythm.md`); that copy is the default and wins
+> where the two differ, unless the game's `DESIGN.md` adopts a rule from this file (then this one wins as an override).
+> This file is the full research behind it, kept for its sources, scales and worked critique. Its numbers, levels,
+> beat docs and issue IDs are Mixtrol's (the worked example); none of Mixtrol's beat docs, `level-kit.md` or
+> `design-audit.md` rows ship with the pack.
+>
+> **Same IDs, two catalogues.** These DR IDs are this game's catalogue; the gamekit `level-beat-review` reference uses
+> the same numbers for a game-agnostic catalogue with different rules and thresholds (for example DR16 and DR24). In a
+> game, cite `doc-DRxx` for this file and `LBR-DRxx` for the plugin's, never a bare `DRxx`, and never pair one
+> catalogue's ID with the other's threshold. Inside this file a bare `DRxx` means `doc-DRxx`.
+
+**Rule IDs.** The rules are **DR01–DR28**. In Mixtrol the DR prefix was used nowhere else; in a game from the template it is shared with the plugin catalogue (see the note above). Catalogs are appended to and never renumbered. DR16 is open and DR20 is frozen, but both keep their IDs.
 
 **Tags on numbers**
 
@@ -21,10 +33,10 @@ When two findings have the same severity, the ranking is `src` > `repo` > `repo-
 | Short name | File |
 |---|---|
 | *playbook* | `docs/level-design-playbook.md` |
-| *LBR* | `~/.claude/skills/level-beat-review/SKILL.md` |
-| *GDD* | `docs/gdd.md` |
-| *B1 beats* | `docs/bolum-01-beats.md` |
-| *B3 beats* | `docs/bolum-03-beats.md` |
+| *LBR* | the `gamekit:level-beat-review` plugin skill (`plugin/skills/level-beat-review/SKILL.md` in the template repo). An `LBR:<line>` citation below is a line of Mixtrol's user-level copy as it stood when this was written, not of the plugin file: find the rule by its words or by the section the §D tables name (Failure tiers, Teaching arc, Beat construction, Anti-patterns) |
+| *GDD* | Mixtrol's `docs/gdd.md`; in a game from the template, `DESIGN.md` |
+| *B1 beats* | Mixtrol's `docs/bolum-01-beats.md` (not shipped) |
+| *B3 beats* | Mixtrol's `docs/bolum-03-beats.md` (not shipped) |
 | *README* | `docs/design-corpus/README.md` |
 | *coop* | `docs/coop-mechanics-playbook.md` |
 
@@ -1017,7 +1029,7 @@ These agree with the DR rules and need no change:
 | # | File | Section | Change | Blocked on |
 |---|---|---|---|---|
 | 1 | `docs/difficulty-rhythm.md` (new) | Whole file | This draft | Adoption |
-| 2 | `~/.claude/skills/level-beat-review/SKILL.md` | Frontmatter `description` | Add the triggers "zorluk sırası", "ritim", "rahatlama", "critique / yorumla this level", "is the order right" | — |
+| 2 | `gamekit:level-beat-review` (`plugin/skills/level-beat-review/SKILL.md`; Mixtrol's user-level copy when written) | Frontmatter `description` | Add the triggers "zorluk sırası", "ritim", "rahatlama", "critique / yorumla this level", "is the order right" | — |
 | | | `## Biome pacing` (:170) | Replace the bullet with "rule flat, load sawtooth: DR01, DR14" | E1 |
 | | | `## Teaching arc` | Add one line: "RX09 orders the ideas; DR03–DR07 set the load; DR27 places sabotage" | — |
 | | | `## Anti-patterns` | Rows citing DR IDs only: flat load (DR01); tier-2 after the peak (DR08); troll in the finale (DR18); a valley that lifts the swap (DR25) | — |
@@ -1033,7 +1045,7 @@ These agree with the DR rules and need no change:
 | 10 | `docs/bolum-01-beats.md` | `## Segmentler`; `## Ölçülecekler` | Add "Perde" and "Ritim" columns (peak C, question, valley type). Add to the measurement list: clean time, the peak's commit time, attempts per pass and the online partner windows. | §G accepted |
 | 11 | `docs/bolum-02-beats.md`, `docs/bolum-03-beats.md` | Their floor tables | The same columns plus Loss (s), when those levels are critiqued | Later; B3 after E17 |
 | 12 | `CLAUDE.md` `## Skills` | The design-corpus line | Optional: add "difficulty order: docs/difficulty-rhythm.md (DR IDs)" | Optional |
-| 13 | `~/.claude/skills/game-feel/references/feedback-stack.md` | FP22 row | Note that a tier-2 wipe may carry a short sting or line, and that encouragement lands better than mockery (Foddy18). GDD:256's mocking decoy stands. | User |
+| 13 | `gamekit:game-feel` `references/feedback-stack.md` (plugin/skills/game-feel) | FP22 row | Note that a tier-2 wipe may carry a short sting or line, and that encouragement lands better than mockery (Foddy18). GDD:256's mocking decoy stands. | User |
 
 **Agents:** there is no `.claude/agents/`. The skills in rows 2, 5, 6 and 13 are what agents read, so those rows are the "agent" changes.
 

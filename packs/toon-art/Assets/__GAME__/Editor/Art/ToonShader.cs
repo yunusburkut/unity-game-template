@@ -35,13 +35,13 @@ namespace __GAME__.Editor.Art
             material.SetShaderPassEnabled(OutlinePass, material.GetFloat(OutlineId) > 0.5f);
     }
 
-    /// <summary>The default Inspector, plus the outline toggle driving its pass.</summary>
+    /// <summary>
+    /// The default Inspector, plus the outline toggle driving its pass. Unity calls ValidateMaterial after an Inspector
+    /// change, an Undo, a preset, Copy/Paste values and a material import, so a material never keeps a stale pass state
+    /// until someone opens it (URP's own shader GUIs set their keywords the same way).
+    /// </summary>
     internal sealed class ToonShaderGUI : ShaderGUI
     {
-        public override void OnGUI(MaterialEditor editor, MaterialProperty[] properties)
-        {
-            base.OnGUI(editor, properties);
-            foreach (Object target in editor.targets) ToonShader.SyncOutline((Material)target);
-        }
+        public override void ValidateMaterial(Material material) => ToonShader.SyncOutline(material);
     }
 }

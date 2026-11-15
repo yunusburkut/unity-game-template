@@ -6,7 +6,9 @@ kararlarını okur ve uzun issue listelerini ana konuşmaya taşımaz. Sadece ok
 ## Kurulum
 
 1. Claude'da **Linear MCP bağlı olmalı**. Agent'ın `tools:` satırındaki `mcp__49619aea-...` kimliği senin şu anki Linear
-   bağlantın; bağlantıyı yeniden kurarsan kimlik değişebilir, o satırı güncelle.
+   bağlantın; bağlantıyı yeniden kurarsan, başka hesapta ya da makinede kimlik değişebilir, o satırı güncelle.
+   Kontrol: oyunun oturumunda Claude'a "Linear `list_issues` aracının tam adı ne?" diye sor; `mcp__<kimlik>__list_issues`
+   içindeki kimlik `tools:` satırındakiyle aynı olmalı. Kimlik eskiyse agent "Linear araçları yok" der ve durur.
 2. `.claude/agents/linear-scout.md` içinde `__TEAM__` yerine takım anahtarını yaz (ör. `MIX`) ve TODO satırını
    toplayıcı issue'larınla doldur.
 3. Aşağıdaki parçayı CLAUDE.md'nin **Working agreement** bölümüne ekle.

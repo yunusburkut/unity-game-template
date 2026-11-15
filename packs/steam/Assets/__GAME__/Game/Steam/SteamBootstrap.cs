@@ -14,7 +14,8 @@ namespace __GAME__.Steam
     public sealed class SteamBootstrap : MonoBehaviour
     {
         // TODO: the game's App ID from Steamworks. 480 is Valve's Spacewar test app. steam_appid.txt in the project
-        // root holds the same number for Editor runs; commit it.
+        // root holds the same number for Editor runs and the CI Steam job; commit it. SteamAppIdCheck (Editor) fails a
+        // desktop build when the two differ. Read by name through reflection there: keep the name AppId.
         const uint AppId = 480;
 #if !UNITY_EDITOR
         // static readonly, not const: two consts would fold the relaunch check below into unreachable code (CS0162)
