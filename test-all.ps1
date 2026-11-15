@@ -94,6 +94,58 @@ $refBad = foreach ($f in $skills) {
 }
 Check "$refCount references/ and scripts/ paths named in skills exist" (-not $refBad) ($refBad -join '; ')
 
+Section 'CCGS-derived content'
+# genre-defaults sheets and source keys are checked in test-hooks.ps1; here: clarity-rules src keys and the licence
+$cr = 'plugin/skills/player-clarity/references/clarity-rules.md'
+$crText = [IO.File]::ReadAllText((Resolve-Path -LiteralPath $cr))
+$defined = @([regex]::Matches($crText, '(?m)^- \*\*([A-Z0-9-]+):\*\*') | ForEach-Object { $_.Groups[1].Value })
+$usedKeys = @([regex]::Matches($crText, '\(src: ([^)]+)\)') | ForEach-Object { $_.Groups[1].Value -split ',\s*' } | Sort-Object -Unique)
+# KEY is the legend's placeholder (line 6), not a source
+$usedKeys = @($usedKeys | Where-Object { $_ -ne 'KEY' })
+$undef = @($usedKeys | Where-Object { $defined -notcontains $_ })
+Check "clarity-rules: $($usedKeys.Count) src keys defined under Sources" ($usedKeys.Count -gt 0 -and -not $undef) ($undef -join ', ')
+$ccgsFiles = @(git grep -l 'CCGS' -- plugin)
+$noLicence = @($ccgsFiles | Where-Object { $_ -notlike 'plugin/skills/genre-defaults/*' -and -not (Select-String -LiteralPath $_ -Pattern 'genre-defaults/LICENSE\.md' -Quiet) })
+Check "$($ccgsFiles.Count) files citing CCGS sit under genre-defaults or point to its LICENSE.md" (-not $noLicence) ($noLicence -join ', ')
+
+Section 'Blender (headless, this machine)'
+$blender = (Get-Command blender -ErrorAction SilentlyContinue).Source
+if (-not $blender) { $blender = Get-ChildItem "$env:ProgramFiles\Blender Foundation" -Recurse -Filter blender.exe -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1 -Expand FullName }
+if ($blender) {
+    # Compiles every Python file Blender runs (the repo's packs and the user-level Blender skills) and exports a cube
+    # with the unity-export FBX arguments. The toon-art examples are excerpts (kit_common needs a game's kit_palette),
+    # so they are compiled, never imported.
+    $py = @($tracked -like '*.py' | ForEach-Object { (Resolve-Path -LiteralPath $_).Path })
+    $skillDir = Join-Path $env:USERPROFILE '.claude\skills'
+    $py += @(Get-ChildItem -Path (Join-Path $skillDir 'blender-*'), (Join-Path $skillDir 'unity-export') -Recurse -Filter *.py -ErrorAction SilentlyContinue | ForEach-Object FullName)
+    $fbx = Join-Path $env:TEMP 'gk-test-all-cube.fbx'
+    $probe = Join-Path $env:TEMP 'gk-test-all-blender.py'
+    $pyList = ($py | ForEach-Object { "r'$_'" }) -join ', '
+    [IO.File]::WriteAllText($probe, @"
+import bpy, py_compile, sys, os, tempfile
+sys.dont_write_bytecode = True
+bad = []
+for f in [$pyList]:
+    try: py_compile.compile(f, cfile=os.path.join(tempfile.gettempdir(), 'gk-test-all.pyc'), doraise=True)
+    except Exception as e: bad.append(f + ': ' + str(e).splitlines()[0])
+bpy.ops.wm.read_factory_settings(use_empty=True)
+bpy.ops.mesh.primitive_cube_add()
+bpy.ops.export_scene.fbx(filepath=r'$fbx', use_selection=False, apply_scale_options='FBX_SCALE_UNITS', axis_forward='-Z', axis_up='Y', bake_space_transform=True, object_types={'MESH'}, use_mesh_modifiers=True, add_leaf_bones=False, bake_anim=False)
+if not os.path.getsize(r'$fbx'): bad.append('fbx export empty')
+print('GKRESULT %d %s' % (len(bad), ' | '.join(bad)))
+sys.exit(1 if bad else 0)
+"@, (New-Object Text.UTF8Encoding $false))
+    $res = cmd /c "`"$blender`" --background --factory-startup --python-exit-code 1 --python `"$probe`" 2>&1"
+    $line = ($res | Where-Object { $_ -like 'GKRESULT*' } | Select-Object -Last 1)
+    Check "$(Split-Path (Split-Path $blender) -Leaf): $($py.Count) .py compile, headless FBX export" ($LASTEXITCODE -eq 0 -and $line -like 'GKRESULT 0*') "$line $(($res | Select-Object -Last 2) -join ' ')"
+    Remove-Item -LiteralPath $probe, $fbx -ErrorAction SilentlyContinue
+} else { Write-Host '  skip  no Blender installed' }
+$cli = Get-ChildItem "$env:LOCALAPPDATA\Claude-Data\*\Claude Extensions\ant.dir.gh.blender.blender-mcp\blmcp\tools_helpers\blender_cli.py" -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($cli) {
+    # local patch, lost on extension updates; without it every *_for_cli MCP call times out (see memory note)
+    Check 'Blender MCP extension keeps the stdin=DEVNULL patch' (Select-String -LiteralPath $cli.FullName -Pattern 'stdin=subprocess\.DEVNULL' -Quiet)
+} else { Write-Host '  skip  Blender MCP extension not installed' }
+
 Section 'GameKit package'
 $pkg = 'packages/com.yunusburkut.gamekit'
 $assets = @($tracked -like "$pkg/*" | Where-Object { $_ -notlike '*.meta' })
