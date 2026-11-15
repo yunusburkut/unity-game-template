@@ -134,5 +134,7 @@ When compacting, keep the files changed and the pending Play Mode checklist.
 
 ## Art
 
-3D art is made in Blender through the Blender MCP and the global blender-skills (start with `blender-director`).
+3D art is made by Claude in headless Blender (scripts and the Blender MCP `*_for_cli` tools) with the global
+blender-skills (start with `blender-director`); the user never models by hand. A Blender window opens only when the
+user asks to see one.
 Scripts that generate art live in `Tools/Blender/`; their outputs are rebuilt, never hand-edited.
