@@ -29,12 +29,15 @@ M - several files, crosses Core/Game, one design choice, or a bug whose cause is
     until 9/10 -> handoff). Bug: gamekit:bug-hunter first.
 L - a new system, 5+ units, more than one session, or fuzzy requirements: load gamekit:pipeline, write the spec card
     and ask its open questions; with the answers, commit the card and stop (the skill's phase 1 says how).
+A design question ("would X feel good?", "is X fun?", "prototip") is no size: load gamekit:prototype, no spec card.
 Unsure: take the smaller size and move up. "bu S", "bu M", "bu L" from the user wins.
 While a /gamekit:feature workflow you started is running, edit no file and commit nothing: answer read-only, and say
 a new request waits for the run's report, then you do it.
 "devam": after an UNKNOWN gate, rerun that gate first (a bridge that does not know refresh: read
 Logs/agent/compile.log instead, clean and newer than the edited scripts). Otherwise read PLAN.md Now and the last 10
-commits, then continue the card where it stopped (gamekit:pipeline, "Longer than one session"); a card whose Open
+commits, then continue the card where it stopped (gamekit:pipeline, "Longer than one session"). If Now holds a
+`prototype <Name>: <question>` line instead of a card, continue it with gamekit:prototype where it stands (after a
+PIVOT the revised question, step 1; otherwise play it and judge, step 4). A card whose Open
 questions line still lists questions: ask them first (phase 1 L), never build past them. No card, and the last
 commit is "design: review open" (a review et below 9): one more fix-and-review round on the range its body names.
 "kabul": once the card in PLAN.md Now has been reviewed, run gamekit:pipeline phase 7, open findings left under Known

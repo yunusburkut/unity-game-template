@@ -96,8 +96,9 @@ that game's genre. No sheet fits: take the nearest one and say which in the Assu
 
 ## Not covered
 
-`mmo`, `battle-royale`, `moba`, `extraction`, `competitive-multiplayer` and `async-multiplayer` have no sheet. They
-need dedicated servers or matchmaking at scale, which is out of scope for a solo Unity game. When the idea is one of
-them, say so in one sentence and offer the nearest covered sheet (`co-op`, `party-game`, `fighting`, `survival-horror`).
+`mmo`, `battle-royale`, `moba`, `extraction`, `competitive-multiplayer` and `async-multiplayer` have no sheet. Online
+PvP at scale (servers, matchmaking) is out of scope for a solo Unity game. Local versus goes to `fighting` or
+`party-game`; async ghosts or leaderboards go to `references/online.md` level 2. For any other of these, say so in one
+sentence and offer the nearest covered sheet (`co-op`, `party-game`, `fighting`, `survival-horror`).
 
-Credit: the sheets adapt Claude Code Game Studios (MIT, Copyright (c) 2026 Donchitos).
+Credit: the sheets adapt Claude Code Game Studios (MIT, Copyright (c) 2026 Donchitos); full text in LICENSE.md.

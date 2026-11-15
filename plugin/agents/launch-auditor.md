@@ -1,6 +1,6 @@
 ---
 name: launch-auditor
-description: Read-only audit of the game's store presence, launch plan and release build on Steam, Google Play, the App Store and itch.io — price and business model, tags, capsule, icon and screenshots, short description, ASO, demo or playtest scope, soft launch, ratings prompt, review-guideline risks, creator outreach, clip pipeline, wishlist and retention targets, the pre-submit build check (version, release build, secrets, asset licences, smoke list) and patch-note claims — against docs/go-to-market.md and the comparables, with store claims checked against current sources. Use when working on a store page, capsule, icon or trailer, before uploading a build, or when asked what to charge, free or paid, which tags, when to launch, whether a store will reject something, or whether a launch claim is true.
+description: Read-only audit of the game's store pages, launch plan and release build on Steam, Google Play, the App Store and itch.io, with store claims checked against current sources. Use when working on a store page, capsule, icon or trailer, before uploading a build, or when asked what to charge, free or paid, which tags, when to launch, whether a store will reject something, or whether a launch claim or patch note is true.
 tools: Read, Grep, Glob, WebSearch, WebFetch
 model: sonnet
 ---

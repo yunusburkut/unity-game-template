@@ -190,16 +190,16 @@ None of these is a rule; each is a precedent to offer as a prototype option.
 For a phone, also rank each one for cuts: must keep, should keep, can hide, always hide.
 
 **CL24, the necessity rule.** An element stays on the HUD only if the player makes a decision with it during play.
-Otherwise it moves to Contextual or On demand. Never ask the player to track more than four things at once.
-(src: COWAN, CCGS)
+Otherwise it moves to Contextual or On demand. More than four things to track at once is a review trigger, not a hard
+limit: justify each one past four. (src: COWAN, CCGS)
 
 **CL25, HUD states.** Define what the HUD shows in Pause, Dialogue or cutscene, Death or fail, and Loading. Nothing
 gameplay-related stays on screen while the player cannot act on it. (src: CCGS)
 
 **CL26, the notification contract.** (src: CCGS)
 - During intense play, queue or drop toasts that are not critical.
-- Merge repeats: "+5 coins ×3", not three toasts.
-- At most two on screen at once.
+- Merge repeats that arrive within 500 ms: "+5 coins ×3", not three toasts.
+- At most two on screen at once `(start)`: a template guess; CCGS leaves this number open for playtesting.
 - Critical messages (danger, the failure cause) skip the queue.
 - Every timer and auto-dismiss has a stated duration. Text the player must act on stays at least 5 s (and CL04).
 
@@ -273,7 +273,8 @@ reported as NOT ASSESSED, with what was missing. It is never a pass.
 - **AVCLUB:** https://www.avclub.com/not-every-co-op-game-is-friendslop
 - **BABA:** https://www.gamedeveloper.com/disciplines/road-to-the-igf-hempuli-oy-s-i-baba-is-you-i-
 - **CCGS:** Claude-Code-Game-Studios accessibility, HUD and interaction-pattern templates (MIT, Donchitos 2026). A
-  checklist with no primary source cited for its numbers: treat them as `(start)` values.
+  checklist with no primary source cited for its numbers: treat them as `(start)` values. Licence text:
+  `genre-defaults/LICENSE.md`.
   https://github.com/Donchitos/Claude-Code-Game-Studios
 - **CELESTE:** https://digitaltrends.com/gaming/celeste-review
 - **CLIP:**

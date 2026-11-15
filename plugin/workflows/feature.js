@@ -26,7 +26,7 @@ const call = (prompt, opts) => agent(prompt, opts).catch(e => { log(opts.label +
 const CHECK = {
   type: 'object',
   properties: {
-    card: { enum: ['none', 'same', 'other'], description: 'none: "## Now" holds no spec card; same: a card, and the typed request (if any) asks for its goal; other: a card for something else' },
+    card: { enum: ['none', 'same', 'other'], description: 'none: "## Now" holds no spec card and no prototype line (only its TODO line or nothing); same: a card, and the typed request (if any) asks for its goal; other: a card for something else, or a `prototype <Name>: <question>` line (a running gamekit:prototype spike, never built over)' },
     ready: { type: 'boolean' },
     reason: { type: 'string' },
     base: { type: 'string', description: 'the card\'s "Base:" line after "Base:", as written; with no such line, or one with no sha: git rev-parse --short=7 HEAD if no Plan line is ticked, else "yok"' },
@@ -162,7 +162,8 @@ const checkCard = () => call(
   'card\'s own unticked Plan line committed as "compile unverified", which its builder gates again), or gk-bridge ' +
   'exits 2 (Editor closed, Play Mode, busy; "command not found" is no reason, the builders have a fallback). Say which ' +
   'in reason, in Turkish, with what the user should do (card none: "`/gamekit:feature <istek>` yaz"; card other: ' +
-  '"Now\'da başka kart var: `devam` ile bitir ya da `kartı Next\'e taşı` yaz"; dirty code: "commit edilmemiş kod var: ' +
+  '"Now\'da başka kart var: `devam` ile bitir ya da `kartı Next\'e taşı` yaz"; a prototype line: "Now\'da bir prototip ' +
+  'var: `devam` ile oyna ve karar ver (PROCEED / PIVOT / KILL)"; dirty code: "commit edilmemiş kod var: ' +
   '`commit et` ya da geri al"; exit 1: "derleme zaten kırık (<first error>): bu satırı yapıştır, Claude düzeltir"; exit 2: ' +
   'its line). base = the card\'s "Base:" line as written (with none, or one with no sha: HEAD if no Plan line is ' +
   'ticked, else "yok"). ' +

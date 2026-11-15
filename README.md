@@ -90,7 +90,7 @@ oyuna göre eklenecek paketler (`packages.md`) ve 2026 mağaza kuralları (`ship
 | 8 agent: scout (bağlam), builder (tek birim: yaz, kapı, commit), unity-reviewer, bug-hunter, perf-auditor, clarity-reviewer, design-critic, launch-auditor | `plugin/agents/` |
 | `gk-bridge` komutu: AgentBridge isteğini gönderir, bekler, `PASS`/`FAIL`/`UNKNOWN` (exit 0/1/2) döner | `plugin/bin/` |
 | `/gamekit:feature [istek]` workflow'u: kartı (yoksa önce yazar) gözetimsiz yapar, yalnız istenince | `plugin/workflows/` |
-| Hook'lar: görev yönlendirici (S/M/L), Unity YAML koruma, düzenlenen `.json`/`.asmdef`/`.asmref` hâlâ geçerli JSON mu kontrolü, `.cs`/`.asmdef`/`.asmref` düzenlemesinden ve `git rm`/`git mv`'den sonra `refresh`, derleme hatası ya da derlenmemiş script varken turun bitmesini bir kez engelleyen Stop self-check | `plugin/hooks/` |
+| Hook'lar: görev yönlendirici (S/M/L), Unity YAML koruma, Edit/Write ile düzenlenen `.json`/`.asmdef`/`.asmref` hâlâ geçerli JSON mu kontrolü (shell komutuyla yazılan dosyaya bakmaz), `.cs`/`.asmdef`/`.asmref` düzenlemesinden ve `git rm`/`git mv`'den sonra `refresh`, derleme hatası ya da derlenmemiş script varken turun bitmesini bir kez engelleyen Stop self-check | `plugin/hooks/` |
 
 Oyunda kullanım rehberi: [`project/REHBER.md`](project/REHBER.md) (yeni oyunlara kopyalanır; eski oyunlara `/gamekit:sync-template` getirir).
 

@@ -29,7 +29,7 @@ Everything goes straight on `main`: no branches, no PRs. Commit subject `area: s
 |---|---|
 | `project/`, `packs/`, `packages/`, `new-game.ps1` | `.\test-template.ps1` (about 5 min; `-Packs <changed pack>`, `-Tests` for the game's tests) |
 | `plugin/` | `claude plugin validate plugin` (the missing-version warning is intended), then `claude plugin update gamekit@unity-game-template` |
-| `plugin/hooks/` | Also pipe a sample hook JSON into the script (`tool_name`, `tool_input`, `cwd`) and read its output |
+| `plugin/hooks/`, a skill's `references/` index | Also `powershell -NoProfile -ExecutionPolicy Bypass -File plugin\test-hooks.ps1` (fixed payloads through the hooks, the genre index and source keys); a new hook path gets a case there |
 
 Never open `project/` itself in Unity: it is a template with placeholders, not a project. `test-template.ps1` makes a
 real game in `%TEMP%` and deletes it.

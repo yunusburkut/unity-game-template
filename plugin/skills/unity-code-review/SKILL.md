@@ -69,8 +69,12 @@ Report what materially matters. Do not nitpick style that already matches its su
     - `Rigidbody` / `Rigidbody2D`: `.velocity` → `.linearVelocity`, `.drag` → `.linearDamping`, `.angularDrag` →
       `.angularDamping`. `PhysicMaterial` → `PhysicsMaterial` (`PhysicMaterialCombine` → `PhysicsMaterialCombine`).
       `CharacterController.velocity` and `NavMeshAgent.velocity` are not renamed.
-    - `FindObjectOfType` → `FindFirstObjectByType` or the faster `FindAnyObjectByType`; `FindObjectsOfType` →
-      `FindObjectsByType(FindObjectsSortMode.None)`. Better still, an Inspector reference (item 2).
+    - `FindObjectOfType` and `FindFirstObjectByType` → `FindAnyObjectByType`; `FindObjectsOfType` and
+      `FindObjectsByType(FindObjectsSortMode)` → `FindObjectsByType<T>()` or `FindObjectsByType<T>(FindObjectsInactive)`.
+      6000.6 marks `FindFirstObjectByType` and the sort-mode overload obsolete too. Better still, an Inspector
+      reference (item 2).
+    - Unity 6.4+: `InstanceID` → `EntityId`; `GetInstanceID()` → `GetEntityId()`; `InstanceIDToObject` →
+      `EntityIdToObject`. A dictionary keyed on an instance ID becomes keyed on `EntityId`.
     - Cinemachine 3: namespace `Unity.Cinemachine`; `CinemachineVirtualCamera` → `CinemachineCamera`; Transposer →
       `CinemachineFollow`; FramingTransposer → `CinemachinePositionComposer`; Composer →
       `CinemachineRotationComposer`; FreeLook → `CinemachineCamera` + `CinemachineOrbitalFollow`; no `m_` fields
@@ -78,7 +82,8 @@ Report what materially matters. Do not nitpick style that already matches its su
     - URP custom pass: `Execute(ScriptableRenderContext, ref RenderingData)` and `OnCameraSetup` →
       `RecordRenderGraph(RenderGraph, ContextContainer)` with `renderGraph.AddRasterRenderPass`; read the camera
       colour from `frameData.Get<UniversalResourceData>().activeColorTexture`, not `cameraColorTargetHandle`. The old
-      path runs only in URP Compatibility Mode, which 6000.6 no longer offers *(verify)*.
+      path runs only in URP Compatibility Mode, which URP 17.6 (Unity 6000.6) no longer offers:
+      `RenderGraphSettings.enableRenderCompatibilityMode` is hard-wired to `false` there.
     - `WWW` → `UnityWebRequest`; `Application.LoadLevel` → `SceneManager.LoadScene`.
 
 ## Convention checks

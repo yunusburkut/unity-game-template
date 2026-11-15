@@ -1,13 +1,13 @@
 ---
 name: prototype
-description: Answering one design question in throwaway code before building the feature - a falsifiable question, a timebox, the PROCEED / PIVOT / KILL verdict, then deleting the code. Use when the question is "does X work or feel good?" rather than "build X" ("prototip", "dene bakalım", "hissettiriyor mu", "eğlenceli mi", "spike", "hızlıca dene").
+description: Answering one design question in throwaway code before building the feature - a falsifiable question, a timebox, the PROCEED / PIVOT / KILL verdict, then deleting the code. Use when the question is "would X feel good or be fun?" rather than "build X" ("prototip", "prototipini yap", "hissettiriyor mu", "eğlenceli mi", "spike"). Not for "does this existing code work?", which is a bug or a check.
 ---
 
 # Prototype: answer one question, then throw the code away
 
 A prototype is not the feature. It answers one question, and the feature is then built properly through a spec card
-(`gamekit:pipeline`). The router may size it M; pipeline phase 1 hands a question to this skill: no spec card, no
-review loop.
+(`gamekit:pipeline`). The router gives a design question no size and sends it here, as does pipeline phase 1: no
+spec card, no review loop.
 
 ## 1 The question
 

@@ -1,6 +1,6 @@
 ---
 name: design-critic
-description: Read-only design critique of a game level, level pack, level order or proposed mechanic before or after it is built — difficulty rhythm, failure cost, the teaching arc, readability, whether a mechanic reads and earns its place, and whether the numbers hold. Three modes: Level (the level-beat-review critique procedure, DR01–DR28), Mechanic (which pillar it serves, does it read, does it teach, what does a failure cost, does it need juice to work) and Numbers (formulas, tuning knobs, loops, economy, reward tables, curves, dominant strategies, DESIGN.md values against the Config assets). Use when asked "bölümü yorumla", "level eleştir", "bu mekanik iyi mi", "zorluk sırası nasıl", "denge", "ekonomi", "sayılar tutuyor mu", or before handing a level or mechanic to implementation.
+description: Read-only design critique of a level, level order, proposed mechanic or the game's numbers (economy, curves, tuning), before or after it is built. Use when asked "bölümü yorumla", "level eleştir", "bu mekanik iyi mi", "zorluk sırası nasıl", "denge", "ekonomi", "sayılar tutuyor mu", or before handing a level or mechanic to implementation.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---

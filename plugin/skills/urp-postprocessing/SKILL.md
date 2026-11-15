@@ -78,7 +78,7 @@ if (!camData.renderPostProcessing)
     report.AppendLine("Warning: Post-processing is disabled on the camera. Enable via camData.renderPostProcessing = true.");
 
 // 4. Check volume layer mask
-var volumes = UnityEngine.Object.FindObjectsByType<UnityEngine.Rendering.Volume>(UnityEngine.FindObjectsSortMode.None);
+var volumes = UnityEngine.Object.FindObjectsByType<UnityEngine.Rendering.Volume>();
 foreach (var vol in volumes)
 {
     if (!vol.enabled) { report.AppendLine($"Warning: Volume '{vol.name}' is disabled."); continue; }

@@ -32,8 +32,9 @@ Non-negotiable, in every phase:
 
 Rewrite the user's prompt into this card under PLAN.md `## Now` (replace the TODO line; a game without PLAN.md gets
 one with `## Now`, `## Next`, `## Pending Play Mode checks` and `## Known issues`). The card adds facts the
-prompt left implicit (files, targets, existing helpers) and a checkable done; it never adds requirements. A
-question ("does X work?", "does it feel good?") is not a card: it is a spike, `gamekit:prototype`.
+prompt left implicit (files, targets, existing helpers) and a checkable done; it never adds requirements. A design
+question ("would X feel good?", "is X fun?") is not a card: it is a spike, `gamekit:prototype`. "Does X work?" about
+existing code is a bug or a check, not a spike.
 
 Now already holds another card: ask whether to finish it (`devam`) or park it. Parking commits the card as it stands
 (ticks included), then puts Now back to its TODO line and adds one line to Next, `<goal> - parked, card at <short sha>`
@@ -61,7 +62,8 @@ Review: <after each round: r1 unity-reviewer 8, clarity-reviewer 9 (its findings
   | Item | Evidence |
   |---|---|
   | Core rule, formula, state step | `dosya:satır` (an EditMode test only with the user's OK). The line names its bounds: zero or minimum input, the cap, an empty collection, the invalid case (dead target, missing reference) when the rule can meet one |
-  | Two systems talking (save/load round trip, an event across Core/Game) | play-capture or Play Mode (user) |
+  | Two systems talking (an event across Core/Game) | play-capture when it shows in the first seconds, else Play Mode (user) |
+  | Save/load round trip (save, quit, relaunch, the state is back) | Play Mode (user): play-capture cannot quit and relaunch |
   | Look, juice, timing, feel | Play Mode (user), with a number or a reference: "hit stop 60-80 ms", "shake ends before the next input" |
   | UI, HUD | play-capture, one shot per screen touched, inside the safe area |
   | A tuning value only | the ScriptableObject value at `dosya:satır`, plus one Play Mode spot check |

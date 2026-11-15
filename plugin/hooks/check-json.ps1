@@ -35,6 +35,10 @@ if ([string]::IsNullOrWhiteSpace($text)) {
     try { $null = $text | ConvertFrom-Json -ErrorAction Stop } catch { $problem = $_.Exception.Message }
 }
 if (-not $problem) { exit 0 }
+# A structural error (lost brace or bracket) ends the message with "(<offset>): <the whole input>"; keep the offset only.
+$parts = $problem -split '\): ', 2
+if ($parts.Count -eq 2) { $problem = $parts[0] + ')' }
+if ($problem.Length -gt 300) { $problem = $problem.Substring(0, 300) + '...' }
 
 @{
     decision = 'block'
