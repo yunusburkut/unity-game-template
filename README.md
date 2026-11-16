@@ -21,11 +21,15 @@ yeni bir oturum başlatır. Elle kurmak için:
 4. Unity batch modda `ProjectSetup`'ı çalıştırır (ilk import birkaç dakika).
 5. `main` dalında ilk commit atılır; Unity Smart Merge sürücüsü ve `.meta` pre-commit hook'u açılır.
 
-Sonra: Unity Hub > Add > Add project from disk, ardından o klasörde Claude Code'u aç. İlk iş olarak `CLAUDE.md` ve
-`DESIGN.md` içindeki TODO satırlarını doldur (ya da `/grill-me` ile Claude'a sordur). Claude ile nasıl çalışılır: oyundaki `REHBER.md`.
+Sonra: Unity Hub > Add > Add project from disk, ardından o klasörde Claude Code'u aç. İlk iş olarak
+`/gamekit:new-game şekillendir` yaz: Claude tür varsayılanlarıyla soru sorar, `CLAUDE.md` ve `DESIGN.md` içindeki TODO
+satırlarını cevaplarınla doldurur, kararları `DESIGN.md`ye yazar ve commit atar. Claude ile nasıl çalışılır: oyundaki `REHBER.md`.
 
-Parametreler: `-Path D:\Games`, `-Company ad`, `-Packs a,b`, `-FeelFrom C:\GitHub\PixelVolley`, `-NoSetup`, `-NoGit`,
-`-GitHub` (ilk commit'ten sonra `gh` ile `<Name>` adında private repo açar ve `main`'i push eder; `gh auth login` gerekir).
+Parametreler: `-Path D:\Games`, `-Company ad`, `-Packs a,b`, `-FeelFrom C:\GitHub\PixelVolley`, `-Unity <Unity.exe>`
+(varsayılan: `ProjectVersion.txt`'deki sürümün Hub kurulumu), `-SetupTimeoutMinutes 30` (ProjectSetup bu sürede
+bitmezse Unity kapatılır), `-NoSetup`, `-NoGit`, `-LocalGameKit` (GameKit'i tag yerine bu checkout'tan `file:` ile
+alır), `-GitHub` (ilk commit'ten sonra `gh` ile `<Name>` adında private repo açar ve `main`'i push eder;
+`gh auth login` gerekir). Hepsinin açıklaması: `Get-Help .\new-game.ps1 -Detailed`.
 
 ## Paketler
 
@@ -50,8 +54,10 @@ Bir paketin `packages.json` dosyası varsa, içindeki UPM paketleri ve scoped re
 sonra çalışır.
 
 Her paketin README'si ne eklediğini ve kurulumdan sonra elle yapılacakları anlatır; README ve `examples/` oyuna
-kopyalanmaz. `packs/reference-docs/` sadece okumak için: frame budget, pazar, Steam, ses, renk teorisi notları,
-oyuna göre eklenecek paketler (`packages.md`) ve 2026 mağaza kuralları (`shipping-2026.md`).
+kopyalanmaz. İstisna: README'nin `## CLAUDE.md'ye eklenecek satır` başlığı altındaki kod bloğu (oyunun `## Packs`
+bölümüne) ve ` ```markdown ` ile açılıp `## ` ile başlayan her blok (ör. coop-multiplayer'ın `## Networking` bölümü)
+oyunun `CLAUDE.md`'sine aktarılır; bu başlıkları ve blok işaretlerini değiştirme. `packs/reference-docs/` sadece okumak için: frame budget, pazar, Steam, ses, renk teorisi notları,
+oyuna göre eklenecek paketler (`packages.md`, artık `plugin/skills/unity-package-management/references/select-packages.md`'yi gösteriyor) ve 2026 mağaza kuralları (`shipping-2026.md`).
 
 ## Üç parça
 
@@ -77,7 +83,7 @@ oyuna göre eklenecek paketler (`packages.md`) ve 2026 mağaza kuralları (`ship
 |---|---|
 | **GameKit > Set Up Project:** URP Mobile ve PC kalite seviyeleri, sadece Input System, Linear, IL2CPP ARM64, Android target API 36 ve "game" kategorisi, Nice Vibrations define'ı, Main sahnesi. Oyun klasörünü `Assets/<Game>/Core/<Game>.Core.asmdef`'ten bulur. Tekrar çalıştırmak şirket/ürün adını, bundle id'yi, URP asset'lerini ve kalite seviyelerini korur; pack'lerin `[ProjectSetupStep]` metotlarını da çalıştırır | `Editor/ProjectSetup.cs` |
 | **GameKit > Build:** Windows / Android APK / Google Play AAB / iOS / WebGL, Development Build, itch.io için Brotli WebGL (ayarlar ProjectSetup ilk kurulumda yazılır; dev WebGL sıkıştırmasız) | `Editor/BuildMenu.cs`, `Editor/ProjectSetup.cs` |
-| Claude için derleme, konsol, test, build logları (`Logs/agent/`); odak gerektirmeyen `refresh`, `compile ios/android`, `play-capture` | `Editor/AgentBridge.cs` |
+| Claude için derleme, konsol, test, build logları (`Logs/agent/`); odak gerektirmeyen `refresh`, `compile ios/android/webgl`, `play-capture` | `Editor/AgentBridge.cs` |
 | Çentik için `SafeAreaFitter`; Development Build'de kare süresi CSV'si (`FrameLog`, F3) | `Runtime/` |
 
 ### gamekit plugin'i
@@ -90,7 +96,7 @@ oyuna göre eklenecek paketler (`packages.md`) ve 2026 mağaza kuralları (`ship
 | Agent'lar (tam liste `plugin/agents/`): scout (bağlam), builder (tek birim: yaz, kapı, commit), unity-reviewer, bug-hunter, perf-auditor, clarity-reviewer, design-critic, launch-auditor | `plugin/agents/` |
 | `gk-bridge` komutu: AgentBridge isteğini gönderir, bekler, `PASS`/`FAIL`/`UNKNOWN` (exit 0/1/2) döner | `plugin/bin/` |
 | `/gamekit:feature [istek]` workflow'u: kartı (yoksa önce yazar) gözetimsiz yapar, yalnız istenince | `plugin/workflows/` |
-| Hook'lar: görev yönlendirici (S/M/L), Unity YAML koruma, Edit/Write ile düzenlenen `.json`/`.asmdef`/`.asmref` hâlâ geçerli JSON mu kontrolü (shell komutuyla yazılan dosyaya bakmaz), `.cs`/`.asmdef`/`.asmref` düzenlemesinden ve `git rm`/`git mv`'den sonra `refresh`, derleme hatası ya da derlenmemiş script varken turun bitmesini bir kez engelleyen Stop self-check, Blender MCP için `ensure-blender`: canlı bir çağrıdan önce kapalı Blender'ı `--online-mode` ile açıp add-on sunucusunu bekler (en çok 100 sn), MCP add-on'u o Blender sürümüne kurulu değilse çağrıyı engeller, eklenti `stdin` yamasını kaybettiyse `*_for_cli` çağrısını düzeltmesiyle birlikte engeller (doküman araçlarına dokunmaz). Plugin kullanıcı ayarında açık olduğu için bu hook'lar her oturumda çalışır | `plugin/hooks/` |
+| Hook'lar: görev yönlendirici (S/M/L), Unity YAML koruma, Edit/Write ile düzenlenen `.json`/`.asmdef`/`.asmref` hâlâ geçerli JSON mu kontrolü (shell komutuyla yazılan dosyaya bakmaz), `.cs`/`.asmdef`/`.asmref` düzenlemesinden ve `git rm`/`git mv`'den sonra `refresh`, derleme hatası ya da derlenmemiş script varken turun bitmesini bir kez engelleyen Stop self-check, Blender MCP için `ensure-blender`: canlı bir çağrıdan önce kapalı Blender'ı `--online-mode` ile açıp add-on sunucusunu bekler (en çok 100 sn), MCP add-on'u o Blender sürümüne kurulu değilse çağrıyı engeller, eklenti `stdin` yamasını kaybettiyse `*_for_cli` çağrısını düzeltmesiyle birlikte engeller (doküman araçlarına dokunmaz), okuma-yalnız agent'larda (scout, bug-hunter, unity-reviewer, perf-auditor, clarity-reviewer, design-critic) durum değiştiren `git` komutunu ve `%TEMP%` dışına yazan `>`/`tee` yönlendirmesini engelleyen `guard-readonly-agent` (agent frontmatter'ı hook taşıyamadığı için söz yalnız prompt'ta kalmasın diye). Plugin kullanıcı ayarında açık olduğu için bu hook'lar her oturumda çalışır | `plugin/hooks/` |
 
 Oyunda kullanım rehberi: [`project/REHBER.md`](project/REHBER.md) (yeni oyunlara kopyalanır; eski oyunlara `/gamekit:sync-template` getirir).
 
@@ -105,29 +111,47 @@ projesinde susar, yerine gamekit'in yönlendiricisi çalışır),
 skill'leri. Kullanıcı ayarında gamekit plugin'i açıktır, böylece şablondan açılmamış oyunlar da onu alır.
 
 Bu katman hiçbir repoda yok ve hiçbir script onu kurmaz; yeni bilgisayarda yedekten geri gelmeli. Eksikse hata
-vermez, sessizce kaybolur: yeni oyunun ilk adımı `/grill-me` çalışmaz, S/M/L dışı işlerin yönlendiricisi ve Blender →
-Unity export sözleşmesi (`unity-export`) gider. Taşınacaklar:
+vermez, sessizce kaybolur: `/grill-me`, Unity dışı işlerin S/M/L yönlendiricisi, ADHD modu, Visual Clarity output
+style'ı ve Blender → Unity export sözleşmesi (`unity-export`) gider. Taşınacaklar:
 
 | Parça | Yer (`~/.claude/` altında) |
 |---|---|
+| Kullanıcı ayarları: iki hook'un kaydı (`hooks`: SessionStart → `adhd-mode.ps1`, UserPromptSubmit → `enhance-prompt.ps1`), `enabledPlugins` (gamekit, i-have-adhd, context7, csharp-lsp), `extraKnownMarketplaces`, `outputStyle: "gamekit:Visual Clarity"`. Dosya yoksa hook script'leri kopyalansa da hiç çalışmaz; yeni makinede zaten bir `settings.json` varsa bu anahtarları içine birleştir | `settings.json` |
 | Kişisel kurallar ve yanıt biçimi | `CLAUDE.md`, `rules/lean-code.md`, `rules/unity-games.md` |
-| Görev yönlendirici ve ADHD modu (kullanıcı `settings.json`'unda hook olarak kayıtlı) | `hooks/enhance-prompt.ps1`, `hooks/adhd-mode.ps1` |
+| Görev yönlendirici ve ADHD modu (ADHD modu `i-have-adhd` plugin'inin skill'ini okur; plugin yoksa yalnız temel kurallarla çalışır) | `hooks/enhance-prompt.ps1`, `hooks/adhd-mode.ps1` |
 | Skill'ler | `skills/grill-me`, `skills/orchestrate`, `skills/blender-director`, `skills/blender-image-to-3d`, `skills/unity-export`, `skills/references`, `skills/synced` |
 | Yedek Blender skill'leri (listeye girmez, director dosya olarak okur) | `spares/blender-skills/` |
 | Sonnet'te çalışan `Explore` agent'ı | `agents/Explore.md` |
 
-Yeni bir bilgisayarda: yukarıdaki parçaları yedekten `~/.claude/` altına kopyala, `gh auth login` ve
-`gh auth setup-git` (repo private), sonra
+Yeni bir bilgisayarda: yukarıdaki parçaları yedekten `~/.claude/` altına kopyala, `gh auth login` (git push için
+Git for Windows'un Credential Manager'ı kalsın, `gh auth setup-git` çalıştırma: aşağıdaki token'la çakışır), sonra
 
 ```powershell
 claude plugin marketplace add yunusburkut/unity-game-template
 claude plugin install gamekit@unity-game-template
+claude plugin marketplace add ayghri/i-have-adhd
+claude plugin install i-have-adhd@i-have-adhd
 ```
 
-Blender (5.2, PATH'te yok):
+Plugin güncellemeleri: arka plandaki otomatik güncelleme (`autoUpdate`) git credential helper'ını kullanmaz; private
+repo için ortamda token ister. `GITHUB_TOKEN` kullanıcı değişkenini, yalnız `unity-game-template` reposunda
+**Contents: Read** izni olan fine-grained bir token yap ve Claude'u yeniden başlat. Ayrıca kullanıcı
+`settings.json`'unda `extraKnownMarketplaces.unity-game-template` girdisine `"autoUpdate": true` ekle (şablondan açılan
+oyunların `.claude/settings.json`'unda zaten var; şablondan açılmamış oyunlar bu kullanıcı girdisini kullanır). Token
+yoksa güncelleme elle yapılır: `claude plugin update gamekit@unity-game-template`.
 
-1. `BLENDER_PATH` kullanıcı değişkenini `C:\Program Files\Blender Foundation\Blender 5.2\blender.exe` yap; Claude'u
-   yeniden başlat. Blender MCP'nin `*_for_cli` araçları Blender'ı bununla bulur.
+Token çakışması: `gh`, `GH_TOKEN`/`GITHUB_TOKEN` ortamda varken `gh auth login` girişini değil bu token'ı kullanır ve
+`gh auth status` yine "logged in" der. Salt-okur token'la `gh repo create`, `gh secret set` 403 verir; git credential
+helper'ı `gh` ise her push da düşer. Bu yüzden git push Credential Manager'dan gider, yazan `gh` komutları token'sız
+çalışır: bash'te `env -u GITHUB_TOKEN -u GH_TOKEN gh repo create ...`, PowerShell'de aynı komut satırında önce
+`$env:GITHUB_TOKEN = $null; $env:GH_TOKEN = $null`. Token'a yazma izni verme: otomatik güncelleme yalnız okur.
+
+Blender 5.2:
+
+1. `C:\Program Files\Blender Foundation\Blender 5.2` klasörünü kullanıcı `PATH`'ine ekle (kökteki `CLAUDE.md`,
+   `test-all.ps1` ve skill'ler düz `blender` çağırır) ve `BLENDER_PATH` kullanıcı değişkenini
+   `C:\Program Files\Blender Foundation\Blender 5.2\blender.exe` yap (Blender MCP'nin `*_for_cli` araçları ve
+   `ensure-blender` hook'u Blender'ı bununla bulur); Claude'u yeniden başlat.
 2. Canlı MCP araçları için Blender'da MCP add-on'unu kur ve aç (port 9876):
    `blender --command extension repo-add --name "Blender Lab" --url https://lab.blender.org/ lab`, sonra
    `blender --online-mode --command extension sync` ve `... extension install --enable lab.mcp`. Preferences →
@@ -139,9 +163,14 @@ Blender (5.2, PATH'te yok):
 3. `~/.claude/skills` içinde Blender skill'lerinden yalnızca `blender-director`, `blender-image-to-3d` ve
    `unity-export` durur (yanlarındaki `grill-me`, `orchestrate`, `references`, `synced` da bilerek orada). Diğer ~90
    Blender skill'i `~/.claude/spares/blender-skills/` altındadır: skill listesine girmezler, director onları dosya
-   olarak okur. Skill olarak dursalar, listeleme bütçesi taşar ve gamekit skill'lerinin açıklaması düşer.
-4. Headless Blender her zaman `--background --python-exit-code 1 --python <script>` ile çalışır; bayraksız bir
-   Python hatası exit 0 döner.
+   olarak okur. Skill olarak dursalar, listeleme bütçesi çok erken taşar ve gamekit skill'lerinin açıklaması düşer.
+   Taşınmaları taşmayı azaltır ama bitirmez: liste bütçesi (bağlam penceresinin ~%1'i) diğer plugin'lerle de
+   paylaşılır; aşılınca bazı gamekit skill'leri açıklamasız listelenir ve kendiliğinden tetiklenmez (adıyla
+   çağrılınca yine çalışır). `plugin\test-hooks.ps1` gamekit ve `~/.claude/skills` açıklamalarının toplamını bütçeye
+   karşı ölçer; plugin'lerin payını sayamaz.
+4. Headless Blender her zaman `blender --background --factory-startup --python-exit-code 1 --python <script>` ile
+   çalışır (kökteki `CLAUDE.md` ve `test-all.ps1` ile aynı): `--python-exit-code 1` olmadan bir Python hatası exit 0
+   döner, `--factory-startup` olmadan kullanıcının startup dosyası ve add-on'ları sonucu değiştirir.
 5. Blender MCP eklentisine yerel yama (upstream'de yok): eklentinin
    `%LOCALAPPDATA%\Claude-Data\<profil>\Claude Extensions\ant.dir.gh.blender.blender-mcp\blmcp\tools_helpers\blender_cli.py`
    dosyasında `run_blender_cli` içindeki `subprocess.run(...)` çağrısına `stdin=subprocess.DEVNULL,` argümanını ekle
@@ -157,13 +186,15 @@ Blender (5.2, PATH'te yok):
 - PixelVolley'nin `LevelCatalog` / `LevelInspectorWindow` ve Magic Sort'un `AssetGen` / `PreviewCapture` araçları:
   oyuna özeller. Magic Sort'taki ekran yakalama fikri genelleştirilip `play-capture` oldu.
 - PrimeTween, Localization ve IAP: manifest bilerek küçük; oyun ihtiyaç duyunca eklenir
-  (`packs/reference-docs/packages.md` kurulum satırlarını ve alınmayanları listeler). FishNet `coop-multiplayer`
+  (`plugin/skills/unity-package-management/references/select-packages.md` kurulum satırlarını ve alınmayanları listeler). FishNet `coop-multiplayer`
   paketinin README'sinde, 2D paketleri `mobile-2d` paketiyle gelir.
 - `learneter` ve `portfolio-site`: Unity projesi değiller.
 
 ## Eksikler
 
-- Android build için Unity Hub'dan **Android Build Support** modülünü ekle (şu an Windows, WebGL ve iOS kurulu).
+- Yeni bir bilgisayarda Unity 6000.6'ya Unity Hub'dan **Android Build Support** (SDK, NDK, OpenJDK ile), **iOS Build
+  Support**, **Web Build Support** ve **Windows Build Support** modüllerini ekle. Eksik bir modülü `gk-bridge compile`
+  ve GameKit > Build "module is not installed" diye söyler.
 - iOS build bir Xcode projesi üretir; imzalama ve derleme Mac'te yapılır.
 
 ## Template'i güncellemek
@@ -172,12 +203,12 @@ Blender (5.2, PATH'te yok):
 |---|---|---|
 | Skill, agent, hook | `plugin/` | `main`'e girince kendiliğinden (`autoUpdate`; hemen istersen `claude plugin update gamekit@unity-game-template`) |
 | Ortak Unity kodu | `packages/com.yunusburkut.gamekit/` | `package.json` sürümünü artır, `gamekit-vX.Y.Z` tag'i at ve push et; oyunun `Packages/manifest.json` içindeki `#gamekit-v...` kısmını yeni tag yap |
-| İskelet, CLAUDE.md, ayarlar | `project/`, `packs/` | Yeni oyunlar hemen alır. Mevcut oyunda Claude'a `/gamekit:sync-template` de: oyunun son eşitlendiği template commit'inden beri değişenleri listeler, seçtiklerini patch olarak uygular (oyunun değiştirdiği yerler `.rej` olur, elle birleşir), GameKit tag'ini son sürüme çeker ve `template: sync to unity-game-template@<sha>` commit'i atar |
+| İskelet, CLAUDE.md, ayarlar | `project/`, `packs/` | Yeni oyunlar hemen alır. Mevcut oyunda Claude'a `/gamekit:sync-template` de: oyunun son eşitlendiği template commit'inden beri değişenleri listeler, seçtiklerini patch olarak uygular (oyunun değiştirdiği yerler `.rej` olur, elle birleşir), GameKit tag'ini template'in `origin/main` manifest'inin gösterdiği yayınlanmış tag'e çeker (yeni GameKit sürümü oyunlara ancak `project/Packages/manifest.json` o tag'e alınınca gelir) ve `template: sync to unity-game-template@<sha>` commit'i atar |
 
-Her değişiklikten sonra tek giriş `.\test-all.ps1`: JSON, PowerShell ve bash sözdizimi, skill/agent frontmatter'ı,
-skill referans yolları, CCGS lisans atıfları, Blender kuruluysa headless Python derlemesi + FBX export ve MCP yaması,
-GameKit `.meta`'ları, Unity açmadan bütün pack'lerin birleştirme denemesi, hook testleri ve `claude plugin validate`. `-Full` sona `test-template.ps1`'i ekler. Süreler kökteki
-`CLAUDE.md`'de.
+Her değişiklikten sonra tek giriş `.\test-all.ps1`: Unity gerektirmeyen her kontrol (sözdizimi ve frontmatter,
+Blender kuruluysa headless Python + FBX ve MCP yaması, sync-template hattı, global katmanın varlığı, pack birleştirme
+denemesi, hook testleri, `claude plugin validate`). Tam liste ve süre tek yerde, betiğin yardım bloğunda:
+`Get-Help .\test-all.ps1`. `-Full` sona `test-template.ps1`'i ekler.
 
 `project/`, `packs/`, `packages/` veya `new-game.ps1` değişince `.\test-template.ps1` çalıştır (Unity'yi açar, birkaç dakika):
 `%TEMP%`'te gerçek bir oyun açar, 0 derleme hatası, Main sahnesi, sync işareti ve GameKit kaynağını kontrol eder, sonra

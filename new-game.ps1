@@ -9,7 +9,10 @@
     committed because game repos are private), runs ProjectSetup once in batch mode (URP Mobile + PC tiers, Input System only, Main
     scene; killed after -SetupTimeoutMinutes) and makes the first commit "Start <Name> from unity-game-template@<sha>"
     (body "Packs: a, b" when packs were added), the base gamekit:sync-template diffs from. It warns, and marks the sha -dirty, when project\, packs\ or this script
-    have uncommitted changes, and warns when the template HEAD is not on origin/main. Takes 2-5 minutes with
+    have uncommitted changes, warns when the template HEAD is not on origin/main, and warns when this checkout's
+    GameKit is newer than the tag the manifest pins (a release not finished). Each pack assembly under
+    Assets\__GAME__\Game (mobile-store, steam), and each name in a pack's packages.json "gameReferences"
+    (coop-multiplayer's FishNet + UGS stack), is added to __GAME__.Game.asmdef's references. Takes 2-5 minutes with
     ProjectSetup: an agent runs it in the background.
 
 .EXAMPLE
@@ -23,9 +26,13 @@
 
 .EXAMPLE
     .\new-game.ps1 -Name SkyHopper -GitHub
+
+.EXAMPLE
+    .\new-game.ps1 -ResolveUnity
 #>
+[CmdletBinding(DefaultParameterSetName = 'Make')]
 param(
-    [Parameter(Mandatory)]
+    [Parameter(Mandatory, ParameterSetName = 'Make')]
     [ValidatePattern('^[A-Z][A-Za-z0-9]*$')]
     [string]$Name,
 
@@ -40,7 +47,8 @@ param(
     # A project folder that has Assets\Feel. Default: the first folder under -Path that has one.
     [string]$FeelFrom,
 
-    # Unity.exe. Default: the Hub install that matches project\ProjectSettings\ProjectVersion.txt.
+    # Unity.exe. Default: the Hub install (its custom install folder, then the default one) that matches
+    # project\ProjectSettings\ProjectVersion.txt.
     [string]$Unity,
 
     # Skip the batch-mode ProjectSetup run (run "GameKit > Set Up Project" from the menu later).
@@ -56,12 +64,31 @@ param(
 
     # Point the game at this checkout's packages\com.yunusburkut.gamekit (file:) instead of the tagged git URL, to try
     # GameKit changes before tagging them.
-    [switch]$LocalGameKit
+    [switch]$LocalGameKit,
+
+    # Print the Unity.exe the run would use (the -Unity default below) and stop; test-template.ps1 reads it.
+    [Parameter(Mandatory, ParameterSetName = 'Resolve')]
+    [switch]$ResolveUnity
 )
 
 $ErrorActionPreference = 'Stop'
 $template = Join-Path $PSScriptRoot 'project'
 $packRoot = Join-Path $PSScriptRoot 'packs'
+if (-not $Unity) {
+    # Hub's custom install location (Preferences > Installs) first, then its default. test-template.ps1 gets the
+    # same editor for its test runs through -ResolveUnity.
+    $version = (Select-String -LiteralPath (Join-Path $template 'ProjectSettings\ProjectVersion.txt') -Pattern '^m_EditorVersion: (.+)$').Matches[0].Groups[1].Value
+    $hubDirs = @()
+    $secondary = Join-Path $env:APPDATA 'UnityHub\secondaryInstallPath.json'
+    if (Test-Path -LiteralPath $secondary) { $hubDirs += @([IO.File]::ReadAllText($secondary) | ConvertFrom-Json) | Where-Object { $_ } }
+    $hubDirs += 'C:\Program Files\Unity\Hub\Editor'
+    $candidates = @($hubDirs | ForEach-Object { Join-Path $_ "$version\Editor\Unity.exe" })
+    # none installed: the default path, which the step 4 warning names
+    $Unity = @($candidates | Where-Object { Test-Path -LiteralPath $_ }) + @($candidates[-1]) | Select-Object -First 1
+}
+# test-template.ps1 asks for the path only, so it tests with the editor a real game gets
+if ($ResolveUnity) { return $Unity }
+
 $dest = Join-Path $Path $Name
 # absolute: [IO.File] calls resolve a relative path against the process directory, which cd does not change
 $dest = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($dest)
@@ -90,9 +117,14 @@ if (-not $NoGit) {
     }
 }
 
-if (-not $Unity) {
-    $version = (Select-String -LiteralPath (Join-Path $template 'ProjectSettings\ProjectVersion.txt') -Pattern '^m_EditorVersion: (.+)$').Matches[0].Groups[1].Value
-    $Unity = "C:\Program Files\Unity\Hub\Editor\$version\Editor\Unity.exe"
+# the shipped manifest pins a GameKit tag; a newer version in this checkout is not released yet (CLAUDE.md,
+# Releasing GameKit), so this game gets the pinned one without it
+if (-not $LocalGameKit) {
+    $pin = [regex]::Match([IO.File]::ReadAllText((Join-Path $template 'Packages\manifest.json')), '#gamekit-v([\d.]+)"').Groups[1].Value
+    $pkgVersion = (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'packages\com.yunusburkut.gamekit\package.json') -Raw | ConvertFrom-Json).version
+    if ($pin -and $pin -ne $pkgVersion) {
+        Write-Warning "GameKit $pkgVersion in this checkout is not released: the game gets the pinned gamekit-v$pin. Finish the release (CLAUDE.md, Releasing GameKit) or pass -LocalGameKit."
+    }
 }
 
 Write-Host "1/6 Copying the template to $dest"
@@ -157,13 +189,21 @@ foreach ($pack in $Packs) {
             $claudeSections.Add(($s.Groups[1].Value -replace '\r\n', "`n"))
         }
     }
-    # mobile-store's README step 1: game code reaches StoreReview through this reference (text insert, layout kept)
-    if ($pack -eq 'mobile-store') {
+    # a pack's own assembly under Game\ (mobile-store's __GAME__.Store, steam's __GAME__.Steam) is what game code
+    # calls, so Game.asmdef references each one and the pack's CLAUDE.md line holds from the first commit (text
+    # insert, layout kept). test-all.ps1 and test-template.ps1 check the result.
+    $packGame = Join-Path $source 'Assets\__GAME__\Game'
+    $packAsm = if (Test-Path -LiteralPath $packGame) { @(Get-ChildItem -LiteralPath $packGame -Recurse -Filter *.asmdef | ForEach-Object BaseName) } else { @() }
+    # and the package assemblies a pack's packages.json lists under gameReferences (coop-multiplayer's FishNet + UGS stack)
+    if (Test-Path -LiteralPath $packages) {
+        $packAsm += @((Get-Content -LiteralPath $packages -Raw | ConvertFrom-Json).gameReferences | Where-Object { $_ })
+    }
+    foreach ($asmName in $packAsm) {
         $asmdef = Join-Path $dest 'Assets\__GAME__\Game\__GAME__.Game.asmdef'
         $asmText = [IO.File]::ReadAllText($asmdef)
-        if ($asmText -notmatch '"__GAME__\.Store"') {
+        if ($asmText -notmatch ('"' + [regex]::Escape($asmName) + '"')) {
             $asmText = ([regex]'("references"\s*:\s*\[[^\]]*?)\s*\]').Replace($asmText, {
-                param($r) $r.Groups[1].Value + $(if ($r.Groups[1].Value -match '\[\s*$') { '' } else { ', ' }) + '"__GAME__.Store"]' }, 1)
+                param($r) $r.Groups[1].Value + $(if ($r.Groups[1].Value -match '\[\s*$') { '' } else { ', ' }) + "`"$asmName`"]" }, 1)
             [IO.File]::WriteAllText($asmdef, $asmText, (New-Object System.Text.UTF8Encoding $false))
         }
     }
@@ -236,7 +276,16 @@ if (-not $NoSetup) {
             if (Test-Path -LiteralPath $log) { Get-Content -LiteralPath $log -Tail 30 | ForEach-Object { Write-Host "    $_" } }
             throw "ProjectSetup did not finish within $SetupTimeoutMinutes min; Unity was killed. See $log"
         }
-        if ($run.ExitCode -ne 0) { throw "ProjectSetup failed (exit $($run.ExitCode)). See $log" }
+        if ($run.ExitCode -ne 0) {
+            # usually a compile error in project\ or a pack (batch mode exits 1 on it): show the errors and the tail
+            # here, so the caller does not have to search a log of several MB
+            if (Test-Path -LiteralPath $log) {
+                $errors = @(Select-String -LiteralPath $log -Pattern 'error CS\d+|Shader error in' | Select-Object -First 10 | ForEach-Object Line)
+                if ($errors) { Write-Host '    Errors:'; $errors | ForEach-Object { Write-Host "    $_" } }
+                Write-Host '    Log tail:'; Get-Content -LiteralPath $log -Tail 30 | ForEach-Object { Write-Host "    $_" }
+            }
+            throw "ProjectSetup failed (exit $($run.ExitCode)). See $log"
+        }
         Write-Host "    done, log: $log"
     } else {
         Write-Warning "Unity not found at $Unity. Open the project in Unity and run 'GameKit > Set Up Project'."
@@ -274,16 +323,30 @@ if (-not $NoGit) {
     }
     # sync.sh reads the pack list from this line; without it it guesses from which pack files still exist
     $packsNote = if ($Packs) { "`n`nPacks: $($Packs -join ', ')" } else { '' }
-    git -C $dest commit -q -m "Start $Name from $marker$packsNote$templateNote"
-    if ($LASTEXITCODE -ne 0) { throw "git commit failed ($LASTEXITCODE)." }
+    # from a file (UTF-8, LF), not -m: PowerShell 5.1 passes the quotes porcelain puts around a path with spaces
+    # unescaped, so an inline message splits into pathspecs and the commit fails after the copy and the setup run
+    $msgFile = Join-Path $dest '.git\GK_START_MSG'
+    [IO.File]::WriteAllText($msgFile, "Start $Name from $marker$packsNote$templateNote`n", $utf8)
+    git -C $dest commit -q -F $msgFile
+    $commitExit = $LASTEXITCODE
+    Remove-Item -LiteralPath $msgFile -ErrorAction SilentlyContinue
+    if ($commitExit -ne 0) { throw "git commit failed ($commitExit)." }
     # enabled after the first commit: with -NoSetup a pack's scripts have no .meta yet, and the hook would refuse it
     git -C $dest config core.hooksPath .githooks
     Write-Host '    first commit made on main; the .meta pre-commit hook is on'
     if ($GitHub) {
-        # a failure here leaves a complete local game, so warn with the retry instead of throwing
-        gh repo create $Name --private --source $dest --remote origin --push
+        # a failure here leaves a complete local game, so warn with the retry instead of throwing. gh prefers
+        # GH_TOKEN/GITHUB_TOKEN over the `gh auth login` credentials, and the read-only token for plugin updates
+        # (README.md, token conflict) would get a 403: both are cleared for this call (and its git push) only
+        $tokens = @{ GITHUB_TOKEN = $env:GITHUB_TOKEN; GH_TOKEN = $env:GH_TOKEN }
+        try {
+            $env:GITHUB_TOKEN = $null; $env:GH_TOKEN = $null
+            gh repo create $Name --private --source $dest --remote origin --push
+        } finally {
+            foreach ($k in $tokens.Keys) { [Environment]::SetEnvironmentVariable($k, $tokens[$k], 'Process') }
+        }
         if ($LASTEXITCODE -ne 0) {
-            Write-Warning "GitHub repo not created; the game is ready locally. Retry: gh repo create $Name --private --source `"$dest`" --remote origin --push"
+            Write-Warning "GitHub repo not created; the game is ready locally. Retry: `$env:GITHUB_TOKEN = `$null; `$env:GH_TOKEN = `$null; gh repo create $Name --private --source `"$dest`" --remote origin --push"
         } else {
             Write-Host "    pushed main to a private GitHub repo: $Name"
         }
@@ -293,7 +356,7 @@ if (-not $NoGit) {
 
 Write-Host "6/6 Ready: $dest"
 Write-Host '    Open it in Unity Hub (Add > Add project from disk), then start Claude Code in that folder.'
-Write-Host '    Fill in the TODO lines in CLAUDE.md and DESIGN.md first.'
+Write-Host '    First step there: /gamekit:new-game shape (it fills in the TODO lines in CLAUDE.md and DESIGN.md with you).'
 Write-Host '    How to work with Claude: REHBER.md.'
 
 # robocopy leaves 1-7 in $LASTEXITCODE on success; do not let that become the script's exit code
