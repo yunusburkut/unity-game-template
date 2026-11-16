@@ -10,14 +10,15 @@ using UnityEngine.SceneManagement;
 namespace GameKit
 {
     /// <summary>
-    /// Frame-time log for development players (PC and phone): it makes itself, writes one CSV line per
-    /// second to <c>persistentDataPath/frame-log-*.csv</c> and shows fps, frame times, GC, draw/SetPass and
+    /// Frame-time log for development players: it makes itself, writes one CSV line per second to
+    /// <c>persistentDataPath/frame-log-*.csv</c> on PC and phone (not on WebGL, which keeps only the overlay) and shows fps, frame times, GC, draw/SetPass and
     /// CPU/GPU ms on F3 or a three-finger tap (position and memory are CSV-only).
     /// <para>
     /// A line holds the second's average FPS, the p99 frame of the last 10 s, the second's worst frame and how
     /// many of its frames ran past 17 ms, the
     /// scene and camera position at the worst frame (where to go and look), GC bytes per frame, draw
-    /// calls, SetPass calls, CPU and GPU ms (gpu reads 0 where the graphics API has no timer queries), and
+    /// calls, SetPass calls, the second's average CPU main-thread work ms (without the Present / vSync wait, so a capped
+    /// frame rate does not hide the load) and GPU frame ms (gpu reads 0 where the graphics API has no timer queries), and
     /// system-used and GC-reserved memory in MB.
     /// p99 spans 10 s because one second holds about 60 frames at 60 fps, where the 99th percentile is the
     /// worst frame itself: p99_ms is the sustained tail (the 6th-worst of 600 frames), max_ms the single
@@ -65,6 +66,9 @@ namespace GameKit
         int _slow;
         long _gcBytes;
         int _gcFrames;
+        double _cpuMs;
+        double _gpuMs;
+        int _timedFrames;
         Camera _camera;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -84,10 +88,17 @@ namespace GameKit
             _sysMem = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "System Used Memory");
             _gcReserved = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Reserved Memory");
 
-            var path = Path.Combine(Application.persistentDataPath, $"frame-log-{DateTime.Now:yyyyMMdd-HHmmss}.csv");
-            _file = new StreamWriter(path, false, Encoding.UTF8) { AutoFlush = true };
-            _file.WriteLine(Header);
-            Debug.Log($"FrameLog: {path} (F3 or a three-finger tap shows the numbers)");
+            // WebGL's persistentDataPath is the browser's IndexedDB file system: a CSV there could not be opened, so a
+            // WebGL development build keeps only the overlay
+            if (Application.platform == RuntimePlatform.WebGLPlayer)
+                Debug.Log("FrameLog: no CSV on WebGL (F3 or a three-finger tap shows the numbers)");
+            else
+            {
+                var path = Path.Combine(Application.persistentDataPath, $"frame-log-{DateTime.Now:yyyyMMdd-HHmmss}.csv");
+                _file = new StreamWriter(path, false, Encoding.UTF8) { AutoFlush = true };
+                _file.WriteLine(Header);
+                Debug.Log($"FrameLog: {path} (F3 or a three-finger tap shows the numbers)");
+            }
 
             // IMGUI dispatches its events every frame to any enabled component with OnGUI, so the overlay is its own
             // component, enabled only while shown: a hidden overlay adds nothing to the frames being measured
@@ -139,6 +150,18 @@ namespace GameKit
                 if (_camera != null) _worstAt = _camera.transform.position;
             }
 
+            // every frame, so cpu_ms and gpu_ms are the second's average like fps; the latest timing Unity has
+            // is a few frames old (the GPU finishes later), so a window lags by those frames
+            FrameTimingManager.CaptureFrameTimings();
+            if (FrameTimingManager.GetLatestTimings(1, _timing) > 0)
+            {
+                // main-thread work without its wait for Present (vSync, a full GPU queue); cpuFrameTime also
+                // counts the targetFrameRate / vSync wait, so a capped phone would read ~16.7 ms whatever the load
+                _cpuMs += _timing[0].cpuMainThreadFrameTime - _timing[0].cpuMainThreadPresentWaitTime;
+                _gpuMs += _timing[0].gpuFrameTime;
+                _timedFrames++;
+            }
+
             if (_gc.Valid)
             {
                 if (_skipGc) _skipGc = false;
@@ -154,36 +177,27 @@ namespace GameKit
             _window = (_window + 1) % RecentWindows;
             int n = 0;
             foreach (int frames in _windowCounts) n += frames;
-            n = Mathf.Min(n, _recentFilled);
-            // the newest n frames end just before _recentNext and may wrap round the ring
-            int start = (_recentNext - n + RecentCapacity) % RecentCapacity;
-            int head = Mathf.Min(n, RecentCapacity - start);
-            Array.Copy(_recent, start, _sorted, 0, head);
-            Array.Copy(_recent, 0, _sorted, head, n - head);
-            Array.Sort(_sorted, 0, n);
-            var p99 = _sorted[Mathf.Min(n - 1, (int)(n * 0.99f))];
+            var p99 = P99(_recent, _recentNext, Mathf.Min(n, _recentFilled), _sorted);
             var fps = _count / _windowTime;
             var gcPerFrame = _gcFrames > 0 ? _gcBytes / _gcFrames : 0;
 
-            double cpu = 0, gpu = 0;
-            FrameTimingManager.CaptureFrameTimings();
-            if (FrameTimingManager.GetLatestTimings(1, _timing) > 0)
-            {
-                cpu = _timing[0].cpuFrameTime;
-                gpu = _timing[0].gpuFrameTime;
-            }
+            double cpu = _timedFrames > 0 ? _cpuMs / _timedFrames : 0;
+            double gpu = _timedFrames > 0 ? _gpuMs / _timedFrames : 0;
 
-            _line.Clear()
-                .Append(_total.ToString("F1", Inv)).Append(',').Append(_scene).Append(',')
-                .Append(fps.ToString("F1", Inv)).Append(',').Append(p99.ToString("F1", Inv)).Append(',')
-                .Append(_worstMs.ToString("F1", Inv)).Append(',').Append(_slow).Append(',')
-                .Append(_worstAt.x.ToString("F1", Inv)).Append(',').Append(_worstAt.y.ToString("F1", Inv)).Append(',')
-                .Append(_worstAt.z.ToString("F1", Inv)).Append(',')
-                .Append(gcPerFrame).Append(',').Append(_draws.LastValue).Append(',').Append(_setPass.LastValue).Append(',')
-                .Append(cpu.ToString("F1", Inv)).Append(',').Append(gpu.ToString("F1", Inv)).Append(',')
-                .Append((_sysMem.LastValue / 1048576f).ToString("F0", Inv)).Append(',')
-                .Append((_gcReserved.LastValue / 1048576f).ToString("F0", Inv));
-            _file.WriteLine(_line.ToString());
+            if (_file != null)
+            {
+                _line.Clear()
+                    .Append(_total.ToString("F1", Inv)).Append(',').Append(_scene).Append(',')
+                    .Append(fps.ToString("F1", Inv)).Append(',').Append(p99.ToString("F1", Inv)).Append(',')
+                    .Append(_worstMs.ToString("F1", Inv)).Append(',').Append(_slow).Append(',')
+                    .Append(_worstAt.x.ToString("F1", Inv)).Append(',').Append(_worstAt.y.ToString("F1", Inv)).Append(',')
+                    .Append(_worstAt.z.ToString("F1", Inv)).Append(',')
+                    .Append(gcPerFrame).Append(',').Append(_draws.LastValue).Append(',').Append(_setPass.LastValue).Append(',')
+                    .Append(cpu.ToString("F1", Inv)).Append(',').Append(gpu.ToString("F1", Inv)).Append(',')
+                    .Append((_sysMem.LastValue / 1048576f).ToString("F0", Inv)).Append(',')
+                    .Append((_gcReserved.LastValue / 1048576f).ToString("F0", Inv));
+                _file.WriteLine(_line.ToString());
+            }
 
             if (_show)
                 _overlay.Text = $"{fps:F0} fps   p99 (10 s) {p99:F1} ms   max {_worstMs:F1} ms   >17ms: {_slow}\n" +
@@ -195,7 +209,27 @@ namespace GameKit
             _worstMs = 0f;
             _gcBytes = 0;
             _gcFrames = 0;
+            _cpuMs = 0;
+            _gpuMs = 0;
+            _timedFrames = 0;
             _skipGc = true;
+        }
+
+        /// <summary>
+        /// The 99th-percentile frame time of the newest <paramref name="count"/> entries of a ring buffer, which end
+        /// just before <paramref name="next"/> and may wrap round it; <paramref name="scratch"/> (as long as the ring)
+        /// is sorted in place. 0 for an empty window.
+        /// </summary>
+        public static float P99(float[] ring, int next, int count, float[] scratch)
+        {
+            count = Mathf.Min(count, ring.Length);
+            if (count <= 0) return 0f;
+            int start = (next - count + ring.Length) % ring.Length;
+            int head = Mathf.Min(count, ring.Length - start);
+            Array.Copy(ring, start, scratch, 0, head);
+            Array.Copy(ring, 0, scratch, head, count - head);
+            Array.Sort(scratch, 0, count);
+            return scratch[Mathf.Min(count - 1, (int)(count * 0.99f))];
         }
     }
 }

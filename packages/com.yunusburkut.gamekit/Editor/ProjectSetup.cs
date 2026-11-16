@@ -18,7 +18,8 @@ namespace GameKit.Editor
     /// without domain or scene reload, a resizable PC window, the WebGL size pass and URP post-processing
     /// stripping, and an empty Main
     /// scene in the build. Safe to run again: the identity, the build defaults, the URP assets and the quality
-    /// levels are written only the first time, so later tuning survives (a pack's
+    /// levels are written only the first time, so later tuning survives; a rerun logs the build settings that differ
+    /// from GameKit's, and GameKit > Apply Build Defaults writes them (a pack's
     /// [ProjectSetupStep] keeps the same promise; mobile-2d converts each renderer list and Main only once).
     /// new-game.ps1 runs it once:
     /// Unity -batchmode -quit -projectPath . -executeMethod GameKit.Editor.ProjectSetup.Run -gameCompany &lt;company&gt;
@@ -45,6 +46,10 @@ namespace GameKit.Editor
 
         const int MobileLevel = 0;
         const int PcLevel = 1;
+        // ConfigureBuildDefaults writes these once and ReportBuildDefaults compares a rerun against them
+        const WebGLCompressionFormat WebGLCompression = WebGLCompressionFormat.Brotli;
+        const string WebGLTemplate = "PROJECT:Responsive";
+        const ManagedStrippingLevel WebGLStripping = ManagedStrippingLevel.High;
 
         [MenuItem("GameKit/Set Up Project")]
         public static void Run()
@@ -52,8 +57,8 @@ namespace GameKit.Editor
             Directory.CreateDirectory(SettingsFolder);
             Directory.CreateDirectory(Path.GetDirectoryName(ScenePath));
             AssetDatabase.Refresh();
+            Warnings = 0;
 
-            bool fresh = PlayerSettings.companyName == "DefaultCompany";
             ConfigurePlayer();
             ConfigureEditor();
 
@@ -61,22 +66,41 @@ namespace GameKit.Editor
                                         softShadows: false, shadowDistance: 25f);
             var pc = CreatePipeline("PC", hdr: true, msaa: 4, shadowResolution: 2048, cascades: 2,
                                     softShadows: true, shadowDistance: 50f);
-            ConfigureQuality(mobile, pc);
-            // after ConfigureQuality: the stripping setting lives in URP's global settings, there once URP is active
-            if (fresh) ConfigureBuildDefaults();
+            // the quality tiers mark the first run, whatever the identity: a menu run without -gameCompany leaves the
+            // company at DefaultCompany, and a rerun must still keep the game's own build settings
+            bool firstRun = ConfigureQuality(mobile, pc);
 
             bool mainReady = CreateMainScene();
 
-            // packs from the template's packs\ add their own steps (mobile-2d swaps in the 2D renderer); they run last
+            // packs from the template's packs\ add their own steps (mobile-2d swaps in the 2D renderer)
             foreach (var step in TypeCache.GetMethodsWithAttribute<ProjectSetupStepAttribute>())
                 step.Invoke(null, null);
 
+            // after ConfigureQuality: the stripping setting lives in URP's global settings, there once URP is active.
+            // After the pack steps: a pack step that locks the orientation gets the PC window that matches it.
+            if (firstRun) ConfigureBuildDefaults();
+            else ReportBuildDefaults();
+
             AssetDatabase.SaveAssets();
-            if (mainReady)
-                Debug.Log("[ProjectSetup] Done: Mobile and PC quality tiers, Input System only, Main scene in the build.");
-            else
+            // "Done:" only with nothing skipped: test-template.ps1 matches it, so a field a Unity or URP update
+            // renamed fails the template check instead of passing as green
+            if (!mainReady)
                 Debug.LogWarning("[ProjectSetup] Done except Main: it was not created or added to the build. "
                     + "Run Set Up Project again and save the open scenes when asked.");
+            else if (Warnings > 0)
+                Debug.LogWarning("[ProjectSetup] Done with " + Warnings + " warning(s) above: those settings were "
+                    + "not written; set them by hand.");
+            else
+                Debug.Log("[ProjectSetup] Done: Mobile and PC quality tiers, Input System only, Main scene in the build.");
+        }
+
+        /// <summary>The warnings the last Run logged: settings it could not write (0 on a clean run).</summary>
+        public static int Warnings { get; private set; }
+
+        static void Warn(string message)
+        {
+            Warnings++;
+            Debug.LogWarning("[ProjectSetup] " + message);
         }
 
         static void ConfigurePlayer()
@@ -87,7 +111,7 @@ namespace GameKit.Editor
                 string company = CommandLineValue("-gameCompany");
                 if (company == null)
                 {
-                    Debug.LogWarning("[ProjectSetup] Company, product and bundle id not set: run with -gameCompany <name> "
+                    Warn("Company, product and bundle id not set: run with -gameCompany <name> "
                         + "(new-game.ps1 does) or set them in Player Settings.");
                 }
                 else
@@ -129,7 +153,7 @@ namespace GameKit.Editor
         }
 
         /// <summary>
-        /// Project-wide build settings, written on a fresh project only, so a game that changes one later (a host
+        /// Project-wide build settings, written on the first run only (the run that writes the quality tiers), so a game that changes one later (a host
         /// without Content-Encoding headers, a lower stripping level after a reflection crash) keeps its choice.
         /// The WebGL part is the size pass Magic Sort and Pixel Volley ship to itch.io with; BuildMenu sets the
         /// per-machine WebGL code optimization on each build.
@@ -138,18 +162,19 @@ namespace GameKit.Editor
         {
             // itch.io serves .br files with Content-Encoding: br, so the browser decompresses them natively and no
             // JavaScript decompressor ships. A host that does not set that header needs decompressionFallback = true.
-            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Brotli;
+            PlayerSettings.WebGL.compressionFormat = WebGLCompression;
             PlayerSettings.WebGL.decompressionFallback = false;
             PlayerSettings.WebGL.dataCaching = true;
             // full-window canvas, so the game fills the itch.io viewport and any iframe it is embedded in
-            PlayerSettings.WebGL.template = "PROJECT:Responsive";
+            PlayerSettings.WebGL.template = WebGLTemplate;
             // the first load is dominated by the download. Code reached only by reflection needs a link.xml entry.
-            PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.WebGL, ManagedStrippingLevel.High);
+            PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.WebGL, WebGLStripping);
 
             // PC: a resizable window in the phone's orientation, so the desktop build shows the same framing as the
             // phone and the player can resize it (Unity's default opens full screen at the desktop resolution).
-            // Written once from the orientation set at this point; a game that locks another orientation later sets
-            // these two sizes with it (platform-targets).
+            // Written once from the orientation set at this point, after the pack steps, so a pack step that locks
+            // the orientation gets its window; a game that locks one later sets these two sizes with it
+            // (platform-targets).
             PlayerSettings.fullScreenMode = FullScreenMode.Windowed;
             PlayerSettings.resizableWindow = true;
             bool portrait = PlayerSettings.defaultInterfaceOrientation == UIOrientation.Portrait
@@ -163,8 +188,44 @@ namespace GameKit.Editor
             if (GraphicsSettings.TryGetRenderPipelineSettings<URPShaderStrippingSetting>(out var stripping))
                 stripping.stripUnusedPostProcessingVariants = true;
             else
-                Debug.LogWarning("[ProjectSetup] URP shader stripping settings not found: unused post-processing "
+                Warn("URP shader stripping settings not found: unused post-processing "
                     + "variants are kept (Project Settings > Graphics > URP > Strip Unused Post Processing Variants).");
+        }
+
+        /// <summary>
+        /// Writes the build defaults on a project set up before they existed (a game made on GameKit 0.1.1 that moved
+        /// its tag), or puts GameKit's back after trying others. Overwrites the game's own choice in those settings.
+        /// </summary>
+        [MenuItem("GameKit/Apply Build Defaults")]
+        public static void ApplyBuildDefaults()
+        {
+            Warnings = 0;
+            ConfigureBuildDefaults();
+            AssetDatabase.SaveAssets();
+            Debug.Log("[ProjectSetup] Build defaults written" + (Warnings > 0 ? " except the ones warned about above." : "."));
+        }
+
+        /// <summary>
+        /// A rerun keeps the game's build settings; it names the ones that differ from ConfigureBuildDefaults, so a
+        /// game set up before a default existed sees what it missed. Deliberate choices are not warnings.
+        /// </summary>
+        static void ReportBuildDefaults()
+        {
+            var differ = new System.Collections.Generic.List<string>();
+            void Check(string name, object value, object gameKit)
+            {
+                if (!Equals(value, gameKit)) differ.Add(name + " " + value + " (GameKit: " + gameKit + ")");
+            }
+            Check("WebGL compression", PlayerSettings.WebGL.compressionFormat, WebGLCompression);
+            Check("WebGL template", PlayerSettings.WebGL.template, WebGLTemplate);
+            Check("WebGL stripping", PlayerSettings.GetManagedStrippingLevel(NamedBuildTarget.WebGL), WebGLStripping);
+            Check("PC window", PlayerSettings.fullScreenMode, FullScreenMode.Windowed);
+            Check("PC resizable window", PlayerSettings.resizableWindow, true);
+            if (GraphicsSettings.TryGetRenderPipelineSettings<URPShaderStrippingSetting>(out var stripping))
+                Check("URP strip unused post-processing variants", stripping.stripUnusedPostProcessingVariants, true);
+            if (differ.Count > 0)
+                Debug.Log("[ProjectSetup] Kept this game's build settings, which differ from GameKit's defaults: "
+                    + string.Join("; ", differ) + ". GameKit > Apply Build Defaults writes GameKit's.");
         }
 
         static string CommandLineValue(string name)
@@ -227,7 +288,8 @@ namespace GameKit.Editor
         /// Written once: a project whose level 0 is already "Mobile" keeps its own tuning, except a pipeline
         /// reference left empty (a deleted URP asset that the rerun created again) is pointed at the tier's asset.
         /// </summary>
-        static void ConfigureQuality(UniversalRenderPipelineAsset mobile, UniversalRenderPipelineAsset pc)
+        /// <returns>True when this run wrote the tiers: the project's first run.</returns>
+        static bool ConfigureQuality(UniversalRenderPipelineAsset mobile, UniversalRenderPipelineAsset pc)
         {
             var quality = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/QualitySettings.asset")[0]);
             var levels = quality.FindProperty("m_QualitySettings");
@@ -238,7 +300,7 @@ namespace GameKit.Editor
                 RepointIfEmpty(levels.GetArrayElementAtIndex(MobileLevel), mobile);
                 if (levels.arraySize > PcLevel) RepointIfEmpty(levels.GetArrayElementAtIndex(PcLevel), pc);
                 quality.ApplyModifiedPropertiesWithoutUndo();
-                return;
+                return false;
             }
 
             GraphicsSettings.defaultRenderPipeline = pc;
@@ -257,7 +319,7 @@ namespace GameKit.Editor
             quality.FindProperty("m_CurrentQuality").intValue = PcLevel;
 
             var perPlatform = quality.FindProperty("m_PerPlatformDefaultQuality");
-            if (perPlatform == null) Debug.LogWarning("[ProjectSetup] m_PerPlatformDefaultQuality not found: set each "
+            if (perPlatform == null) Warn("m_PerPlatformDefaultQuality not found: set each "
                 + "platform's default quality level by hand (Project Settings > Quality).");
             else
             for (int i = 0; i < perPlatform.arraySize; i++)
@@ -269,6 +331,7 @@ namespace GameKit.Editor
             }
 
             quality.ApplyModifiedPropertiesWithoutUndo();
+            return true;
         }
 
         static void SetLevel(SerializedProperty level, string name, RenderPipelineAsset pipeline, int vSyncCount,
@@ -304,7 +367,7 @@ namespace GameKit.Editor
         static void Write(SerializedProperty property, string name, System.Action<SerializedProperty> write)
         {
             if (property != null) write(property);
-            else Debug.LogWarning("[ProjectSetup] serialized field " + name + " not found (renamed by a Unity or URP "
+            else Warn("serialized field " + name + " not found (renamed by a Unity or URP "
                 + "update?): set it by hand and update ProjectSetup.");
         }
 

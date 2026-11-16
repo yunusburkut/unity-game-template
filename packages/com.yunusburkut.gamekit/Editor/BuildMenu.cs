@@ -89,7 +89,14 @@ namespace GameKit.Editor
             bool startCustomKeystore = PlayerSettings.Android.useCustomKeystore;
             var startCompression = PlayerSettings.WebGL.compressionFormat;
 
-            BuildReport report;
+            bool debugSigned = DebugSigns(target, appBundle, startCustomKeystore, Application.isBatchMode,
+                !string.IsNullOrEmpty(PlayerSettings.Android.keystorePass) &&
+                !string.IsNullOrEmpty(PlayerSettings.Android.keyaliasPass));
+
+            BuildReport report = null;
+            string thrown = null;
+            string symbols = null;
+            var symbolSettings = appBundle ? AndroidDebugSymbols.Read() : null;
             try
             {
                 if (target == BuildTarget.Android) EditorUserBuildSettings.buildAppBundle = appBundle;
@@ -97,10 +104,8 @@ namespace GameKit.Editor
                 // slow Brotli pass; the project's own format (ProjectSetup: Brotli for itch.io) is put back below
                 if (target == BuildTarget.WebGL && development)
                     PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
-                // a batch run (CI) has no keystore passwords, so a test APK is debug-signed instead of failing; the
-                // store AAB keeps the release keystore
-                if (target == BuildTarget.Android && !appBundle && Application.isBatchMode)
-                    PlayerSettings.Android.useCustomKeystore = false;
+                if (debugSigned) PlayerSettings.Android.useCustomKeystore = false;
+                if (appBundle) symbols = AndroidDebugSymbols.ForStore(symbolSettings);
                 report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
                 {
                     scenes = scenes.ToArray(),
@@ -110,11 +115,24 @@ namespace GameKit.Editor
                     options = development ? BuildOptions.Development | BuildOptions.ConnectWithProfiler : BuildOptions.None,
                 });
             }
+            catch (System.Exception e)
+            {
+                thrown = e.GetType().Name + ": " + e.Message;
+            }
             finally
             {
                 EditorUserBuildSettings.buildAppBundle = startAppBundle;
                 PlayerSettings.Android.useCustomKeystore = startCustomKeystore;
                 PlayerSettings.WebGL.compressionFormat = startCompression;
+                AndroidDebugSymbols.Restore(symbolSettings);
+            }
+            if (thrown != null)
+            {
+                // after the restore: Finish exits a batch run. Every caller (menu, -executeMethod, AgentBridge) gets the
+                // same build.log contract: FAILED, never the previous build's text, and the Editor back on its own target
+                SwitchBack(startGroup, startTarget, target);
+                Finish(target, "FAILED  " + target + ": " + thrown + "\n", false);
+                return;
             }
 
             var summary = report.summary;
@@ -136,6 +154,9 @@ namespace GameKit.Editor
                 // fresh Editor session needs them typed in again (Player Settings > Publishing Settings)
                 if (appBundle && !PlayerSettings.Android.useCustomKeystore)
                     text.Append("WARNING debug-signed: Google Play will reject this AAB, set a keystore in Publishing Settings\n");
+                if (debugSigned)
+                    text.Append("signing debug key: no keystore passwords in this session (fine for a test APK)\n");
+                if (symbols != null) text.Append("debug symbols ").Append(symbols).Append('\n');
             }
             foreach (var step in report.steps)
             foreach (var message in step.messages)
@@ -144,11 +165,70 @@ namespace GameKit.Editor
                     (message.type == LogType.Warning && message.content.IndexOf("16 KB", System.StringComparison.OrdinalIgnoreCase) >= 0))
                     text.Append('[').Append(step.name).Append("] ").Append(message.content).Append('\n');
 
-            // a batch build exits right after, so switching back would only cost a reimport
+            SwitchBack(startGroup, startTarget, target);
+            Finish(target, text.ToString(), summary.result == BuildResult.Succeeded);
+        }
+
+        /// <summary>
+        /// True when an Android build signs with the debug key instead of the project's keystore. A batch run (CI) has
+        /// no keystore passwords, and neither has an Editor session where no one typed them (Unity does not save
+        /// them, so the agent's `build android` hits this): a test APK is debug-signed instead of failing at signing.
+        /// The store AAB always keeps the release keystore.
+        /// </summary>
+        public static bool DebugSigns(BuildTarget target, bool appBundle, bool customKeystore, bool batch,
+                                      bool passwordsTyped) =>
+            target == BuildTarget.Android && !appBundle && customKeystore && (batch || !passwordsTyped);
+
+        /// <summary>
+        /// Play Console flags an AAB without native debug symbols, and IL2CPP crashes and ANRs then show up
+        /// unsymbolicated in Android vitals. The store AAB carries the symbol table inside the bundle, where Play
+        /// picks it up with the upload; a game that already asks for Full keeps it, and a separate zip it asked for
+        /// stays too where the format is a flag set.
+        /// The setting lives in the per-machine Android build settings, in the Android module's own DLL, so it is
+        /// reached by reflection (a direct reference would stop this assembly compiling without that module), set for
+        /// the build and put back after it.
+        /// </summary>
+        static class AndroidDebugSymbols
+        {
+            const BindingFlags Static = BindingFlags.Public | BindingFlags.Static;
+            // UnityEditor.Android.UserBuildSettings.DebugSymbols (6000.6): level (Unity.Android.Types.DebugSymbolLevel:
+            // None, SymbolTable, Full) and format (Unity.Android.Types.DebugSymbolFormat: Zip, IncludeInBundle, ...)
+            static readonly System.Type Settings =
+                System.Type.GetType("UnityEditor.Android.UserBuildSettings+DebugSymbols, UnityEditor.Android.Extensions");
+            static PropertyInfo Level => Settings?.GetProperty("level", Static);
+            static PropertyInfo Format => Settings?.GetProperty("format", Static);
+
+            /// <summary>The current level and format, or null when the API is not there (no Android module).</summary>
+            public static object[] Read() =>
+                Level == null || Format == null ? null : new[] { Level.GetValue(null), Format.GetValue(null) };
+
+            /// <summary>Sets the store defaults on top of <paramref name="start"/>; returns the build.log line.</summary>
+            public static string ForStore(object[] start)
+            {
+                if (start == null) return "not set: UnityEditor.Android.UserBuildSettings.DebugSymbols not found";
+                if (start[0].ToString() == "None") Level.SetValue(null, System.Enum.Parse(Level.PropertyType, "SymbolTable"));
+                var format = Format.PropertyType;
+                object inBundle = System.Enum.Parse(format, "IncludeInBundle");
+                if (format.IsDefined(typeof(System.FlagsAttribute), false))
+                    Format.SetValue(null, System.Enum.ToObject(format,
+                        System.Convert.ToInt64(start[1]) | System.Convert.ToInt64(inBundle)));
+                else Format.SetValue(null, inBundle);
+                return Level.GetValue(null) + ", " + Format.GetValue(null);
+            }
+
+            public static void Restore(object[] start)
+            {
+                if (start == null) return;
+                Level.SetValue(null, start[0]);
+                Format.SetValue(null, start[1]);
+            }
+        }
+
+        // a batch build exits right after, so switching back would only cost a reimport
+        static void SwitchBack(BuildTargetGroup startGroup, BuildTarget startTarget, BuildTarget target)
+        {
             if (startTarget != target && !Application.isBatchMode)
                 EditorUserBuildSettings.SwitchActiveBuildTarget(startGroup, startTarget);
-
-            Finish(target, text.ToString(), summary.result == BuildResult.Succeeded);
         }
 
         static string OutputPath(BuildTarget target, bool appBundle)

@@ -44,11 +44,18 @@ namespace GameKit.Editor
         const string CaptureErrorsKey = "AgentBridge.CaptureErrors";
         const char CaptureErrorSeparator = '\u001e'; // ASCII record separator: never in a log message
         const string CompileRanKey = "AgentBridge.CompileRan";
+        const string CompileLinesKey = "AgentBridge.CompileLines";
         const string SessionStartedKey = "AgentBridge.SessionStarted";
         const string RefreshAckKey = "AgentBridge.RefreshAck";
         const string PendingBuildKey = "AgentBridge.PendingBuild";
         const string PlayerCheckedKey = "AgentBridge.PlayerChecked";
+        const string CapturePlayAskedKey = "AgentBridge.CapturePlayAsked";
+        const string RunInBackgroundKey = "AgentBridge.RunInBackground"; // 0 none kept, 1 false, 2 true
         const double RefreshSettle = 2.0;
+        // a script newer than compile.log waits this much longer once: a large project's compile can start late
+        const double RefreshSlowSettle = 8.0;
+        // from the first Play Mode request after the last compile: a capture Unity keeps refusing ends FAILED
+        const double PlayModeStartTimeout = 30.0;
         const float DefaultCaptureSeconds = 3f;
 
         const int ConsoleCapacity = 200;
@@ -70,12 +77,13 @@ namespace GameKit.Editor
         static double _nextFlush;
         static double _nextPoll;
         static double _refreshAckAt;
+        static bool _refreshExtended;
         static double _buildNotBefore;
+        static double _captureNotBefore;
         static TestRunnerApi _testApi;
         static bool _capturing;
         // a capture's errors start counting before Play Mode starts, so the ones the scene's Awake throws count too
         static volatile bool _capturePending;
-        static bool _runInBackground;
         static double _captureStart;
         static float _captureSeconds;
         static int _shotsTaken;
@@ -105,6 +113,12 @@ namespace GameKit.Editor
             bool editorStarted = !SessionState.GetBool(SessionStartedKey, false);
             _reportPending = SessionState.GetBool(CompileRanKey, false) || editorStarted;
             SessionState.SetBool(SessionStartedKey, true);
+            // A clean compile reloads the domain before the report is written, and the statics go with it: its
+            // warnings come back from SessionState (KeepAcrossReload), or compile.log would read a bare OK.
+            string keptCompile = SessionState.GetString(CompileLinesKey, "");
+            SessionState.EraseString(CompileLinesKey);
+            if (_reportPending && keptCompile.Length > 0)
+                lock (Gate) CompileLines.AddRange(keptCompile.Split(CaptureErrorSeparator));
 
             // A restart clears SessionState, so a refresh or build the last session left open would never be answered.
             if (editorStarted)
@@ -125,11 +139,20 @@ namespace GameKit.Editor
             _capturePending = SessionState.GetFloat(CapturePendingKey, 0f) > 0f;
             // A capture's errors from before a reload (the refresh's compile, entering Play Mode with domain reload on)
             // come back from SessionState, so capture.log holds every error since the request.
-            AssemblyReloadEvents.beforeAssemblyReload += KeepCaptureErrors;
+            AssemblyReloadEvents.beforeAssemblyReload += KeepAcrossReload;
             string kept = SessionState.GetString(CaptureErrorsKey, "");
             SessionState.EraseString(CaptureErrorsKey);
-            if (_capturePending && kept.Length > 0)
+            // A reload after the capture started (a script saved mid-Play with Unity's default "Recompile And Continue
+            // Playing") lost its state, which lives in statics: close it, or capture.log stays PENDING and gk-bridge
+            // refuses every request until a restart.
+            bool captureLost = !editorStarted && !_capturePending && FirstLineStarts(CapturePath, "PENDING");
+            if ((_capturePending || captureLost) && kept.Length > 0)
                 lock (Gate) CaptureErrors.InsertRange(0, kept.Split(CaptureErrorSeparator));
+            if (captureLost)
+            {
+                RestoreRunInBackground();
+                WriteCaptureReport("STOPPED", "a domain reload (script recompile) ended the capture; capture again");
+            }
 
             // A reload that was no compile (entering Play Mode) inside a refresh's settle time lost its timer; restart it.
             if (SessionState.GetBool(RefreshAckKey, false) && !SessionState.GetBool(CompileRanKey, false))
@@ -145,12 +168,16 @@ namespace GameKit.Editor
             }
         }
 
-        static void KeepCaptureErrors()
+        static void KeepAcrossReload()
         {
-            if (!_capturePending) return;
             lock (Gate)
-                if (CaptureErrors.Count > 0)
+            {
+                // the reload that ends a clean compile: its warnings are reported after it
+                if (SessionState.GetBool(CompileRanKey, false) && CompileLines.Count > 0)
+                    SessionState.SetString(CompileLinesKey, string.Join(CaptureErrorSeparator.ToString(), CompileLines));
+                if (_capturePending && CaptureErrors.Count > 0)
                     SessionState.SetString(CaptureErrorsKey, string.Join(CaptureErrorSeparator.ToString(), CaptureErrors));
+            }
         }
 
         // ---- compilation ----
@@ -159,6 +186,7 @@ namespace GameKit.Editor
         {
             if (_compilingPlayer) return; // a player-script check is not the Editor's compile
             SessionState.SetBool(CompileRanKey, true);
+            SessionState.EraseFloat(CapturePlayAskedKey); // a pending capture's Play Mode wait starts after this compile
             SessionState.EraseBool(PlayerCheckedKey); // this compile overwrites the flag a check left
             lock (Gate)
             {
@@ -184,14 +212,18 @@ namespace GameKit.Editor
                     int errors = 0;
                     for (int i = 0; i < CompileLines.Count; i++)
                     {
-                        if (CompileLines[i].IndexOf("): error ", StringComparison.Ordinal) >= 0) errors++;
+                        if (IsError(CompileLines[i])) errors++;
                     }
 
                     Builder.Append(errors).Append(" error(s), ")
                            .Append(CompileLines.Count - errors).Append(" warning(s)  ")
                            .Append(Timestamp()).Append('\n');
 
-                    for (int i = 0; i < CompileLines.Count; i++) Builder.Append(CompileLines[i]).Append('\n');
+                    // errors first, so the head of the log (what gk-bridge prints) holds what to fix
+                    for (int i = 0; i < CompileLines.Count; i++)
+                        if (IsError(CompileLines[i])) Builder.Append(CompileLines[i]).Append('\n');
+                    for (int i = 0; i < CompileLines.Count; i++)
+                        if (!IsError(CompileLines[i])) Builder.Append(CompileLines[i]).Append('\n');
                 }
             }
 
@@ -204,6 +236,7 @@ namespace GameKit.Editor
 
         static void AckRefresh(string outcome)
         {
+            _refreshExtended = false;
             SessionState.EraseBool(RefreshAckKey);
             WriteAllText(BridgePath, "REFRESHED  " + Timestamp() + "  " + outcome + "\n");
         }
@@ -227,6 +260,8 @@ namespace GameKit.Editor
         static bool IsCompilerMessage(string message) =>
             message.IndexOf("): error CS", StringComparison.Ordinal) >= 0 ||
             message.IndexOf("): warning CS", StringComparison.Ordinal) >= 0;
+
+        static bool IsError(string compilerLine) => compilerLine.IndexOf("): error ", StringComparison.Ordinal) >= 0;
 
         // ---- console ----
 
@@ -258,7 +293,15 @@ namespace GameKit.Editor
                         return;
                     }
                     if (CompileLines.Contains(condition)) return; // Unity repeats each message per target
-                    if (CompileLines.Count == CompileCapacity) return; // keep the first ones, usually the cause
+                    if (CompileLines.Count == CompileCapacity)
+                    {
+                        // keep the first ones, usually the cause; an error still takes the place of the last warning
+                        // kept, so a full recompile's vendored warnings cannot push every error out
+                        if (!IsError(condition)) return;
+                        int warning = CompileLines.FindLastIndex(kept => !IsError(kept));
+                        if (warning < 0) return;
+                        CompileLines.RemoveAt(warning);
+                    }
                     CompileLines.Add(condition);
                     _reportPending = true;
                 }
@@ -326,14 +369,25 @@ namespace GameKit.Editor
                 return;
             }
 
-            // A refresh whose compile has not started within the settle time changed no script.
+            // A refresh whose compile has not started within the settle time changed no script. A script newer than
+            // compile.log (gk-bridge's own freshness test) waits once more, since a large project's compile can start
+            // late. Ceiling: a compile that starts after both waits, or a file touched without a change (no compile
+            // follows, so each refresh pays the second wait until the next compile), still reads as no script changes.
             if (_refreshAckAt > 0 && now >= _refreshAckAt)
             {
                 _refreshAckAt = 0;
                 if (SessionState.GetBool(RefreshAckKey, false))
                 {
-                    ReportSilentFailure();
-                    AckRefresh("no script changes");
+                    if (!_refreshExtended && ScriptNewerThanCompileLog())
+                    {
+                        _refreshExtended = true;
+                        _refreshAckAt = now + RefreshSlowSettle;
+                    }
+                    else
+                    {
+                        ReportSilentFailure();
+                        AckRefresh("no script changes");
+                    }
                 }
             }
 
@@ -349,7 +403,8 @@ namespace GameKit.Editor
             // A refresh's settle time holds the next request too, until its compile starts or the time runs out (the
             // timer always clears itself above, so nothing waits on it for good). So does a capture from its request to
             // its report: a test run or a compile check inside it would cut its Play Mode short or hitch its shots
-            // (a capture always ends: compile failed, its report, the user leaving Play Mode, or a restart).
+            // (a capture always ends: compile failed, its report, the user leaving Play Mode, Play Mode not starting
+            // within PlayModeStartTimeout, a domain reload mid-capture, or a restart).
             if (pendingBuild.Length > 0 || _refreshAckAt > 0 || EditorApplication.isUpdating || !File.Exists(RequestPath) ||
                 TestRunOpen() || _capturing || SessionState.GetFloat(CapturePendingKey, 0f) > 0f) return;
 
@@ -362,9 +417,9 @@ namespace GameKit.Editor
                 File.Delete(RequestPath);
                 if (request.Length == 0) return;
             }
-            catch (IOException)
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
             {
-                return; // still being written; retry next poll
+                return; // still being written (or held by a sync tool or antivirus); retry next poll
             }
 
             HandleRequest(request);
@@ -392,6 +447,7 @@ namespace GameKit.Editor
                 }
                 WriteAllText(BridgePath, "REFRESHING  " + Timestamp() + "\n");
                 SessionState.SetBool(RefreshAckKey, true);
+                _refreshExtended = false;
                 AssetDatabase.Refresh();
                 // Timed from the end of the import, so a slow one does not use up the wait for its compile.
                 _refreshAckAt = EditorApplication.timeSinceStartup + RefreshSettle;
@@ -442,7 +498,7 @@ namespace GameKit.Editor
             }
 
             WriteAllText(BridgePath, "Unknown request: '" + request + "'  " + Timestamp() + "\nSupported: refresh, "
-                + "compile ios|android, run-tests [playmode], play-capture [seconds], "
+                + "compile ios|android|webgl, run-tests [playmode], play-capture [seconds], "
                 + "build " + BuildMenu.TargetNames + " [dev]\n");
         }
 
@@ -462,8 +518,8 @@ namespace GameKit.Editor
         }
 
         // ---- player-script check ----
-        // "compile ios|android": compiles the player scripts for that target into Temp/ without switching the active
-        // target, so code behind UNITY_IOS / UNITY_ANDROID is type-checked while the Editor stays on Windows. The
+        // "compile ios|android|webgl": compiles the player scripts for that target into Temp/ without switching the
+        // active target, so code behind UNITY_IOS / UNITY_ANDROID / UNITY_WEBGL is type-checked while the Editor stays on Windows. The
         // compiler's messages arrive on the log stream, which OnLogMessage diverts here.
 
         static void CompilePlayerScripts(string platform)
@@ -472,9 +528,10 @@ namespace GameKit.Editor
             BuildTargetGroup group;
             if (platform == "ios") { target = BuildTarget.iOS; group = BuildTargetGroup.iOS; }
             else if (platform == "android") { target = BuildTarget.Android; group = BuildTargetGroup.Android; }
+            else if (platform == "webgl") { target = BuildTarget.WebGL; group = BuildTargetGroup.WebGL; }
             else
             {
-                WriteAllText(PlayerCompilePath, "Unknown platform '" + platform + "'  " + Timestamp() + "  use ios or android\n");
+                WriteAllText(PlayerCompilePath, "Unknown platform '" + platform + "'  " + Timestamp() + "  use ios, android or webgl\n");
                 return;
             }
 
@@ -547,6 +604,25 @@ namespace GameKit.Editor
             WriteAllText(PlayerCompilePath, sb.ToString());
         }
 
+        /// <summary>
+        /// Batch entry for a CI job or a script, with the Editor closed: <c>Unity -batchmode -projectPath &lt;game&gt; -executeMethod
+        /// GameKit.Editor.AgentBridge.CompilePlayerScriptsBatch -platform ios|android|webgl</c>. Runs the same check as
+        /// "compile &lt;platform&gt;", leaves its report in compile-player.log and exits 0 on OK, 2 on UNSUPPORTED (the
+        /// platform module is not installed: a skip, not a pass) and 1 on anything else. No -quit: it exits itself.
+        /// A caller (test-template.ps1, the ci-github pack's workflow) reads these exit codes: change it with them.
+        /// </summary>
+        static void CompilePlayerScriptsBatch()
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            int at = Array.IndexOf(args, "-platform");
+            string platform = at >= 0 && at + 1 < args.Length ? args[at + 1].Trim().ToLowerInvariant() : "";
+            CompilePlayerScripts(platform);
+            int code = FirstLineStarts(PlayerCompilePath, "OK  ") ? 0 : FirstLineStarts(PlayerCompilePath, "UNSUPPORTED") ? 2 : 1;
+            try { Console.Write(File.ReadAllText(PlayerCompilePath)); } // the report in Unity's -logFile too
+            catch (IOException) { }
+            EditorApplication.Exit(code);
+        }
+
         // ---- play-mode capture ----
         // "play-capture [seconds]": refresh and compile even while the Editor is unfocused, enter Play Mode with
         // runInBackground on (an unfocused Editor would otherwise freeze the game), save three Game view
@@ -564,10 +640,13 @@ namespace GameKit.Editor
             float seconds = float.TryParse(argument, System.Globalization.NumberStyles.Float,
                 System.Globalization.CultureInfo.InvariantCulture, out float parsed) ? parsed : DefaultCaptureSeconds;
             SessionState.SetFloat(CapturePendingKey, Mathf.Clamp(seconds, 1f, 30f));
+            SessionState.EraseFloat(CapturePlayAskedKey);
             lock (Gate) CaptureErrors.Clear();
             _capturePending = true;
             WriteAllText(CapturePath, "PENDING  " + Timestamp() + "\n");
             AssetDatabase.Refresh();
+            // the import's compile can start a few frames later (see refresh): Play Mode waits for it, not old code
+            _captureNotBefore = EditorApplication.timeSinceStartup + RefreshSettle;
         }
 
         static void TickCapture(double now)
@@ -576,11 +655,20 @@ namespace GameKit.Editor
 
             if (pending > 0f && !EditorApplication.isPlayingOrWillChangePlaymode)
             {
+                if (now < _captureNotBefore) return;
                 if (FlagIsEditors ? EditorUtility.scriptCompilationFailed : !CompileLogClean())
                 {
-                    SessionState.EraseFloat(CapturePendingKey);
-                    _capturePending = false;
-                    WriteAllText(CapturePath, "COMPILE FAILED  " + Timestamp() + "  see compile.log\n");
+                    EndPendingCapture("COMPILE FAILED  " + Timestamp() + "  see compile.log\n");
+                    return;
+                }
+                // Unity can keep refusing Play Mode (a playModeStateChanged handler that cancels it, a modal dialog,
+                // a scene that fails to load); without a deadline the capture would hold every request until a restart
+                float asked = SessionState.GetFloat(CapturePlayAskedKey, 0f);
+                if (asked <= 0f) SessionState.SetFloat(CapturePlayAskedKey, (float)now);
+                else if (now - asked > PlayModeStartTimeout)
+                {
+                    EndPendingCapture("FAILED  " + Timestamp() + "  Play Mode did not start within "
+                        + PlayModeStartTimeout + " s (a handler or dialog refused it?): see console.log\n");
                     return;
                 }
                 EditorApplication.isPlaying = true;
@@ -590,10 +678,12 @@ namespace GameKit.Editor
             if (pending > 0f && EditorApplication.isPlaying && !_capturing)
             {
                 SessionState.EraseFloat(CapturePendingKey);
+                SessionState.EraseFloat(CapturePlayAskedKey);
                 Directory.CreateDirectory(CaptureDir);
                 foreach (string old in Directory.GetFiles(CaptureDir, "*.png")) File.Delete(old);
 
-                _runInBackground = Application.runInBackground;
+                // in SessionState, so the reload that loses this capture can still put it back
+                SessionState.SetInt(RunInBackgroundKey, Application.runInBackground ? 2 : 1);
                 Application.runInBackground = true;
                 _captureStart = now;
                 _captureSeconds = pending;
@@ -609,7 +699,7 @@ namespace GameKit.Editor
             {
                 _capturing = false; // the user left Play Mode first
                 _capturePending = false;
-                Application.runInBackground = _runInBackground;
+                RestoreRunInBackground();
                 WriteCaptureReport("STOPPED");
                 return;
             }
@@ -626,21 +716,36 @@ namespace GameKit.Editor
                 _capturing = false;
                 _capturePending = false;
                 WriteCaptureReport(null);
-                Application.runInBackground = _runInBackground;
+                RestoreRunInBackground();
                 EditorApplication.isPlaying = false;
             }
         }
 
+        static void EndPendingCapture(string report)
+        {
+            SessionState.EraseFloat(CapturePendingKey);
+            SessionState.EraseFloat(CapturePlayAskedKey);
+            _capturePending = false;
+            WriteAllText(CapturePath, report);
+        }
+
+        static void RestoreRunInBackground()
+        {
+            int kept = SessionState.GetInt(RunInBackgroundKey, 0);
+            SessionState.EraseInt(RunInBackgroundKey);
+            if (kept > 0) Application.runInBackground = kept == 2;
+        }
+
         static double ShotTime(int index) => index == 0 ? 0.5 : index == 1 ? _captureSeconds * 0.5 : _captureSeconds;
 
-        static void WriteCaptureReport(string status)
+        static void WriteCaptureReport(string status, string why = null)
         {
             var sb = new StringBuilder(1024);
             lock (Gate)
             {
                 sb.Append(status ?? (CaptureErrors.Count == 0 ? "OK" : "ERRORS")).Append("  ")
                   .Append(_shotsTaken).Append(" shot(s), ").Append(CaptureErrors.Count).Append(" error(s)  ")
-                  .Append(Timestamp()).Append('\n');
+                  .Append(Timestamp()).Append(why == null ? "" : "  " + why).Append('\n');
                 for (int i = 0; i < _shotsTaken; i++)
                     sb.Append(CaptureDir).Append("/shot-").Append(i + 1).Append(".png  at ")
                       .Append(ShotTime(i).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)).Append(" s\n");
@@ -678,15 +783,23 @@ namespace GameKit.Editor
                 return;
             }
             WriteAllText(TestsPath, "RUNNING " + mode + "  " + Timestamp() + "\n");
-            _testApi.Execute(new ExecutionSettings(new Filter { testMode = mode }));
+            try
+            {
+                _testApi.Execute(new ExecutionSettings(new Filter { testMode = mode }));
+            }
+            catch (Exception e) // a synchronous throw gets no callback: RUNNING would hold every request for 10 minutes
+            {
+                WriteAllText(TestsPath, "FAILED  " + Timestamp() + "  the test run did not start: " + e.Message + "\n");
+            }
         }
 
-        // A request taken under a running test job (a refresh queued by an edit, a capture) would recompile or enter Play
-        // Mode mid-run, so requests wait in request.txt until RunFinished or OnError rewrites tests.log. Each finished
+        // A request taken under a running test job, the agent's or one started from the Test Runner window (RunStarted),
+        // would recompile (a refresh queued by an edit) or enter Play Mode (a capture) mid-run, so requests wait in request.txt until RunFinished or OnError rewrites tests.log. Each finished
         // test touches tests.log (ResultWriter.TestFinished), so the 10 minutes count from the last progress and a long
         // suite stays open. Ceiling: a run cancelled from the Test Runner window gets no callback (UTF's
         // TestRunnerApi.IsRunActive is internal), so it holds them for 10 minutes after its last test (gk-bridge reads
         // the same write time); one test running over 10 minutes is taken for that, and a restart turns RUNNING into FAILED.
+        // gk-bridge holds for the same time ($hold, plugin/bin/gk-bridge); change both together.
         static bool TestRunOpen() =>
             FirstLineStarts(TestsPath, "RUNNING") && File.GetLastWriteTime(TestsPath) > DateTime.Now.AddMinutes(-10);
 
@@ -694,7 +807,13 @@ namespace GameKit.Editor
         {
             static DateTime _lastBeat;
 
-            public void RunStarted(ITestAdaptor testsToRun) { }
+            // A run started from the Test Runner window (or -runTests) holds requests too: a refresh an edit queued
+            // would otherwise recompile mid-run. RunTests already wrote RUNNING for its own runs.
+            public void RunStarted(ITestAdaptor testsToRun)
+            {
+                if (!FirstLineStarts(TestsPath, "RUNNING"))
+                    WriteAllText(TestsPath, "RUNNING " + testsToRun.TestMode + "  " + Timestamp() + "\n");
+            }
             public void TestStarted(ITestAdaptor test) { }
 
             public void TestFinished(ITestResultAdaptor result)
@@ -794,7 +913,7 @@ namespace GameKit.Editor
                     }
                 }
             }
-            catch (IOException)
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
             {
                 return string.Empty;
             }
@@ -813,10 +932,37 @@ namespace GameKit.Editor
                 using (var reader = new StreamReader(path))
                     return (reader.ReadLine() ?? "").StartsWith(prefix, StringComparison.Ordinal);
             }
-            catch (IOException)
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
             {
-                return false; // missing or locked: nothing left open
+                return false; // missing, locked or denied: nothing left open
             }
+        }
+
+        // gk-bridge's freshness test, mirrored: a .cs/.asmdef/.asmref under Assets (Feel left out) or Packages
+        // written after compile.log
+        static bool ScriptNewerThanCompileLog()
+        {
+            if (!File.Exists(CompilePath)) return false;
+            DateTime compiled = File.GetLastWriteTime(CompilePath);
+            return NewerScript("Assets", compiled) || NewerScript("Packages", compiled);
+        }
+
+        static bool NewerScript(string dir, DateTime than)
+        {
+            try
+            {
+                foreach (string file in Directory.GetFiles(dir))
+                {
+                    string ext = Path.GetExtension(file);
+                    if ((ext == ".cs" || ext == ".asmdef" || ext == ".asmref") && File.GetLastWriteTime(file) > than)
+                        return true;
+                }
+                foreach (string sub in Directory.GetDirectories(dir))
+                    if (!sub.Replace('\\', '/').Equals("Assets/Feel", StringComparison.OrdinalIgnoreCase) && NewerScript(sub, than))
+                        return true;
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException) { }
+            return false;
         }
 
         static void WriteAllText(string path, string contents)
@@ -826,7 +972,7 @@ namespace GameKit.Editor
                 Directory.CreateDirectory(Dir);
                 File.WriteAllText(path, contents);
             }
-            catch (IOException e)
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
             {
                 Debug.LogWarning("[AgentBridge] could not write " + path + ": " + e.Message);
             }
