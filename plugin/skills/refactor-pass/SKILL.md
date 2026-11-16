@@ -117,10 +117,14 @@ edit so each one can be reverted alone.
 On exit 0, check `Logs/agent/compile.log` before the commit, with the rule `pipeline` and `builder`
 use: compare per file by message (the text after `CSxxxx:`), never by line and column, which any
 edit above the call shifts, and never by total count (AgentBridge lists only the latest compile's
-messages, for the assemblies that recompiled). A `warning CS` whose message is not in that file's
-step-0 baseline, in a file this item touched, is the item's to fix before it is committed, like a
-compile failure (CS0618 means it used an obsolete API). Any warning already in the baseline is
-reported, not fixed in the pass: swapping an obsolete API can change behaviour. CS warnings live in
+messages, for the assemblies that recompiled). That last point also limits the step-0 baseline: a
+refresh with no script changes keeps the previous compile's report, so an assembly that did not
+recompile then has no lines in it, and its old warnings look new once this item recompiles it. So
+a `warning CS` whose message is not in that file's step-0 baseline is the item's only when its line
+falls inside one of the item's own hunks (`git diff -U0 -- <file>`, the `+start,count` ranges); it
+is then fixed before the commit, like a compile failure (CS0618 means it used an obsolete API). A
+new-looking warning outside those hunks is a baseline warning the step-0 log missed. Baseline
+warnings are reported, not fixed in the pass: swapping an obsolete API can change behaviour. CS warnings live in
 `compile.log`; `console.log` is only for runtime warnings.
 
 Before each commit, read that item's own diff (`git diff -- <files>`) against the catalog's diff

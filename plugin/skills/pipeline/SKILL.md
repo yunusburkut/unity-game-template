@@ -40,13 +40,7 @@ existing code is a bug or a check, not a spike. "What should we add?" with no fe
 is `gamekit:game-ideas`, and the idea the user picks comes back as the prompt.
 
 Now already holds another card, or a `prototype <Name>: <question>` line (a `gamekit:prototype` spike waiting for its
-verdict): ask whether to finish it (`devam`; a spike: play it, then PROCEED / PIVOT / KILL, `gamekit:prototype`) or
-park it, and never write a card over it. Parking a card commits the card as it stands (ticks included), then puts Now
-back to its TODO line and adds one line to Next, `<goal> - parked, card at <short sha>` (that commit; asking for that
-goal later brings it back from `git show <sha>:PLAN.md`); commit, then write the new card. Parking a prototype line
-commits nothing new and keeps its folder: Now goes back to its TODO line and Next gets the line as it stands (its
-`, first scene was <path>` note included) plus ` - parked, folder kept`; `devam` on that Next line moves it back to
-Now. Then write the new card.
+verdict): never write a card over it; ask finish (`devam`) or park, as `references/parking.md` says (read it then).
 
 ```
 **<goal in one line>** (M|L)
@@ -141,8 +135,9 @@ Per unit, in order:
    - Exit 0: `Logs/agent/compile.log` holds only the latest compile's messages (the assemblies Unity rebuilt, old
      warnings too, at most 100 lines), so it is no baseline. A `warning CS0618` is the unit's failure, fixed like exit
      1, only when its `<file>(<line>,<col>)` falls inside the unit's added or changed lines (the `+` hunks of `git diff
-     -U0 HEAD -- <file>`); any other one was there before: report it, never fix it in the unit (`Assets/Feel` and
-     `Assets/Plugins` are vendored and exempt).
+     -U0 HEAD -- <file>`; a file the unit created is untracked until step 4, so that diff prints nothing for it: every
+     line of a file `git status --porcelain -- <file>` shows as `??` counts as added); any other one was there
+     before: report it, never fix it in the unit (`Assets/Feel` and `Assets/Plugins` are vendored and exempt).
    - Exit 1: fix it; the same error after two fixes: stop and run `gamekit:bug-hunter`.
    - Exit 2: the unit's scene/prefab step (step 1) waits. Commit the code with `Verified: compile unverified
      (<reason>)`, name the waiting step in the body, and leave the unit unticked, so `devam` gates it again; go on only
@@ -178,15 +173,9 @@ run stays unticked and goes to the reviewers as such.
    `unity-performance`); `gamekit:clarity-reviewer` for player-facing text; `gamekit:design-critic` for a level or
    mechanic. Run them in parallel. A unit or a fix that adds or changes player-facing text adds
    `gamekit:clarity-reviewer` from the next round on, even when the first pick left it out.
-   A project agent in the game's `.claude/agents` whose description matches the change joins every round too (when
-   `.claude/agents/net-auditor.md` exists, `net-auditor` for a change that touches Game/Net, a NetworkBehaviour,
-   spawning or a moving device): its brief adds "map each
-   finding to the review rubric's severities and list them in its format", and its findings are scored like any
-   reviewer's. A co-op mechanic card (the game has `.claude/skills/coop-chaos-design`) also runs that skill's gate
-   table on the built mechanic in the main session before round 1, since `design-critic` leaves the ship verdict to
-   it. A failed row whose "Fail means" is "Do not build" or "Fix before building" becomes a [karar] in Next (fix it,
-   or ship with the weakness named) and the card gets no handoff until the user answers; any other failed row is
-   named in the handoff.
+   A game with its own `.claude/agents` (net-auditor) or `.claude/skills/coop-chaos-design`: read
+   `references/project-reviewers.md`; a matching project agent joins every round, and a co-op mechanic card passes
+   that skill's gate table before round 1 (a blocking row holds the handoff).
 2. Brief each one with this text, then the Accept items Verify left open (with their `failed:` / `not run:` reason)
    and every `disputed` line so far:
    ```
@@ -195,7 +184,7 @@ run stays unticked and goes to the reviewers as such.
    a repaired Base>); other commits there are other work.
    Spec card: PLAN.md Now.
    ```
-   A review-only run on other commits changes the Range and Spec lines as the review-only paragraph below says.
+   A review-only run on other commits changes the Range and Spec lines as `references/review-only.md` says.
 3. The score is the rubric's arithmetic (its Score table is the single source of the weights: 10, -3 per [yüksek],
    -1 per [orta]) on each reviewer's listed findings; a different number the reviewer wrote is noted, not used.
 4. Before fixing, write the round into PLAN.md (files survive `/clear`; the fix commit carries it), then fix:
@@ -230,16 +219,8 @@ run stays unticked and goes to the reviewers as such.
    decides: `devam` runs another fix-and-review round, `kabul` runs phase 7 with the open findings left under Known
    issues.
 
-`review et` or `puanla` from the user runs this phase alone: on the range they name, else the card's commits, else the
-commits of the last task. With no card those commits carry no `Card:` line: the key in place of `<Base>` is the parent
-of the range's first commit (`git rev-parse --short=7 <first>~1`), every round's brief names the range as
-`<key>..HEAD` (the reviewed commits plus the fix commits, no grep), and 6.6 writes that range into the commit body.
-When the range is not the card's commits, the brief's spec line reads "Spec: <the user's request, or the task's goal
-from its commit messages>; PLAN.md Now is another task, do not score its Accept items" in place of "Spec card:
-PLAN.md Now", and no Accept items or disputes of that card go with it.
-No phase 7 follows: when a round passes, prune the `review <key>: ` lines by 6.4.3 (its `disputed` and `önceden`
-lines stay), write each [orta] it still lists as one, and, if that changed PLAN.md, commit it as `design: review
-passed` with the range and the scores in the body.
+`review et` or `puanla` from the user runs this phase alone, with no phase 7: read `references/review-only.md` first
+(the range, the key, the brief's spec line and how a passing round ends).
 
 ## 7 Handoff
 

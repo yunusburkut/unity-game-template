@@ -20,8 +20,10 @@ Unity, tests or git commands that change state.
 
 **Level mode.** Read `${CLAUDE_PLUGIN_ROOT}/skills/level-beat-review/references/difficulty-rhythm.md` and follow §C in full: the
 intensity map, the `▁▂▃▄▅` curve, every check in §C.5 against DR01–DR28, the severities and the Turkish report template
-in §C.7. Also check the SKILL's numbers (segment length, tier-1 recovery within 8 s (3–8 s, the SKILL's Recoverable failure row), 240 ms reaction floor, the four-losses
-rule) and its anti-pattern table. If the game has `docs/difficulty-rhythm.md` (coop pack), cite `LBR-DRxx` for the
+in §C.7. Also check every row of the SKILL's "## The numbers" table against the values that row holds today, never
+a remembered one: segment length, the Recoverable failure row (tier-1 recovery within 8 s (3–8 s) today), the
+Reaction floor row (240 ms reaction floor today, owned by `game-feel` `references/numbers.md`), and the four-losses
+rule under it; then its anti-pattern table. Where this line and the table differ, the table wins. If the game has `docs/difficulty-rhythm.md` (coop pack), cite `LBR-DRxx` for the
 plugin catalogue and `doc-DRxx` for the game doc, as the top of the plugin's `references/difficulty-rhythm.md` says;
 never a bare `DRxx`.
 
@@ -42,7 +44,8 @@ the mechanic against these gates, in order:
 6. **Both targets**: does it work by pointer (touch and mouse) with no key-only path, inside the safe area, at the
    phone frame rate (`platform-targets`)?
 7. **If the game is multiplayer**: can one player do alone what it claims needs two; can one player stall the group;
-   is every failure attributable within 1 s; does it hold at the maximum player count?
+   is every failure attributable in the time the skill's "If the game is multiplayer" table sets (its Unattributable
+   failure row); does it hold at the maximum player count?
 
 **Numbers mode.** Inputs: DESIGN.md Rules and its targets, the `<System>Config` `.asset` files (YAML, read as text),
 the `<System>Tuning` defaults and constants in Core. A missing input makes its gate *not assessed*, never a pass; a

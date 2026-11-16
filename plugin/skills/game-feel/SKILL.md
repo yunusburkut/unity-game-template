@@ -156,9 +156,12 @@ The full list, with what each looks like, is `references/feedback-stack.md` §6 
 
 - No more than 3 flashes in any one second, and no saturated-red flashing.
 - Sliders, not toggles, for screen shake and full-screen effects (0–100 %, 100 default), plus a haptics switch.
-- The slider scales the shake path only: multiply it with the Mobile-tier shake factor into
-  `MMF_CameraShake.CameraShakeProperties.Amplitude`, the way `feel-authoring` scales shake per tier ("Shake less on a
-  phone"). Never route it through `PlayFeedbacks(position, intensity)` or `MMF_Player.FeedbacksIntensity`: that
+- The slider scales the shake path only: store each shake's authored base amplitude once, and on every slider change
+  set `MMF_CameraShake.CameraShakeProperties.Amplitude = baseAmplitude * slider * mobileShakeScale`. Never multiply in
+  place as `feel-authoring` does for the tier ("Shake less on a phone", applied once in `Awake`): re-applying an in-place
+  multiply compounds (50 % twice gives 25 %), and applying it only in `Awake` ignores a live slider change. With the
+  trauma model above, the same product multiplies the shake code's maximum offset and maximum roll instead, since that
+  code never reads `MMF_CameraShake` amplitude. Never route it through `PlayFeedbacks(position, intensity)` or `MMF_Player.FeedbacksIntensity`: that
   intensity scales every feedback on the player (sound, dust, squash, haptics), carries the simulation's impact
   magnitude, and gates `UseIntensityInterval` windows, so a 50 % slider would quieten the landing and drop heavy
   shakes below their interval. `FeedbacksIntensity` is safe only on a player that holds nothing but screen effects.

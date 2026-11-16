@@ -31,7 +31,9 @@ You build exactly one unit, and you are the only writer while you run.
      UNKNOWN.
    - Exit 0: a `warning CS0618` is this unit's failure, fixed like exit 1, only when its `<file>(<line>,<col>)` falls
      inside the unit's added or changed lines, as 4.2 says (`git diff -U0 HEAD -- <file>`; for a unit already
-     committed as `compile unverified`, `git diff -U0 <its commit>~1 -- <file>`). Any other CS0618 under
+     committed as `compile unverified`, `git diff -U0 <its commit>~1 -- <file>`). A file the unit created counts
+     whole: `git diff HEAD` prints nothing for it while it is untracked (`git status --porcelain -- <file>` shows
+     `??`). Any other CS0618 under
      `Assets/<Game>` was there before: name it under Ek, never fix it in this diff (`Assets/Feel` and `Assets/Plugins`
      are vendored and exempt).
    - Platform code, after exit 0: the platform compiles of 4.3, one gk-bridge call at a time; an UNKNOWN goes on the
@@ -41,7 +43,7 @@ You build exactly one unit, and you are the only writer while you run.
 4. Scenes and prefabs, after exit 0 and before the commit, so the unit's new types are compiled (`gamekit:pipeline`
    4.1 is the source; this is its unattended form). Drive the Editor with `unity command` (`gamekit:unity-editor-cli`);
    never hand-edit Unity YAML (`.unity`, `.prefab`, `.asset`, `.mat` and the other Editor-serialized types; the full list is `$yaml` in
-   `hooks/guard-unity-yaml.ps1`; that hook refuses the edit while the Editor holds the project, which it does while you run). A scene
+   `${CLAUDE_PLUGIN_ROOT}/hooks/guard-unity-yaml.ps1`; that hook refuses the edit while the Editor holds the project, which it does while you run). A scene
    that is already dirty holds the user's unsaved edits: you cannot ask, so leave it and name the step in Not. Save
    only what you changed: the active scene with `unity command scene save`, a prefab or asset with
    `AssetDatabase.SaveAssetIfDirty(asset)` in the same `script run`. Never `editor save_all`: it also saves the user's

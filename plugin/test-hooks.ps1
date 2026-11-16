@@ -79,7 +79,7 @@ function New-HooksJson {
         # The docs tools (search_api_docs, get_python_api_docs, ...) need no Blender: the matcher keeps them out.
         PreToolUse = @([ordered]@{ matcher = $blenderMatcher; hooks = @(& $ps 'ensure-blender.ps1' 120) },
                        [ordered]@{ matcher = 'Edit|Write|Bash|PowerShell'; hooks = $guard },
-                       [ordered]@{ matcher = 'Bash'; hooks = @(foreach ($c in '*git *', '*>*', '*tee *') { & $ps 'guard-readonly-agent.ps1' 10 "Bash($c)" }) })
+                       [ordered]@{ matcher = 'Bash'; hooks = @(foreach ($c in '*git *', '*>*', '*tee *', '*gk-bridge*', '*unity *') { & $ps 'guard-readonly-agent.ps1' 10 "Bash($c)" }) })
         PostToolUse = @([ordered]@{ matcher = 'Edit|Write|Bash|PowerShell'; hooks = $post })
         Stop = @([ordered]@{ hooks = @(& $ps 'self-check.ps1' 60) })
         UserPromptSubmit = @([ordered]@{ hooks = @(& $ps 'route.ps1' 10) }) } }
@@ -187,17 +187,28 @@ try {
     $ro = { param($cmd, $agent = 'gamekit:scout') $p = @{ tool_name = 'Bash'; tool_input = @{ command = $cmd }; cwd = $tmp }
         if ($agent) { $p.agent_type = $agent }; Invoke-Hook 'guard-readonly-agent.ps1' (Payload $p) }
     foreach ($c in 'git log --oneline -15 -- Assets', 'git stash list', 'git branch -a', 'git diff 2>&1 | head', 'grep -rl x Assets > /dev/null',
-                   "git show HEAD > $($env:TEMP -replace '\\', '/')/d.txt") {
+                   "git show HEAD > $($env:TEMP -replace '\\', '/')/d.txt", 'unity status', 'grep -rn "gk-bridge refresh" Docs',
+                   'grep -rl x Assets --include=*.unity --include=*.prefab', 'gk-bridge fresh',
+                   'bash "${CLAUDE_PLUGIN_ROOT}/bin/gk-bridge" fresh') {
         $r = & $ro $c; Check "readonly-agent: scout may run '$c'" (& $silent $r) $r.out }
-    foreach ($c in 'git stash', 'git -C . checkout -- a.cs', 'git --no-pager reset --hard', 'git commit -m x', 'git branch -D old', 'echo x > notes.txt', 'git diff | tee out.txt') {
+    # gk-bridge and the Unity CLI's Editor-driving verbs: one Editor request at a time, and the reviewers run in parallel.
+    foreach ($c in 'git stash', 'git -C . checkout -- a.cs', 'git --no-pager reset --hard', 'git commit -m x', 'git branch -D old', 'echo x > notes.txt', 'git diff | tee out.txt',
+                   'gk-bridge refresh', 'bash "${CLAUDE_PLUGIN_ROOT}/bin/gk-bridge" play-capture', 'unity command script run Probe.Run',
+                   'cd /c/g && unity command scene save', 'unity.exe build --target Android', 'GK_BRIDGE_ROOT=. gk-bridge refresh',
+                   'gk-bridge fresh; gk-bridge refresh') {
         $r = & $ro $c; Check "readonly-agent: scout is denied '$c'" ((& $denied $r) -and $r.out -match 'read-only') $r.out }
     $r = & $ro 'git stash' 'bug-hunter'; Check 'readonly-agent: an unprefixed agent_type is judged too' (& $denied $r) $r.out
+    $r = & $ro 'gk-bridge refresh' 'net-auditor'; Check "readonly-agent: the coop pack's net-auditor is judged too" (& $denied $r) $r.out
+    $r = & $ro 'git stash' 'net-auditor'; Check "readonly-agent: the coop pack's net-auditor may not change git state" (& $denied $r) $r.out
+    $r = & $ro 'gk-bridge refresh' 'gamekit:builder'; Check 'readonly-agent: the builder may run gk-bridge' (& $silent $r) $r.out
     $r = & $ro 'git commit -m x' 'gamekit:builder'; Check 'readonly-agent: the builder may commit' (& $silent $r) $r.out
     $r = & $ro 'git stash' ''; Check 'readonly-agent: the main session is untouched' (& $silent $r) $r.out
     $r = Invoke-Hook 'guard-readonly-agent.ps1' 'not json'; Check 'readonly-agent: bad payload fails open' (& $silent $r)
-    # Every read-only agent (no Edit/Write in its tools) is in the script's list, and no writing agent is.
+    # Every read-only agent with Bash (no Edit/Write in its tools), the plugin's and the packs', is in the script's list,
+    # and no writing agent is.
     $roList = [regex]::Match([IO.File]::ReadAllText((Join-Path $hooks 'guard-readonly-agent.ps1')), "agent -notmatch '.*?\)\?\(([a-z|-]+)\)\$'").Groups[1].Value -split '\|'
-    $roWant = Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'agents') -Filter *.md | Where-Object {
+    $roWant = @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'agents') -Filter *.md) +
+        @(Get-ChildItem -Path (Join-Path $template 'packs\*\.claude\agents\*.md') -ErrorAction SilentlyContinue) | Where-Object {
         $t = [regex]::Match([IO.File]::ReadAllText($_.FullName), '(?m)^tools:(.*)$').Groups[1].Value; $t -match '\bBash\b' -and $t -notmatch '\b(Edit|Write)\b' } | ForEach-Object BaseName
     $roDiff = Compare-Object @($roWant) @($roList) | ForEach-Object { "$($_.InputObject) $($_.SideIndicator)" }
     Check "readonly-agent: guards exactly the $(@($roWant).Count) agents with Bash and no Edit/Write" (@($roWant).Count -ge 5 -and -not $roDiff) ($roDiff -join ', ')
@@ -631,27 +642,48 @@ run 'bad usage is unknown' 2 frobnicate
     # The skill listing shares one budget, 1% of the context window (about 8,000 characters at 200k tokens), with every
     # user, account and plugin skill. When it overflows, Claude Code drops whole descriptions, least-invoked skills
     # first, so a gamekit skill can lose its triggers while each description is short. 250 characters per description
-    # keeps the cost even; the total below is a ratchet: grow it only by trimming another gamekit description. Rarely
-    # auto-needed reference skills can be listed name-only through skillOverrides in settings.
+    # keeps the cost even (the listing cuts each entry there); the gamekit total below is a ratchet: grow it only by
+    # trimming another gamekit description, and lower it to the new total after a trim. Rarely auto-needed skills are
+    # listed name-only (or off) through skillOverrides in ~/.claude/settings.json, which the budget check below honours.
     # Evidence (2026-11 review, kept here as the one place for it): at about 6000 gamekit characters a session showed
-    # 11 gamekit skills as names only. So the ratchet is not a safe size: it only stops growth at today's total (6,020,
-    # plus a little slack). Ceiling: on this machine's skill set the listing still overflows; the way down is trimming
-    # gamekit descriptions (trigger first, examples in the body) and turning unused account/plugin skills to name-only
-    # or off with skillOverrides, then lowering this number to the new total.
-    $descTotal = 0
+    # 11 gamekit skills as names only. So the ratchet alone is not a safe size; the budget check is: gamekit plus
+    # ~/.claude/skills (local and synced account skills), each cut at 250 and without the name-only/off ones, must fit
+    # 8,000 together with $otherSkills. Built-in skills and account plugins are not on disk here, so $otherSkills is a
+    # fixed allowance for them, measured from a 2026-11 session listing: about 20 entries (dataviz, artifact-design,
+    # artifact-diagramming, artifact-capabilities, update-config, keybindings-help, code-review, simplify,
+    # fewer-permission-prompts, loop, schedule, claude-api, workflow-authoring, run, plugin-authoring, init,
+    # simple-drawing-pad x3, prompt-enhancer, cowork-plugin-management x2) at about 200 characters each. Ceiling: a new
+    # built-in or plugin skill grows the real listing past this guess; re-measure from a session's skill listing and
+    # lower the allowance when some of them are set name-only. The way down is trimming gamekit descriptions (trigger
+    # first, examples in the body) and skillOverrides for unused account skills (docx, pptx, xlsx, pdf,
+    # google-workspace, docs, prompt-enhancer, cowork-plugin-management, simple-drawing-pad in a Unity session).
+    $otherSkills = 4000
+    $overrides = @{}
+    try { $so = ([IO.File]::ReadAllText((Join-Path $HOME '.claude\settings.json')) | ConvertFrom-Json).skillOverrides
+          if ($so) { foreach ($p in $so.PSObject.Properties) { $overrides[$p.Name] = [string]$p.Value } } } catch { }
+    $listed = { param($names) -not @($names | Where-Object { $overrides[$_] -in 'name-only', 'off' }).Count }
+    $descTotal = 0; $listing = 0
     $long = foreach ($d in $docs) {
         $fm = [regex]::Match([IO.File]::ReadAllText($d.FullName), '(?s)\A---\r?\n(.*?)\r?\n---')
         $m = [regex]::Match($fm.Groups[1].Value, '(?m)^description:[ \t]*(.*)$')
-        if ($d.Name -eq 'SKILL.md') { $descTotal += $m.Groups[1].Value.Trim().Trim('"', "'").Length }
+        if ($d.Name -eq 'SKILL.md') { $len = $m.Groups[1].Value.Trim().Trim('"', "'").Length; $descTotal += $len
+            if (& $listed $d.Directory.Name, "gamekit:$($d.Directory.Name)") { $listing += [Math]::Min($len, 250) } }
         if (-not $m.Success) { "$($d.Directory.Name)/$($d.Name) (none)" }
         elseif ($m.Groups[1].Value.Trim().Trim('"', "'").Length -gt 250) { "$($d.Directory.Name)/$($d.Name) ($($m.Groups[1].Value.Trim().Length))" }
     }
     Check "plugin: all $($docs.Count) skill and agent descriptions are set and at most 250 characters" (-not $long) ($long -join ', ')
-    $userDesc = 0
+    $userDesc = 0; $userListed = 0
     foreach ($f in Get-ChildItem -LiteralPath (Join-Path $HOME '.claude\skills') -Filter SKILL.md -Recurse -ErrorAction SilentlyContinue) {
-        $um = [regex]::Match([IO.File]::ReadAllText($f.FullName), '(?m)^description:[ \t]*(.*)$'); $userDesc += $um.Groups[1].Value.Trim().Length }
-    Write-Output "NOTE skill listing: gamekit descriptions $descTotal + ~/.claude/skills $userDesc characters, against a budget of about 8,000 at a 200k context (plugins not counted)"
-    Check "plugin: gamekit skill descriptions total $descTotal characters, at most the 6,025 ratchet" ($descTotal -le 6025)
+        $um = [regex]::Match([IO.File]::ReadAllText($f.FullName), '(?m)^description:[ \t]*(.*)$'); $len = $um.Groups[1].Value.Trim().Length
+        $userDesc += $len; $sn = $f.Directory.Name   # a synced account skill is listed as anthropic-skills:<name>
+        if (& $listed $sn, "anthropic-skills:$sn") { $userListed += [Math]::Min($len, 250) } }
+    $listing += $userListed
+    Write-Output "NOTE skill listing: gamekit descriptions $descTotal + ~/.claude/skills $userDesc characters raw; $listing listed after the 250 cut and skillOverrides (gamekit $($listing - $userListed), ~/.claude/skills $userListed; built-in and other plugins as a fixed $otherSkills)"
+    Check "plugin: gamekit skill descriptions total $descTotal characters, at most the 6,004 ratchet" ($descTotal -le 6004)
+    # Ceiling: the real budget scales with the model's context window and the built-in/account part is a guess, so the
+    # estimate warns instead of failing (a red suite on a guess hides real failures); the ratchet above is the hard
+    # check. The way up: compare a live session's skill listing (bare gamekit names = overflow) after any change here.
+    if ($listing + $otherSkills -gt 8000) { Write-Output "WARN skill listing: about $($listing + $otherSkills - 8000) characters over the 8,000 budget of a 200k context; if a session lists gamekit skills without descriptions, trim gamekit descriptions or set unused skills name-only through skillOverrides in ~/.claude/settings.json" }
     # A skill named as the one to load or invoke must exist: in the plugin, in ~/.claude/skills or in a pack.
     $known = @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'skills') -Directory | ForEach-Object Name) +
         @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'agents') -Filter *.md | ForEach-Object BaseName) +
@@ -676,7 +708,7 @@ run 'bad usage is unknown' 2 frobnicate
             @([regex]::Matches($flat, 'item (\d+) \(([^)]+)\)') | ForEach-Object { @{ R = $_.Value; P = "(?m)^\s*$($_.Groups[1].Value)\. \*\*$([regex]::Escape($_.Groups[2].Value))" } }) +
             @([regex]::Matches($flat, '(?:skill''s |[a-z]+-[a-z-]+''s )"([A-Z][^"]+)"(?:(?:, | and )"([A-Z][^"]+)")*|\("([A-Z][^"]+)"\)') | ForEach-Object {
                 foreach ($g in 1, 2, 3) { foreach ($c in $_.Groups[$g].Captures) { $e = [regex]::Escape($c.Value)
-                    @{ R = "`"$($c.Value)`""; P = "(?m)^(?:#{1,4} (?:[\dA-Z]+\.\d* )?${e}\s*$|${e}:|\s*(?:[-*]|\d+\.) \*\*${e})" } } } })
+                    @{ R = "`"$($c.Value)`""; P = "(?m)^(?:#{1,4} (?:[\dA-Z]+\.\d* )?${e}\s*$|${e}:|\s*(?:[-*]|\d+\.) \*\*${e}|\|\s*(?:\*\*)?${e}(?:\*\*)?\s*\|)" } } } })
         $anchorN += $want.Count
         foreach ($w in $want) { if (-not $tt -or -not [regex]::IsMatch($tt, $w.P)) { "$($a.BaseName): $($w.R)" } } }
     Check "plugin: all $anchorN sections, anchors and items the agents quote exist in the files they name" ($anchorN -ge 15 -and -not $anchorMiss) ($anchorMiss -join ', ')
@@ -735,7 +767,8 @@ run 'bad usage is unknown' 2 frobnicate
     $blk = [regex]::Match($gkb, '(?ms)^    bridge\.log\)(.*?)^        fi ;;').Value
     if (-not ($blk.Contains('find') -and $blk.Contains('-newer'))) { $noLog += 'the bridge.log verdict lost its find -newer check' }
     Check "gk-bridge: all $(@($logs).Count) Logs/agent logs the docs name are written by GameKit or gk-bridge" (@($logs).Count -ge 5 -and -not $noLog) ($noLog -join ', ')
-    # The read-only reviewers restate that bridge.log verdict (they never run gk-bridge): same conditions, same file types.
+    # The read-only reviewers run `gk-bridge fresh` (that bridge.log verdict, nothing sent to Unity) and restate it:
+    # same conditions, same file types.
     $fresh = 'REFRESHED', 'no script changes', "-name '*.asmref'"
     $freshGap = @(foreach ($ag in 'unity-reviewer', 'bug-hunter') { $at = [IO.File]::ReadAllText((Join-Path $PSScriptRoot "agents\$ag.md"))
         $fresh | Where-Object { -not $at.Contains($_) } | ForEach-Object { "$ag lacks $_" } }) +

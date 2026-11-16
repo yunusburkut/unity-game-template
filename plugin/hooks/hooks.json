@@ -1132,6 +1132,34 @@
                                                                         "${CLAUDE_PLUGIN_ROOT}/hooks/guard-readonly-agent.ps1"
                                                                     ],
                                                            "timeout":  10
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Bash(*gk-bridge*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-readonly-agent.ps1"
+                                                                    ],
+                                                           "timeout":  10
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Bash(*unity *)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-readonly-agent.ps1"
+                                                                    ],
+                                                           "timeout":  10
                                                        }
                                                    ]
                                      }

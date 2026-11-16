@@ -547,7 +547,7 @@ co-op design literature: start there, tune in Play Mode, write the result back.
 
 | Window | Starting value | Notes |
 |---|---|---|
-| Recoverable failure: mistake → next decision | 3–8 s | A mistake that is fixed in place, not a restart. Single-player and undo cases: `level-beat-review` SKILL The numbers owns them |
+| Recoverable failure: mistake → next decision | 3–8 s | A mistake that is fixed in place, not a restart. Single-player and undo cases: `level-beat-review` SKILL.md, The numbers, Recoverable failure row (the owner) |
 | Comeback / catch window | ~2 s | Floor 240 ms; ≥ 1 s if two machines must agree |
 | Two-player reset (crank, re-grab) | ~3 s | Long enough to cost, short enough not to be labour |
 | Synchronised commitment (everyone presses within) | ~1 s | Server-tolerant; never frame-tight |

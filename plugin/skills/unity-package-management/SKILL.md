@@ -81,7 +81,10 @@ closed.
   reply: `package status` reads a Temp file that survives it, so it is the result to trust. Then `gk-bridge refresh`
   must exit 0. The parameter spellings are the command's own (`name`, `confirm`, `dry-run`, `wait`, `timeout` in
   0.10.0-exp.1, checked against that version's `PackageManagerCommand.cs`; 0.9.x spelled them `identifier` and
-  `dry_run`); if one is refused, read them from `unity command --query package`.
+  `dry_run`); if one is refused, read them from `unity command --query package`. Ceiling: `test-template.ps1 -Tests`
+  runs the headless installer (references/headless.md) in a real game, but nothing runs this live route, because the
+  test game is batchmode with no Pipeline session; the refused-flag fallback above is the guard. The way up is a
+  `unity command package add --dry-run true` step in a test that opens a live Editor.
 
   **Fallback**, for a Pipeline package with no `package` group (`unity command --query package` finds nothing): write
   a one-method script **outside** `Assets/` (the scratchpad directory) that only fires the request, and run it with

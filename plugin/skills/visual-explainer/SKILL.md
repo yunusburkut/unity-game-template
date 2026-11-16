@@ -52,9 +52,10 @@ colours: the host theme decides them.
 or one message through its whole life; Kararlar compares with the obvious alternative (`Instantiate`/`Destroy`,
 singleton, direct reference). Mention the Data / Logic / View split and asmdef boundaries only where the code has them.
 
-**Algorithm** (BFS, A*, flood fill, sorting): a small concrete input that keeps the trace within the style's 8-row
-table cap (a 3x3 grid, a 4x4 grid with walls, 6 nodes or 6 array items), then a state table, one row per iteration.
-A longer run is split into named phases of at most 8 rows each, never cut. Pick the header by algorithm:
+**Algorithm** (BFS, A*, flood fill, sorting): the smallest concrete input that still shows the idea (a 3x3 grid, a
+4x4 grid with walls, 6 nodes or 6 array items), then a state table, one row per iteration. The style's table row cap
+applies (visual-clarity: 5 rows while ADHD mode is on, 8 with it off), so a run longer than the cap is split into named
+phases of at most that many rows each, never cut. Pick the header by algorithm:
 
 | Algorithm | Header |
 |---|---|

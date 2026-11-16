@@ -1,6 +1,6 @@
 ---
 name: unity-performance
-description: Use when writing or changing code reached every frame, or for GC spikes, stutter ("kasıyor"), heat, memory growth or battery drain on phones and PCs. Update loops, physics queries, HUD text, pooling, draw calls, shaders, import settings, soak runs.
+description: Use when writing or changing per-frame code, or fixing GC spikes, stutter ("kasıyor"), heat, memory growth or battery drain on phones and PCs. Update loops, physics, HUD text, pooling, draw calls, shaders, imports, soak runs.
 ---
 
 # Hot-path discipline
@@ -147,13 +147,16 @@ still TODO, or vSync with an unknown refresh rate: not assessed, never headroom 
 
 - **PC:** `p99_ms` against the full target frame. `fps` and `max_ms` are read, not judged: a lone `max_ms` spike is a
   hitch to explain (load, GC), not a budget miss.
-- **Phones:** `p99_ms` against about 65% of the target frame (about 11 ms at 60 fps), so thermal throttling has
-  room. `p99_ms` at 15-16 ms is a miss, not a pass. To say which side is over, `gpu_ms` is judged against the same
-  11 ms; CPU work is judged on the Profiler's CPU main thread, or on `cpu_ms` only where the game's GameKit
-  FrameLog computes it as `cpuMainThreadFrameTime` minus `cpuMainThreadPresentWaitTime` (main-thread work without the
-  wait). GameKit 0.1.2 and older log `FrameTiming.cpuFrameTime`, which includes the vSync and `targetFrameRate` wait:
-  on a capped phone it reads the frame time (about 16.7 at 60 fps) however light the work, so there it is read, never
-  an AŞIM.
+- **Phones:** two checks. Missed frames: `p99_ms` against the full target frame, as on PC. Phones run at
+  `Application.targetFrameRate`, and `p99_ms` is wall-clock frame time including that wait, so on a capped phone it
+  sits at about the target frame (about 16.7 ms at 60 fps) however light the work: near the target is normal, above
+  it is a miss, and it never shows headroom. Headroom: the work columns against about 65% of the target frame (about
+  11 ms at 60 fps), so thermal throttling has room; a work column at 15-16 ms is a miss, not a pass, and the column
+  that is over names the side. `gpu_ms` is judged against those 11 ms; CPU work is judged on the Profiler's CPU main
+  thread, or on `cpu_ms` only where the game's GameKit FrameLog computes it as `cpuMainThreadFrameTime` minus
+  `cpuMainThreadPresentWaitTime` (main-thread work without the wait). GameKit 0.1.2 and older log
+  `FrameTiming.cpuFrameTime`, which includes the vSync and `targetFrameRate` wait: on a capped phone it reads the
+  frame time (about 16.7 at 60 fps) however light the work, so there it is read, never an AŞIM.
 - The game's GameKit version is the `#gamekit-vX.Y.Z` tag in its `Packages/manifest.json` (a `file:` path means this
   template's `packages/` version). The CSV header is the same in every version, so the CSV cannot tell; an unknown
   version means `cpu_ms` is read, not judged.

@@ -21,7 +21,8 @@
 # already ran it or a fixture stands in for the Editor.
 # Ceiling: compile freshness compares file times only, and a script saved before the request whose compile starts
 # after AgentBridge's settle time (2 s, plus 8 s once when a script is newer than compile.log) reads as "no script
-# changes" (one saved after the request reads as unknown); the Editor is detected through Temp/UnityLockfile, so an
+# changes" (one saved after the request reads as unknown; fresh has no request time and takes bridge.log's time minus
+# that 10 s settle, so an import longer than the settle can still hide a save made during it); the Editor is detected through Temp/UnityLockfile, so an
 # Editor stuck behind a modal dialog shows up as a request never taken.
 set -u
 
@@ -91,7 +92,8 @@ deadline=$((started + timeout))
 
 # fresh sends nothing: the last refresh's answer is judged as it stands, bridge.log's time standing in for its
 # request's (the block up to "fi # request" is the request path, left unindented)
-if [ -n "$ro" ]; then t0=$(mtime "$d/bridge.log"); else
+# minus AgentBridge's longest settle (2 s + 8 s), so a script saved in that window still reads as newer than the request
+if [ -n "$ro" ]; then t0=$(( $(mtime "$d/bridge.log") - 10 )); else
 
 # one request at a time: a build in progress keeps request.txt unread until it ends
 case "$(first "$d/build.log")" in PENDING*) unknown "a build is running (build.log PENDING); wait for it (PENDING for over 20 min: a build that never started, restarting Unity closes it)" ;; esac

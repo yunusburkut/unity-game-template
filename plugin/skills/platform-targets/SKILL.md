@@ -162,8 +162,9 @@ the WebGL-only lifecycle code go under `#if UNITY_WEBGL && !UNITY_EDITOR`, since
 Rules and tuning never branch on the platform; a value that differs per platform is a tuning field.
 
 `gk-bridge refresh` compiles the Editor's platform only, so it never sees that code. Type-check Android and iOS code
-with `gk-bridge compile android` / `gk-bridge compile ios` (`Logs/agent/compile-player.log`, GameKit 0.1.2 or later);
+with `gk-bridge compile android` / `gk-bridge compile ios` (`Logs/agent/compile-player.log`, every GameKit release);
 no build or platform switch is needed for that. `gk-bridge compile webgl` does the same for WebGL-only code where the
 game's GameKit takes it (AgentBridge's usage line lists `compile ios|android|webgl`, 0.1.3 or later). Where it does
 not (a usage error from gk-bridge or AgentBridge), WebGL-only code is checked only by `gk-bridge build webgl dev`
-(minutes, ask first): keep it in that one small file.
+(minutes, ask first): keep it in that one small file. With the ci-github pack, CI runs the same compile for Android,
+iOS and WebGL on every push (`AgentBridge.CompilePlayerScriptsBatch`, GameKit 0.1.3 or later).

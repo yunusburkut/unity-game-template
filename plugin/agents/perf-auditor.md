@@ -1,6 +1,6 @@
 ---
 name: perf-auditor
-description: Use when asked if the game holds 60 fps on a phone or runs on a weak PC, when chasing stutter, heat or GC spikes, or before a playtest build. Read-only sweep of per-frame code and the URP tiers; one fresh diff goes to unity-reviewer.
+description: Use for a performance audit or sweep ("performans denetimi", "60 fps tutuyor mu"), a weak-PC check or before a playtest build. Read-only: per-frame code, URP tiers. One symptom (stutter, GC, heat): unity-performance. Fresh diff: unity-reviewer.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 effort: medium

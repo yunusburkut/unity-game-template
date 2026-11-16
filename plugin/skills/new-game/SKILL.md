@@ -34,17 +34,15 @@ T="${TEMPLATE:-/c/GitHub/unity-game-template}"   # missing: ask the user for the
 NAME=<Name>
 DIRTY=$(git -C "$T" status --short -- project packs new-game.ps1); echo "dirty: ${DIRTY:-none}"   # only these are copied into the game
 git -C "$T" fetch -q origin main; echo "fetch exit $?"            # nonzero: offline or GitHub down
-[ -z "$DIRTY" ] && { git -C "$T" merge -q --ff-only origin/main; echo "merge exit $?"; }   # nonzero: main has diverged
+[ -z "$DIRTY" ] && { git -C "$T" merge -q --ff-only origin/main; echo "merge exit $?"; }   # nonzero: its error names the cause
 git -C "$T" log --oneline -1
 echo "unpushed $(git -C "$T" rev-list --count origin/main..HEAD)"   # the game records HEAD as its sync base
 cygpath -w "$T"                                    # the Windows path step 4 runs the script from
 [ -e "/c/GitHub/$NAME" ] && echo "TAKEN: C:/GitHub/$NAME"
 V=$(sed -n 's/^m_EditorVersion: //p' "$T/project/ProjectSettings/ProjectVersion.txt"); echo "version $V"
-# the Unity.exe new-game.ps1 picks: Hub's custom install folder (Preferences > Installs) first, then its default
-H2=$(cat "$APPDATA/UnityHub/secondaryInstallPath.json" 2>/dev/null | tr -d '"\r\n')
-for d in ${H2:+"$(cygpath -u "$H2")"} "/c/Program Files/Unity/Hub/Editor"; do
-  [ -f "$d/$V/Editor/Unity.exe" ] && { echo "UNITY: $(cygpath -w "$d/$V/Editor/Unity.exe")"; break; }
-done
+# the Unity.exe new-game.ps1 itself picks (its -ResolveUnity is the one lookup); it prints a path even when missing
+U=$(powershell -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$T")\\new-game.ps1" -ResolveUnity | tr -d '\r')
+[ -f "$(cygpath -u "$U")" ] && echo "UNITY: $U" || echo "no Unity.exe at $U"
 # env -u: the read-only GITHUB_TOKEN/GH_TOKEN for plugin updates would shadow the gh login (README.md, token conflict)
 env -u GITHUB_TOKEN -u GH_TOKEN gh auth status 2>&1 | head -2
 env -u GITHUB_TOKEN -u GH_TOKEN gh repo view "$NAME" >/dev/null 2>&1 && echo "GH_TAKEN: $NAME"   # only when logged in: the account already has it
@@ -54,7 +52,9 @@ for p in "$T"/packs/*/README.md; do echo "== $p"; awk '/^#/ {next} NF {p=1; prin
 Stop and say why when:
 
 - `project/`, `packs/` or `new-game.ps1` has uncommitted changes (they would land in the game; name the files);
-- the merge failed (show its error: a diverged `main` is the user's to sort out). A failed fetch alone does not
+- the merge failed: show git's own error text, which names the cause; it is either the user's uncommitted local files
+  the merge would overwrite (anywhere in the template, e.g. `plugin/` or README.md) or a `main` that has diverged from
+  origin, and both are the user's to sort out, so do not assume which. A failed fetch alone does not
   stop: say the template could not be updated and carry on, since `unpushed` below still guards the sync base;
 - `unpushed` is not 0: the template has commits origin lacks, so the game's recorded sync base would be missing there
   and `gamekit:sync-template` would fail on it later; ask the user to push the template's `main` first;

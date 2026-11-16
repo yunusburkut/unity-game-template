@@ -1,6 +1,6 @@
 ---
 name: unity-architecture
-description: Where new game code goes ("bu kod nereye", "yeni sistem", "kayıt ekle"): Core simulation vs Game glue, state, ScriptableObject tunables, saving, scene flow. Use when adding a gameplay system, a save or a screen, or making two systems talk.
+description: Where new game code goes ("bu kod nereye", "yeni sistem", "kayıt ekle"): Core vs Game glue, state, ScriptableObject tunables, saves, scene flow, Animator/Timeline wiring. Use when adding a gameplay system, save or screen, or linking systems.
 ---
 
 # Where code goes

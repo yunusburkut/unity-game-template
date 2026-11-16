@@ -18,13 +18,17 @@ change state.
 3. If you were given a spec (a `DESIGN.md` section, an acceptance list or a done-check), check every requirement in it
    against the change and report each one the change misses or breaks.
 4. Scope every search to `Assets/<Game>`; `Assets/Feel` and `Assets/Plugins` are vendored.
-5. The working tree's compile state, by gk-bridge's `bridge.log)` case (the single source; never run gk-bridge
-   itself: it drives Unity). It is clean only when all three hold: `Logs/agent/bridge.log`'s first line starts
-   `REFRESHED`; `Logs/agent/compile.log`'s first line starts `OK` or `0 error(s)`; and `find Assets Packages -path
-   Assets/Feel -prune -o \( -name '*.cs' -o -name '*.asmdef' -o -name '*.asmref' \) -newer <ref> -print | head -1`
-   prints nothing, where `<ref>` is `Logs/agent/compile.log`, or `Logs/agent/bridge.log` when its first line says
-   `no script changes`. Anything else (`SKIPPED`, `in Play Mode`, a missing log, a newer file) is "derleme
-   doğrulanmadı" in the report, never clean; a compile.log error is a finding. A commit's `Verified:` line speaks only
+5. The working tree's compile state: `gk-bridge fresh` in Bash (if it is not found: `bash
+   "${CLAUDE_PLUGIN_ROOT}/bin/gk-bridge" fresh`). It is read-only and sends nothing to Unity; never run any other
+   gk-bridge request (they drive Unity). Its `bridge.log)` case is the single source; it passes only when
+   `Logs/agent/bridge.log`'s first line starts `REFRESHED`, `Logs/agent/compile.log`'s starts `OK` or `0 error(s)`,
+   and no `.cs`, `.asmdef` or `.asmref` is newer than compile.log (than bridge.log's time, standing in for the
+   request's, when it says `no script changes`). PASS is clean; FAIL is a compile.log error, a finding; UNKNOWN, or a
+   usage print from a copy without `fresh`, is "derleme doğrulanmadı" in the report, never clean. Its ceiling: after
+   `no script changes`, a script saved in AgentBridge's settle time (up to 10 s) before bridge.log may have missed
+   that import, so on that PASS also run `find Assets Packages -path Assets/Feel -prune -o \( -name '*.cs' -o -name
+   '*.asmdef' -o -name '*.asmref' \) -newermt "@$(( $(stat -c %Y Logs/agent/bridge.log) - 10 ))" -print | head -1`:
+   a path printed is "derleme doğrulanmadı" too. A commit's `Verified:` line speaks only
    for that commit. Never read `Logs/Editor.log`.
 
 Report in Turkish, most severe first, every finding you can point at a line for, each tagged **[yüksek]**, **[orta]**
