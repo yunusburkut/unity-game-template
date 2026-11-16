@@ -35,7 +35,7 @@ Everything goes straight on `main`: no branches, no PRs. Commit subject `area: s
 | `project/`, `packs/`, `packages/`, `new-game.ps1` | `.\test-template.ps1` (launches Unity, about 5-10 min: run it, and `test-all.ps1 -Full`, with `run_in_background`; each Unity launch is killed after 30 min, `-TimeoutMinutes`; `-Packs <changed pack>`, `-Tests` for the game's tests) |
 | `plugin/` | `claude plugin validate plugin` (the missing-version warning is intended), then `claude plugin update gamekit@unity-game-template` |
 | `plugin/hooks/`, a skill's `references/` index | Also `powershell -NoProfile -ExecutionPolicy Bypass -File plugin\test-hooks.ps1` (fixed payloads through the hooks, the genre index and source keys); a new hook path gets a case there |
-| A skill in `plugin/skills` added, renamed, removed, or its use changed | Also update `NOTES` in `~/.claude/mods/skill-notlari/hooks/register.tsx` (the "Skill notları" button above the prompt in template and game sessions; no repo, so no commit), then `claude plugin test ~/.claude/mods/skill-notlari`; the user runs `/reload-plugins` |
+| A skill in `plugin/skills` added, renamed, removed, or its use changed | Also update `GROUPS` in `~/.claude/mods/skill-notlari/hooks/register.tsx` (the "Skill notları" pane that opens beside the chat at session start in template and game sessions, plus its button above the prompt; no repo, so no commit), bump its `.claude-plugin/plugin.json` version, then `claude plugin test ~/.claude/mods/skill-notlari` and `claude plugin update skill-notlari@yerel-modlar`; the user runs `/reload-plugins` |
 
 Never open `project/` itself in Unity: it is a template with placeholders, not a project. `test-template.ps1` makes a
 real game in `%TEMP%` and deletes it.
