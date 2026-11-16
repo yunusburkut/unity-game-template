@@ -1,10 +1,11 @@
 # Tests and builds __GAME__ on GitHub runners with GameCI (game.ci). Every push to main and every pull request that
-# changes more than Markdown runs the EditMode and PlayMode tests and type-checks the Android and iOS player scripts
-# (the compile job: no player is built). A v* tag, or a manual run (Actions > CI > Run workflow), also builds Windows,
-# Android and WebGL through BuildMenu, the same path the menu and the agent bridge use; a v* tag then pushes the WebGL
-# build to itch.io. iOS to TestFlight is there but commented out (see the ios job). Builds are not run on every push:
-# three Unity builds per agent commit would spend the private repo's Actions minutes on work nobody downloads. Run the
-# workflow by hand before tagging when a change touches WebGL-only code (a WebGL compile error shows only in a build).
+# changes more than Markdown runs the EditMode and PlayMode tests and type-checks the Android, iOS and WebGL player
+# scripts (the compile job: no player is built). A v* tag, or a manual run (Actions > CI > Run workflow), also builds
+# Windows, Android and WebGL through BuildMenu, the same path the menu and the agent bridge use; a v* tag then pushes
+# the WebGL build to itch.io. iOS to TestFlight is there but commented out (see the ios job). Builds are not run on
+# every push: three Unity builds per agent commit would spend the private repo's Actions minutes on work nobody
+# downloads. The compile job catches C# errors only; run the workflow by hand before tagging when a change touches what
+# only a build checks (a .jslib plugin, the WebGL template, IL2CPP stripping, Android Gradle settings).
 # Secrets and variables: packs/ci-github/README.md in unity-game-template.
 # Third-party actions are pinned to a commit SHA (the tag is in the comment); to bump one, read the new tag's SHA
 # with `gh api repos/<owner>/<repo>/commits/<tag> --jq .sha`.
@@ -60,10 +61,11 @@ jobs:
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           gitPrivateToken: ${{ secrets.GAMEKIT_TOKEN }}
 
-  # Type-checks the player scripts for Android and iOS on every run, so `#if UNITY_ANDROID` / `#if UNITY_IOS` code
-  # (and DISABLESTEAMWORKS) breaks here, not first in a tag build. A compile only, no player: much cheaper than the
-  # build job. AgentBridge.CompilePlayerScriptsBatch (GameKit 0.1.3 or later) exits 0 on OK, 1 on a compile error
-  # and 2 when the image lacks the platform module (a skip, not a pass); the check step after it reads that code.
+  # Type-checks the player scripts for Android, iOS and WebGL on every run, so `#if UNITY_ANDROID` / `#if UNITY_IOS` /
+  # `#if UNITY_WEBGL` code (and DISABLESTEAMWORKS) breaks here, not first in a tag build. A compile only, no player:
+  # much cheaper than the build job. AgentBridge.CompilePlayerScriptsBatch (GameKit 0.1.3 or later; the first step
+  # stops with a clear error on an older GameKit tag) exits 0 on OK, 1 on a compile error and 2 when the image lacks
+  # the platform module (a skip, not a pass); the check step after it reads that code.
   # The report is Logs/agent/compile-player.log, also printed in the Unity log.
   compile:
     runs-on: ubuntu-latest
@@ -75,12 +77,23 @@ jobs:
             platform: android
           - targetPlatform: iOS
             platform: ios
+          - targetPlatform: WebGL
+            platform: webgl
     steps:
       - if: matrix.targetPlatform == 'Android'
         uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      # Before Unity starts: an older GameKit has no CompilePlayerScriptsBatch, and Unity's exit for the missing method
+      # would read as "player scripts do not compile". A file: or branch reference has no tag and passes.
+      - name: Check the GameKit version
+        run: |
+          v=$(grep -o 'gamekit-v[0-9][0-9.]*' Packages/manifest.json | head -n 1 | sed 's/^gamekit-v//')
+          if [ -n "$v" ] && [ "$(printf '%s\n' 0.1.3 "$v" | sort -V | head -n 1)" != 0.1.3 ]; then
+            echo "::error::GameKit $v has no CompilePlayerScriptsBatch (0.1.3 or later): move the gamekit tag in Packages/manifest.json (/gamekit:sync-template)"
+            exit 1
+          fi
       # the same key as the build job's leg for this platform: either job warms the other's Library
       - uses: actions/cache@v6
         with:

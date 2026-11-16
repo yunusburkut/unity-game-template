@@ -35,5 +35,7 @@ sahne yeniden dönüştürülmez. `Main` açık değilse arka planda (additive) 
   (Chunk render mode for static tiles, Individual only where sprites must sort between tiles), solids through
   TilemapCollider2D merged into a CompositeCollider2D, rule tiles from Tilemap Extras. Characters: 2D Animation
   (PSD Importer rig) or sprite-sheet clips; keep each Animator small (blend trees, sub-state machines, no Any State
-  web) and drive it from Game code that reads Core state, never the other way.
+  web) and drive it from Game code that reads Core state, never the other way. No skill owns 2D alone, so route by
+  the question: a tilemap level's layout and difficulty is gamekit:level-beat-review, where sprite, tilemap or
+  Animator code goes is gamekit:unity-architecture, sprite batching and atlas cost is gamekit:unity-performance.
 ```

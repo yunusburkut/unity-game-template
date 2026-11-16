@@ -52,8 +52,9 @@ derlenir, Steamworks kodu derlenmez: metot gövdesini `#if !DISABLESTEAMWORKS` i
 
 `ci-github` paketiyle birlikte, Windows build'ini tag'lerde Steam'e gönderen bir job
 ([game-ci/steam-deploy](https://github.com/game-ci/steam-deploy) v3, MIT). Job, `ci-github` paketinin `ci.yml`'sinin
-sonunda yorum satırı olarak durur (tek kaynak orası; `test-all` ci.yml'nin açık kısmını denetler, yorumdaki
-`steam:` bloğunu denetlemez); açmak için `steam:` bloğunun başındaki `# ` işaretlerini kaldır. Açınca artifact adını
+sonunda yorum satırı olarak durur (tek kaynak orası; `test-all` yorumdaki `steam:` bloğunun da
+indirdiği artifact'ı build matrix'inin yüklediğini ve yollarının `BuildMenu`'nün `Builds/Windows` çıktısıyla eşleştiğini
+denetler, ama YAML'ını çalıştırmaz); açmak için `steam:` bloğunun başındaki `# ` işaretlerini kaldır. Açınca artifact adını
 (`Build-StandaloneWindows64`, matrix'in `targetPlatform`'u) ve `artifact/Builds/Windows` yolunu (`BuildMenu`'nün
 Windows çıktısı) bir kez kontrol et. `steam_appid.txt` hâlâ `480` ise job, yüklemeye geçmeden bunu söyleyip durur.
 Secret'lar: `STEAM_USERNAME`, `STEAM_CONFIG_VDF` (steamcmd ile bir kez giriş yapıp `config/config.vdf`'in base64'ü);
@@ -82,4 +83,7 @@ job onları yüklemeden önce siler. Depot ID'si `appId + 1` değilse steam-depl
   `if (!SteamBootstrap.Initialized) return;`. `SetAchievement` / `SetStat` then `StoreStats()` (only that uploads and
   shows the popup), at meaningful moments, not every frame. No `RequestCurrentStats` (gone since SDK 1.61). Names
   match the published Steamworks Stats & Achievements page.
+- Steam routing: where Steamworks API code goes (achievements, Steam Cloud saves, overlay, rich presence) is
+  `gamekit:unity-architecture` (a Game-side adapter in `Game/Steam`; Core never references Steamworks); store page,
+  depots, builds and uploads are `gamekit:launch-review`.
 ```

@@ -30,9 +30,12 @@ __GAME__. How Mixtrol built every role, with the prediction and mechanism detail
   reached every frame, or it is a null dereference.
 - Everything that needs the internet (UGS init, anonymous sign-in, relay allocation) lives in one launcher that hands
   the result to the session owner, which knows nothing about relays. On UDP targets relay data goes onto the
-  transport through its byte-array overloads (`SetHostRelayData` / `SetClientRelayData`), never by constructing
-  `RelayServerData`: FishyUnityTransport is compiled against `com.unity.transport` 1.3.1 and Unity 6000.6 resolves the
-  built-in 6.6.0. WebGL is the one exception (Platforms below).
+  transport through its byte-array overloads (`SetHostRelayData` / `SetClientRelayData`) rather than a hand-built
+  `RelayServerData`: FishyUnityTransport's package.json still names `com.unity.transport` 1.3.1 while Unity 6000.6
+  resolves the built-in 6.6.0, so the fewer transport types game code touches, the less a future transport bump
+  breaks. It is a preference, not a compile hazard: the transport is a source package compiled against the resolved
+  6.6.0, so a `RelayServerData` the game builds is the same type the transport takes. WebGL is the one exception
+  (Platforms below).
 
 ## Platforms
 
@@ -42,7 +45,12 @@ __GAME__. How Mixtrol built every role, with the prediction and mechanism detail
   port, allocationIdBytes, connectionData, hostConnectionData, key, isSecure: true, isWebSocket: true))`
   (`Unity.Networking.Transport.Relay`). The byte-array overloads cannot carry the WebSocket flag, and
   `com.unity.transport` 6.6's `NetworkDriver` throws "Mismatched Relay configuration" when a WebSocket driver gets
-  UDP relay data. There is no direct path (the loopback join in `docs/network-testing.md` is UDP), so hide it in a
+  UDP relay data. Checked against the pinned FishyUnityTransport commit (`08756d97`, `packages.json`) and transport
+  6.6.0: the `UseWebSockets` property, `SetRelayServerData(RelayServerData)` and that 8-argument constructor all
+  exist. The transport's own WebSocket-vs-relay-data check sits behind `UTP_TRANSPORT_2_1_ABOVE`, which its asmdef
+  never defines, so a mismatch shows up only as the driver's throw at start; in a WebGL player it falls back to a
+  WebSocket driver with a warning when `UseWebSockets` is off. A FishyUnityTransport pin bump re-checks these three
+  names. There is no direct path (the loopback join in `docs/network-testing.md` is UDP), so hide it in a
   WebGL build. Ship WebGL as a client only until a WebGL host has been verified, and verify that a desktop host on a
   UDP allocation accepts the WebGL client before promising cross-play.
 - **Mobile.** `runInBackground` (the pack's `CoopSetup`) works on desktop and WebGL only; iOS and Android suspend a

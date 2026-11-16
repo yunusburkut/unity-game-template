@@ -378,7 +378,8 @@ Shader "__GAME__/Toon"
         }
 
         // per-object motion for TAA, STP and motion blur (URP's own pass file, as URP/Lit uses it); the outline hull
-        // has none of its own, so the few pixels it adds past the silhouette take the camera's motion
+        // has none of its own, so the few pixels it adds past the silhouette take the camera's motion. The pass file
+        // declares its own vertex/fragment, multi_compile_instancing and DOTS.hlsl pragmas, so none are repeated here
         Pass
         {
             Name "MotionVectors"
