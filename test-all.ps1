@@ -543,7 +543,7 @@ Check "tracked export_scene.fbx calls use FBX_SCALE_ALL and bake_space_transform
 Section 'This machine: headless Blender and the user-level skills (a FAIL here is machine state, not the repo)'
 # README "Global Claude katmani": the user-level layer the plugin and the Blender work lean on. A missing piece fails
 # (machine state: restore ~/.claude), since the pipeline's Blender routing, the export contract and the router need it
-$pieces = 'skills\grill-me', 'skills\orchestrate', 'skills\unity-export', 'skills\blender-director', 'skills\blender-image-to-3d', 'rules\unity-games.md', 'hooks\enhance-prompt.ps1'
+$pieces = 'skills\grill-me', 'skills\orchestrate', 'skills\unity-export', 'skills\blender-director', 'skills\blender-image-to-3d', 'rules\unity-games.md', 'hooks\enhance-prompt.ps1', 'mods\skill-notlari\hooks\register.tsx'
 $noPiece = @($pieces | Where-Object { -not (Test-Path -LiteralPath (Join-Path $env:USERPROFILE ".claude\$_")) } | ForEach-Object { '~/.claude/' + ($_ -replace '\\', '/') })
 Check "user-level layer: all $($pieces.Count) pieces in ~/.claude (README, Global Claude katmani)" (-not $noPiece) ("missing: " + ($noPiece -join ', '))
 # what the user layer restates from the plugin: grill-me's game branch writes pipeline's card (its fields, then phase 1

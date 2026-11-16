@@ -116,12 +116,13 @@ style'ı ve Blender → Unity export sözleşmesi (`unity-export`) gider. Taşı
 
 | Parça | Yer (`~/.claude/` altında) |
 |---|---|
-| Kullanıcı ayarları: iki hook'un kaydı (`hooks`: SessionStart → `adhd-mode.ps1`, UserPromptSubmit → `enhance-prompt.ps1`), `enabledPlugins` (gamekit, i-have-adhd, context7, csharp-lsp), `extraKnownMarketplaces`, `outputStyle: "gamekit:Visual Clarity"`. Dosya yoksa hook script'leri kopyalansa da hiç çalışmaz; yeni makinede zaten bir `settings.json` varsa bu anahtarları içine birleştir | `settings.json` |
+| Kullanıcı ayarları: iki hook'un kaydı (`hooks`: SessionStart → `adhd-mode.ps1`, UserPromptSubmit → `enhance-prompt.ps1`), `enabledPlugins` (gamekit, i-have-adhd, context7, csharp-lsp, skill-notlari), `extraKnownMarketplaces`, `outputStyle: "gamekit:Visual Clarity"`. Dosya yoksa hook script'leri kopyalansa da hiç çalışmaz; yeni makinede zaten bir `settings.json` varsa bu anahtarları içine birleştir | `settings.json` |
 | Kişisel kurallar ve yanıt biçimi | `CLAUDE.md`, `rules/lean-code.md`, `rules/unity-games.md` |
 | Görev yönlendirici ve ADHD modu (ADHD modu `i-have-adhd` plugin'inin skill'ini okur; plugin yoksa yalnız temel kurallarla çalışır) | `hooks/enhance-prompt.ps1`, `hooks/adhd-mode.ps1` |
 | Skill'ler | `skills/grill-me`, `skills/orchestrate`, `skills/blender-director`, `skills/blender-image-to-3d`, `skills/unity-export`, `skills/references`, `skills/synced` |
 | Yedek Blender skill'leri (listeye girmez, director dosya olarak okur) | `spares/blender-skills/` |
 | Sonnet'te çalışan `Explore` agent'ı | `agents/Explore.md` |
+| "Skill notları" modu: template ve oyun oturumlarında sohbetin yanında açılan gamekit skill paneli (`yerel-modlar` marketplace'i bu klasördür) | `mods/` (`.claude-plugin/marketplace.json` + `skill-notlari/`) |
 
 Yeni bir bilgisayarda: yukarıdaki parçaları yedekten `~/.claude/` altına kopyala, `gh auth login` (git push için
 Git for Windows'un Credential Manager'ı kalsın, `gh auth setup-git` çalıştırma: aşağıdaki token'la çakışır), sonra
@@ -131,6 +132,8 @@ claude plugin marketplace add yunusburkut/unity-game-template
 claude plugin install gamekit@unity-game-template
 claude plugin marketplace add ayghri/i-have-adhd
 claude plugin install i-have-adhd@i-have-adhd
+claude plugin marketplace add "$HOME\.claude\mods"
+claude plugin install skill-notlari@yerel-modlar
 ```
 
 Plugin güncellemeleri: arka plandaki otomatik güncelleme (`autoUpdate`) git credential helper'ını kullanmaz; private
