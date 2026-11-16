@@ -7,6 +7,9 @@ using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
+// the EditMode tests reach BuildMenu.AndroidDebugSymbols and other internals without widening the public API
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("GameKit.Editor.Tests")]
+
 namespace GameKit.Editor
 {
     /// <summary>
@@ -188,7 +191,7 @@ namespace GameKit.Editor
         /// reached by reflection (a direct reference would stop this assembly compiling without that module), set for
         /// the build and put back after it.
         /// </summary>
-        static class AndroidDebugSymbols
+        internal static class AndroidDebugSymbols
         {
             const BindingFlags Static = BindingFlags.Public | BindingFlags.Static;
             // UnityEditor.Android.UserBuildSettings.DebugSymbols (6000.6): level (Unity.Android.Types.DebugSymbolLevel:
@@ -202,25 +205,45 @@ namespace GameKit.Editor
             public static object[] Read() =>
                 Level == null || Format == null ? null : new[] { Level.GetValue(null), Format.GetValue(null) };
 
-            /// <summary>Sets the store defaults on top of <paramref name="start"/>; returns the build.log line.</summary>
+            /// <summary>
+            /// Sets the store defaults on top of <paramref name="start"/>; returns the build.log line. Never throws: a
+            /// renamed enum member after a Unity update costs the symbols ("not set: ..."), not the build, and a half
+            /// set value is put back by <see cref="Restore"/>.
+            /// </summary>
             public static string ForStore(object[] start)
             {
                 if (start == null) return "not set: UnityEditor.Android.UserBuildSettings.DebugSymbols not found";
-                if (start[0].ToString() == "None") Level.SetValue(null, System.Enum.Parse(Level.PropertyType, "SymbolTable"));
-                var format = Format.PropertyType;
-                object inBundle = System.Enum.Parse(format, "IncludeInBundle");
-                if (format.IsDefined(typeof(System.FlagsAttribute), false))
-                    Format.SetValue(null, System.Enum.ToObject(format,
-                        System.Convert.ToInt64(start[1]) | System.Convert.ToInt64(inBundle)));
-                else Format.SetValue(null, inBundle);
-                return Level.GetValue(null) + ", " + Format.GetValue(null);
+                try
+                {
+                    if (start[0].ToString() == "None") Level.SetValue(null, System.Enum.Parse(Level.PropertyType, "SymbolTable"));
+                    var format = Format.PropertyType;
+                    object inBundle = System.Enum.Parse(format, "IncludeInBundle");
+                    if (format.IsDefined(typeof(System.FlagsAttribute), false))
+                        Format.SetValue(null, System.Enum.ToObject(format,
+                            System.Convert.ToInt64(start[1]) | System.Convert.ToInt64(inBundle)));
+                    else Format.SetValue(null, inBundle);
+                    return Level.GetValue(null) + ", " + Format.GetValue(null);
+                }
+                catch (System.Exception e)
+                {
+                    e = e.GetBaseException(); // reflection wraps a setter's own exception
+                    return "not set: " + e.GetType().Name + ": " + e.Message;
+                }
             }
 
+            /// <summary>Puts <paramref name="start"/> back; runs in the build's finally, so it only warns.</summary>
             public static void Restore(object[] start)
             {
                 if (start == null) return;
-                Level.SetValue(null, start[0]);
-                Format.SetValue(null, start[1]);
+                try
+                {
+                    Level.SetValue(null, start[0]);
+                    Format.SetValue(null, start[1]);
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogWarning("[BuildMenu] Android debug symbols not restored: " + e.GetBaseException().Message);
+                }
             }
         }
 

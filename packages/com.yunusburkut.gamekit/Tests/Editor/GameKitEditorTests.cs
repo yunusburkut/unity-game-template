@@ -48,6 +48,33 @@ namespace GameKit.Editor.Tests
             foreach (string name in BuildMenu.TargetNames.Split('|'))
                 Assert.IsTrue(BuildMenu.TryParse(name, out _, out _), name);
         }
+
+        // the type string and enum member names are reflection: a Unity API move shows up here, not as a Play warning
+        [Test]
+        public void AndroidDebugSymbols_StoreSettingsRoundTrip()
+        {
+            if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Android, BuildTarget.Android))
+            {
+                StringAssert.StartsWith("not set", BuildMenu.AndroidDebugSymbols.ForStore(null));
+                Assert.Ignore("Android module not installed");
+            }
+            var start = BuildMenu.AndroidDebugSymbols.Read();
+            Assert.IsNotNull(start, "UnityEditor.Android.UserBuildSettings.DebugSymbols not found");
+            try
+            {
+                string line = BuildMenu.AndroidDebugSymbols.ForStore(start);
+                StringAssert.DoesNotStartWith("not set", line);
+                StringAssert.Contains("IncludeInBundle", line);
+                StringAssert.DoesNotStartWith("None", line);
+            }
+            finally
+            {
+                BuildMenu.AndroidDebugSymbols.Restore(start);
+            }
+            var restored = BuildMenu.AndroidDebugSymbols.Read();
+            Assert.AreEqual(start[0], restored[0]);
+            Assert.AreEqual(start[1], restored[1]);
+        }
     }
 
     public class SafeAreaFitterTests
