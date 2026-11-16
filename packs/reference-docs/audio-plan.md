@@ -91,11 +91,14 @@ Bunlar `docs/design-corpus` ile eklendi (kimlikler gamekit eklentisinin `plugin/
 
 ## Bitti sayılma ölçütü
 
-GDD'nin ses maddeleri:
+GDD'nin ses maddeleri ve bu belgenin yazıldığı günkü (snapshot) gerçek durumları. Bir madde, yukarıdaki klip
+listesi o maddenin kliplerini "Var" ya da "Bağlı" gösterdiğinde işaretlenir; listeyle çelişen bir ✅ yanlış "bitti"dir.
+Bu dosyanın ilk hâli dördünü de ✅ işaretlemişti; `design-audit.md` bunu açık bulgu olarak tutuyor (DA-27, DA-30).
 
-1. ✅ Hareketin her anı seslenir, inişin şiddeti düşüş hızına göre değişir → `PlayerFeel`.
-2. ✅ Telsiz cızırtısı duyulunca ortak bir şey istiyor demektir → `SFX_Radio`.
-3. ✅ Yaklaşan tehlike ekrana bakmayan oyuncuya ses ile anlatılır → `SFX_ChaseWarn`.
-4. ✅ Juice Feel ile kurulur → zaten kurulu.
+1. ⬜ Hareketin her anı seslenir, inişin şiddeti düşüş hızına göre değişir → `PlayerFeel`. Eksik: `SFX_Land` yok,
+   `SFX_Jump` ve `SFX_Dash` geçici, `SFX_DashEnd`, `SFX_WallBump`, `SFX_Respawn` yok.
+2. ⬜ Telsiz cızırtısı duyulunca ortak bir şey istiyor demektir → `SFX_Radio`. Eksik: klip yok (DA-27).
+3. ⬜ Yaklaşan tehlike ekrana bakmayan oyuncuya ses ile anlatılır → `SFX_ChaseWarn`. Eksik: klip yok (DA-27).
+4. ✅ Juice Feel ile kurulur → zaten kurulu (`MMF_Player` alanları yerinde).
 
 Dördü de sağlandığında `docs/gdd.md` yol haritasındaki **Ses** aşaması ✅ olur.

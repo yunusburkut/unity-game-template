@@ -29,9 +29,29 @@ __GAME__. How Mixtrol built every role, with the prediction and mechanism detail
   `NetworkObject != null && NetworkObject.IsSpawned` (one extension method) before `IsServerStarted` in anything
   reached every frame, or it is a null dereference.
 - Everything that needs the internet (UGS init, anonymous sign-in, relay allocation) lives in one launcher that hands
-  the result to the session owner, which knows nothing about relays. Relay data goes onto the transport through its
-  byte-array overloads, never by constructing `RelayServerData`: FishyUnityTransport is compiled against
-  `com.unity.transport` 1.3.1 and Unity 6000.6 resolves the built-in 6.6.0.
+  the result to the session owner, which knows nothing about relays. On UDP targets relay data goes onto the
+  transport through its byte-array overloads (`SetHostRelayData` / `SetClientRelayData`), never by constructing
+  `RelayServerData`: FishyUnityTransport is compiled against `com.unity.transport` 1.3.1 and Unity 6000.6 resolves the
+  built-in 6.6.0. WebGL is the one exception (Platforms below).
+
+## Platforms
+
+- **WebGL.** A browser opens no UDP socket: the build talks to Relay over secure WebSockets or not at all. Read the
+  allocation's (and the join allocation's) `ServerEndpoints` entry whose `ConnectionType` is `"wss"`, set the
+  transport's `UseWebSockets` in that build, and hand the data over with `SetRelayServerData(new RelayServerData(host,
+  port, allocationIdBytes, connectionData, hostConnectionData, key, isSecure: true, isWebSocket: true))`
+  (`Unity.Networking.Transport.Relay`). The byte-array overloads cannot carry the WebSocket flag, and
+  `com.unity.transport` 6.6's `NetworkDriver` throws "Mismatched Relay configuration" when a WebSocket driver gets
+  UDP relay data. There is no direct path (the loopback join in `docs/network-testing.md` is UDP), so hide it in a
+  WebGL build. Ship WebGL as a client only until a WebGL host has been verified, and verify that a desktop host on a
+  UDP allocation accepts the WebGL client before promising cross-play.
+- **Mobile.** `runInBackground` (the pack's `CoopSetup`) works on desktop and WebGL only; iOS and Android suspend a
+  backgrounded app, and FishNet has no host migration. When a phone host goes to the background
+  (`OnApplicationPause(true)`), the session ends for everyone: the session owner stops it and each client's status
+  line says the host left, rather than letting clients time out on a frozen host. A paused phone client is dropped and
+  rejoins as a new connection (it spawns at the last banked checkpoint, as above). The lifecycle hooks themselves (pause,
+  focus, back button) are `gamekit:platform-targets`; its "pause the game on focus loss" applies to the offline game,
+  never to a running session.
 
 ## Authority
 

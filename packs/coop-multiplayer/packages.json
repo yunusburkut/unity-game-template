@@ -5,5 +5,13 @@
         "com.unity.multiplayer.playmode": "3.0.0",
         "com.unity.services.multiplayer": "2.3.3",
         "com.unity.transport": "6.6.0"
-    }
+    },
+    "gameReferences": [
+        "FishNet.Runtime",
+        "FishyUnityTransport",
+        "Unity.Networking.Transport",
+        "Unity.Services.Core",
+        "Unity.Services.Authentication",
+        "Unity.Services.Multiplayer"
+    ]
 }

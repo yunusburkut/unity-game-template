@@ -2,6 +2,8 @@
 
 Scope: Unity 6 (6000.x), URP 17 2D Renderer, Linear color space, SpriteRenderer plus custom HLSL shaders. Researched October 2026. Version-specific or dated guidance is flagged inline.
 
+Version check: the manual pages cited below are the 6000.2 ones, and nothing here was rechecked on 6000.6 / URP 17.6 (the template's target). On 6000.6, run the #808080 round-trip test in the Q1 Gaps (white sprite, unlit, post off, expect 128 in the framebuffer) before relying on the `Material.SetColor` and `SpriteRenderer.color` rows.
+
 Project snapshot (read from the repo, not from a web source; useful context for the report writer):
 - `ProjectSettings.asset`: `m_ActiveColorSpace: 1` (Linear).
 - `Assets/Settings/UniversalRP.asset`: `m_SupportsHDR: 1`, `m_ColorGradingMode: 0` (LDR grading), `m_ColorGradingLutSize: 32`.

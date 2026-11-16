@@ -2,7 +2,8 @@
 
 Catalog of `source/02_mechanic_puzzle_idea_generator_expanded.pdf` (pp. 1–61; seeds pp. 3–59), paraphrased and mapped onto Mixtrol.
 Cite by ID (`OP09`, `OB45`, `RA08`); IDs are stable — never renumber, append instead.
-Status: ✅ built (device) · 🟡 partial (what is missing) · 🧩 cheap with existing systems, no new key · 🆕 needs a new system · ⛔ conflicts with a recorded decision · — not applicable to a horizontal 2.5D lane.
+Mixtrol status (the marks in the Mixtrol columns): ✅ built (device) · 🟡 partial (what is missing) · 🧩 cheap with existing systems, no new key · 🆕 needs a new system · ⛔ conflicts with a recorded decision · — not applicable to a horizontal 2.5D lane.
+In __GAME__ these marks and the class names beside them describe Mixtrol, never this game: rate a card's production cost and devices reused against __GAME__'s own systems (DESIGN.md, the code); `docs/design-audit.md` holds this game's own status once its first design audit fills it.
 
 ## 1. How a seed is built
 
@@ -98,7 +99,7 @@ Mutate an existing affordance before inventing a control. The operator changes r
 ## 3. OB — Object palette (60)
 
 In seed order. **Every verb must land on a key Mixtrol already has**: E covers grab, carry, press, pull, insert, drop;
-A/D/W/Ctrl/Shift cover the movement verbs; Space plays a dealt move. Verbs that need aiming or a held crank (aim,
+A/D/W/S/Shift cover the movement verbs; Space plays a dealt move (the full list: `README.md`, Mixtrol deltas, Inputs). Verbs that need aiming or a held crank (aim,
 throw, turn) have no key — the object is 🆕 or loses that verb. Mixtrol column: the device that already *is* the object.
 
 | ID | Object | Base affordance | State to manipulate | Familiar actions | Mixtrol |

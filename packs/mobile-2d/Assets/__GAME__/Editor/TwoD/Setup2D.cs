@@ -10,11 +10,12 @@ namespace __GAME__.Editor
 {
     /// <summary>
     /// The mobile-2d pack's setup step, run by ProjectSetup after its own: both URP assets render through one 2D
-    /// Renderer (sprites, Light2D, sorting layers), the Editor starts in 2D mode (textures import as sprites, the
-    /// Scene view is 2D), and Main gets an orthographic camera and a global 2D light instead of the 3D sun.
+    /// Renderer (sprites, Light2D, sorting layers) and the Mobile tier drops MSAA, the Editor starts in 2D mode
+    /// (textures import as sprites, the Scene view is 2D), and Main gets an orthographic camera and a global 2D light
+    /// instead of the 3D sun.
     /// Safe to run again: a tier whose default renderer is already a 2D renderer is left as it is, and Main is
-    /// converted only while it has no Light2D, so later tuning of the renderer lists, the camera and the lights
-    /// survives a rerun of Set Up Project.
+    /// converted only while it has neither a Light2D nor an orthographic camera, so later tuning of the renderer
+    /// lists, MSAA, the camera and the lights survives a rerun of Set Up Project.
     /// </summary>
     static class Setup2D
     {
@@ -53,6 +54,9 @@ namespace __GAME__.Editor
                 list.arraySize = 1;
                 list.GetArrayElementAtIndex(0).objectReferenceValue = renderer;
                 serialized.FindProperty("m_DefaultRendererIndex").intValue = 0;
+                // MSAA barely helps alpha-edged sprites and costs tile-GPU bandwidth; Unity's 2D URP setup ships
+                // with it off. PC keeps ProjectSetup's value: the game decides there.
+                if (tier == "Mobile") serialized.FindProperty("m_MSAA").intValue = (int)MsaaQuality.Disabled;
                 serialized.ApplyModifiedPropertiesWithoutUndo();
                 EditorUtility.SetDirty(pipeline);
             }
@@ -81,10 +85,16 @@ namespace __GAME__.Editor
                      && (!ProjectSetup.SaveOpenScenesFirst() || scene.isDirty))
                 return false; // saving Main below would also write edits the user chose not to keep
 
+            // converted once Main has a Light2D or an orthographic camera: a game that later drops the global light
+            // (unlit sprites) keeps its tuned camera, and one that later goes perspective (parallax) keeps its Light2D
             var roots = scene.GetRootGameObjects();
             bool converted = false;
             foreach (var root in roots)
+            {
                 if (root.GetComponentInChildren<Light2D>(true) != null) converted = true;
+                foreach (var cam in root.GetComponentsInChildren<Camera>(true))
+                    if (cam.orthographic) converted = true;
+            }
 
             if (!converted)
             {
@@ -92,9 +102,20 @@ namespace __GAME__.Editor
                     foreach (var light in root.GetComponentsInChildren<Light>(true))
                     {
                         if (light == null) continue; // its GameObject went with an earlier parent
-                        // the template's sun stands alone; a Light on anything else loses only the component
-                        bool alone = light.transform.childCount == 0 && light.GetComponents<Component>().Length == 2;
-                        Object.DestroyImmediate(alone ? (Object)light.gameObject : light);
+                        // the template's sun stands alone; a Light on anything else loses only the component.
+                        // URP adds UniversalAdditionalLightData ([RequireComponent(typeof(Light))]) once the light
+                        // has rendered: it does not count against "alone", and it goes first so the Light can go
+                        bool alone = light.transform.childCount == 0;
+                        foreach (var component in light.GetComponents<Component>())
+                            if (!(component is Transform || component is Light || component is UniversalAdditionalLightData))
+                                alone = false;
+                        if (alone)
+                        {
+                            Object.DestroyImmediate(light.gameObject);
+                            continue;
+                        }
+                        if (light.TryGetComponent(out UniversalAdditionalLightData data)) Object.DestroyImmediate(data);
+                        Object.DestroyImmediate(light);
                     }
 
                 Camera camera = null;

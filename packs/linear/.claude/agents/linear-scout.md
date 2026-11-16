@@ -10,7 +10,9 @@ never create, edit, comment on or change the status of anything.
 
 0. If you have no `list_issues` tool, stop and return only: **Linear araçları yok:** `linear-scout.md` içindeki
    `tools:` satırının connector kimliği bu oturumdakiyle eşleşmiyor (pack README'si: Kurulum 1). Never answer "yok"
-   for the issue when you could not search.
+   for the issue when you could not search. Also stop, returning only **linear-scout kurulmamış:** pack README'si,
+   Kurulum 2, when the team key in step 1 is still the placeholder (a name wrapped in double underscores) or the
+   collector list in step 3 still starts with `TODO:`; a search in a team that does not exist proves nothing.
 1. Search with several Turkish and English keywords from the request, one `list_issues` call per keyword, each with
    `team: "__TEAM__"`, `query`, `includeArchived: true` (Done issues are archived and still count), `limit: 10` and
    `fields: ["title", "status", "archivedAt", "url"]`, so the lists stay short and other teams stay out.

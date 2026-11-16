@@ -8,10 +8,11 @@
 # OutlineNormalsPostprocessor bakes, so the outline stays closed at the hard rim edges. Without --python-exit-code 1
 # a Python error exits 0 and the run looks green.
 #
-# Axes: authored in Blender metres, +Z up, the front toward -Y, the pivot at the base centre. With this preset and
-# the importer's bakeAxisConversion the mesh keeps Blender X and negates Z; the prefab stands it up with a child
-# turned Euler(90, 0, 0), so a Blender point (x, y, z) lands at Unity (x, z, y) in the prefab. to_unity() is that
-# mapping, and every number in the manifest is already in Unity prefab space.
+# Axes: authored in Blender metres, +Z up, the front toward -Y (Blender's Front view), the pivot at the base centre.
+# With this preset and the importer's bakeAxisConversion the mesh keeps Blender X and negates Z; the prefab stands it
+# up with a child turned Euler(90, 180, 0), so a Blender point (x, y, z) lands at Unity (-x, z, -y) in the prefab and
+# the front faces transform.forward (+Z). to_unity() is that mapping, and every number in the manifest is already in
+# Unity prefab space.
 
 import json
 import os
@@ -20,8 +21,9 @@ import sys
 import bmesh
 import bpy
 
-# role -> (sRGB colour, smoothness). The builder makes one __GAME__/Toon material per role, M_<Role>; a colour
-# change happens here and nowhere else.
+# role -> (sRGB colour, smoothness). The builder makes one __GAME__/Toon material per role and outline choice
+# (M_<Role>, M_<Role>_Outline); a colour change happens here and nowhere else. Every script that uses a role gives it
+# the same values (keep the shared palette in one module when there are several), or the rebuild fails on that role.
 PALETTE = {
     "Wood": ((0.78, 0.52, 0.30), 0.15),
     "WoodDark": ((0.55, 0.34, 0.20), 0.10),
@@ -89,8 +91,13 @@ def build():
 
 
 def to_unity(p):
-    """Blender (x, y, z) -> Unity prefab space (x, z, y), as the {x, y, z} object JsonUtility reads into a Vector3."""
-    return {"x": round(p[0], 5), "y": round(p[2], 5), "z": round(p[1], 5)}
+    """Blender (x, y, z) -> Unity prefab space (-x, z, -y), as the {x, y, z} object JsonUtility reads into a Vector3."""
+    return {"x": round(-p[0], 5) + 0.0, "y": round(p[2], 5), "z": round(-p[1], 5) + 0.0}
+
+
+def to_unity_size(s):
+    """A Blender extent (x, y, z) -> Unity prefab space (x, z, y): sizes stay positive, the turn only reorders them."""
+    return {"x": round(s[0], 5), "y": round(s[2], 5), "z": round(s[1], 5)}
 
 
 def color(rgb):
@@ -149,8 +156,12 @@ def export(obj, path):
 
 def write_manifest(obj, triangles, path):
     """What Unity needs beyond the mesh, in Unity prefab space: JsonUtility field names, no dictionaries, no nulls."""
-    lo = [min(v.co[i] for v in obj.data.vertices) for i in range(3)]
-    hi = [max(v.co[i] for v in obj.data.vertices) for i in range(3)]
+    # the evaluated mesh, the one check() measures and the export writes (use_mesh_modifiers), so a Bevel, Mirror or
+    # Array modifier in a copied script moves the collider with it
+    mesh = evaluated_mesh(obj)
+    lo = [min(v.co[i] for v in mesh.vertices) for i in range(3)]
+    hi = [max(v.co[i] for v in mesh.vertices) for i in range(3)]
+    obj.evaluated_get(bpy.context.evaluated_depsgraph_get()).to_mesh_clear()
     centre = [(a + b) / 2.0 for a, b in zip(lo, hi)]
     size = [b - a for a, b in zip(lo, hi)]
     manifest = {
@@ -159,9 +170,9 @@ def write_manifest(obj, triangles, path):
         "roles": [m.name[2:] for m in obj.data.materials],      # submesh order
         "colors": [color(PALETTE[m.name[2:]][0]) for m in obj.data.materials],
         "smoothness": [PALETTE[m.name[2:]][1] for m in obj.data.materials],
-        "outline": True,                                        # a prop the player reads; level pieces say False
+        "outline": True,        # a prop the player reads; level pieces say False (and get M_<Role> without it)
         "colliderCenter": to_unity(centre),
-        "colliderSize": to_unity(size),     # sizes are positive: the swap only reorders them
+        "colliderSize": to_unity_size(size),
     }
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         json.dump(manifest, f, indent=2)

@@ -7,36 +7,25 @@ the pack. Read it when you build the piece it describes (a session owner, a spaw
 registry, a room screen) and name __GAME__'s own types after DESIGN.md and CLAUDE.md; do not recreate Mixtrol's
 layout because this file names it.
 
-## The contract as Mixtrol wrote it
-
-FishNet 4.7 (immutable git package) with FishyUnityTransport's `UnityTransport` over Unity Relay: host + client, no
-dedicated server. API: context7 `/websites/fish-networking_gitbook_io` (give the ID directly; search does not find it).
-The FishNet source is under `Library/`, which is not read.
-
 ## Session lifecycle
 
-- `Game/Prefabs/Net/NetworkManager.prefab` sits in every playable scene (not the `Hedef_Harabe` look benchmark) and
-  never starts on its own. Single-player is the game
-  with no session started; `NetworkSession` (same object) is the only place a host or client starts or stops.
-- Not DontDestroyOnLoad: every session ends in a scene reload, because FishNet leaves a stopped session's scene network
-  objects (`Systems` included) switched off. A scene load goes through `NetworkSession.LoadScene`, which ends the session.
-- FishNet switches every networked object off in its own `Start` while nothing runs. The offline game exists because
-  `NetworkSession` switches the scene's back on at the end of the first frame and `PlayerSpawner` spawns offline bodies
-  with `SetIsNetworked(false)`. So a scene `NetworkBehaviour` also runs offline, uninitialized: ask
-  `this.Live()` before `IsServerStarted` in anything reached every frame, or it is a null dereference.
-- `SessionLauncher` owns everything that needs the internet (UGS init, anonymous sign-in, relay allocation) and hands
-  the result to `NetworkSession`, which knows nothing about relays. Relay data goes onto the transport through its
-  byte-array overloads, never by constructing `RelayServerData`: FishyUnityTransport is compiled against
-  `com.unity.transport` 1.3.1 and this project resolves the built-in 6.6.0.
+The rules (stack, pins, offline objects, the byte-array relay overloads) are `.claude/rules/networking.md`, Session
+lifecycle; these are the names Mixtrol gave each role.
+
+- Session owner: `NetworkSession` on `Game/Prefabs/Net/NetworkManager.prefab`, in every playable scene (not the
+  `Hedef_Harabe` look benchmark). Its scene loads go through `NetworkSession.LoadScene`; the scene objects FishNet
+  leaves off after a session include `Systems`.
+- Offline bodies: `NetworkSession` switches the scene's network objects back on at the end of the first frame and
+  `PlayerSpawner` spawns offline bodies. The spawned-check extension is `this.Live()`.
+- Launcher: `SessionLauncher` (UGS init, anonymous sign-in, relay allocation), handing the result to `NetworkSession`.
 
 ## Authority
 
-- Characters are client-authoritative (the owner steps `PlayerController` per frame and decides its deaths, hazards
-  and throws; every other machine predicts a copy, below). The world —
-  carried object, plates, doors, chasing walls, checkpoints, deaths — is host-authoritative. Spikes and the launch pad
-  gate nothing and are decided locally from a position that has already travelled.
-- A SyncType `OnChange` filters the host with **`asServer || IsServerStarted`**, never `asServer` alone: a client host
-  runs both halves and would adopt its own answer a second time as a client.
+The split and the `OnChange` filter are `.claude/rules/networking.md`, Authority. Mixtrol's specifics:
+
+- The owner steps `PlayerController` per frame and decides its deaths, hazards and throws; every other machine
+  predicts a copy (below). The host's world is the carried object, plates, doors, chasing walls, checkpoints and
+  deaths. Spikes and the launch pad gate nothing and are decided locally from a position that has already travelled.
 
 ## Characters
 
@@ -88,12 +77,9 @@ The FishNet source is under `Library/`, which is not read.
 
 ## FishNet gotchas
 
-- `Assets/DefaultPrefabObjects.asset` is FishNet's generated spawnable-prefab list at the path its configuration
-  expects: leave it.
-- FishNet's ILPostProcessor rewrites `__GAME__.Game`: a `[ServerRpc]` gains `RpcWriter___` / `RpcReader___` methods;
-  their absence means codegen did not run.
-- The `ServerManager` / `ClientManager` frame-rate override is off in the prefab; FishNet would otherwise write
-  `Application.targetFrameRate` when a session starts.
+The general ones (`DefaultPrefabObjects.asset`, the ILPostProcessor check, the frame-rate override, static resets)
+are `.claude/rules/networking.md`, FishNet gotchas; Mixtrol's prefab has the frame-rate override off.
+
 - A room is a level. `SessionLauncher.HostAsync` / `JoinAsync` make the relay allocation first — from the main
   menu or a level's room screen — then load the level, which applies it and starts the session one frame in; the
   allocation is the only thing carried across the load. The room code is the relay's six characters plus one for the

@@ -1,7 +1,8 @@
 // The look of the casual top charts, drawn like a cartoon: two crisp bands of light and shade with a cool,
 // saturated tint on the shade side, sun shadows cut to the same hard edge, a sharp glossy spot and a thin light rim
 // on smooth surfaces, a little contact shading where things meet the ground, and an ink outline in a darker shade of
-// the surface's own color. Smoothness drives the spot and the rim together, so 0 gives a matte ground and 0.6 a
+// the surface's own color. Both bands scale with the main light (the shade tint is a ratio of the lit side), so dusk,
+// night and interiors darken as a whole. Smoothness drives the spot and the rim together, so 0 gives a matte ground and 0.6 a
 // plastic bag. The outline is an inverted hull pushed out by a fixed number of pixels (at 1080p, so it reads the same
 // on a phone and a monitor) along the smoothed normal OutlineNormalsPostprocessor bakes into the tangent, so
 // hard-edged and skinned models get an unbroken line too. A material without an outline has that pass switched off
@@ -9,11 +10,13 @@
 // (outline).
 //
 // Lighting: the real main light with its shadows (cascades, soft shadows and the fade at the shadow distance), point
-// and spot lights banded the same way (Forward and Forward+, with their shadows), light layers, fog, and ambient
-// from the light probes / SH. Baked lightmaps and shadowmask are not sampled: toon objects are lit in real time and
+// and spot lights banded the same way (Forward and Forward+, with their shadows), light layers, fog, ambient from
+// the light probes / SH or the Adaptive Probe Volumes, SSAO (darkening both bands and the ambient) and DBuffer decals
+// (on the surface colour). Baked lightmaps and shadowmask are not sampled: toon objects are lit in real time and
 // take baked light through probes; the Meta pass still gives the lightmapper their albedo for bounce. Passes:
-// ForwardLit, Outline (SRPDefaultUnlit), ShadowCaster, DepthOnly, DepthNormals (SSAO, decals) and Meta. SRP batcher,
-// GPU instancing, the GPU Resident Drawer (DOTS instancing) and LOD cross-fade are supported.
+// ForwardLit, Outline (SRPDefaultUnlit), ShadowCaster, DepthOnly, DepthNormals (the normals SSAO and decals read),
+// MotionVectors (TAA, STP, motion blur) and Meta. SRP batcher, GPU instancing, the GPU Resident Drawer (DOTS
+// instancing) and LOD cross-fade are supported.
 // The outline is drawn in the opaque list, which depth priming switches to ZTest Equal: keep the renderer's Depth
 // Priming Mode on Disabled (the URP default), or the outline vanishes.
 Shader "__GAME__/Toon"
@@ -38,7 +41,7 @@ Shader "__GAME__/Toon"
 
         [Header(Contact)]
         _ContactShade("Contact Shade", Range(0, 1)) = 0.3
-        _GroundY("Ground Height", Float) = -0.06
+        _GroundY("Ground Height (world Y)", Float) = -0.06
         _ContactHeight("Contact Height", Float) = 0.25
 
         [Header(Outline)]
@@ -95,6 +98,10 @@ Shader "__GAME__/Toon"
             #pragma multi_compile _ _LIGHT_LAYERS
             #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
             #pragma multi_compile _ LOD_FADE_CROSSFADE
+            // SSAO (any mode), DBuffer decals and Adaptive Probe Volumes; stripped when the URP asset has none of them
+            #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
+            #pragma multi_compile_fragment _ _DBUFFER_MRT1 _DBUFFER_MRT2 _DBUFFER_MRT3
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ProbeVolumeVariants.hlsl"
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Fog.hlsl"
             #pragma multi_compile_instancing
             #pragma instancing_options renderinglayer
@@ -160,8 +167,14 @@ Shader "__GAME__/Toon"
                     LODFadeCrossFade(input.positionCS);
                 #endif
                 half3 albedo = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv).rgb * _BaseColor.rgb;
+                #if defined(_DBUFFER)
+                    ApplyDecalToBaseColor(input.positionCS, albedo);    // DBuffer decals tint the surface colour
+                #endif
                 half3 normal = normalize(input.normalWS);
                 half3 view = GetWorldSpaceNormalizeViewDir(input.positionWS);
+                float2 screenUV = GetNormalizedScreenSpaceUV(input.positionCS);
+                // 1 without the SSAO keyword; with it, creases darken in both bands and in the ambient
+                AmbientOcclusionFactor ao = GetScreenSpaceAmbientOcclusion(screenUV);
                 uint meshRenderingLayers = 0;
                 #if defined(_LIGHT_LAYERS)
                     meshRenderingLayers = GetMeshRenderingLayer();
@@ -185,16 +198,26 @@ Shader "__GAME__/Toon"
                 half shadow = smoothstep(0.3, 0.7, light.shadowAttenuation);
                 half lit = band * shadow * mainOn;
 
-                // the shade keeps its color: richer and cooler instead of grayer
+                // the shade keeps its color: richer and cooler instead of grayer. Both bands take the main light, so
+                // the tint is a ratio of the lit side: a dim sun dims the shade with it, and with the main light off
+                // (or on another light layer) only the ambient and the point and spot lights remain
                 half3 shadeAlbedo = lerp(Luminance(albedo).xxx, albedo, _ShadeSaturation) * _ShadeColor.rgb;
-                half3 color = lerp(shadeAlbedo, albedo * light.color, lit);
-                color += albedo * SampleSH(normal) * _AmbientStrength;
+                half3 color = lerp(shadeAlbedo * ao.indirectAmbientOcclusion,
+                                   albedo * ao.directAmbientOcclusion, lit) * (light.color * mainOn);
+                // ambient from the light probes, or from the Adaptive Probe Volumes when the URP asset uses them
+                #if defined(PROBE_VOLUMES_L1) || defined(PROBE_VOLUMES_L2)
+                    half3 ambient = SampleProbeVolumePixel(half3(0, 0, 0), GetAbsolutePositionWS(input.positionWS),
+                                                           normal, view, input.positionCS.xy);
+                #else
+                    half3 ambient = SampleSH(normal);
+                #endif
+                color += albedo * ambient * (_AmbientStrength * ao.indirectAmbientOcclusion);
 
                 // point and spot lights; a per-vertex setting on the URP asset is lit per pixel too, for the band
                 #if defined(_ADDITIONAL_LIGHTS) || defined(_ADDITIONAL_LIGHTS_VERTEX)
                     InputData inputData = (InputData)0;     // LIGHT_LOOP_BEGIN reads these two in Forward+
                     inputData.positionWS = input.positionWS;
-                    inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.positionCS);
+                    inputData.normalizedScreenSpaceUV = screenUV;
                     uint pixelLightCount = GetAdditionalLightsCount();
                     #if USE_CLUSTER_LIGHT_LOOP
                         [loop] for (uint lightIndex = 0; lightIndex < min(URP_FP_DIRECTIONAL_LIGHTS_COUNT, MAX_VISIBLE_LIGHTS); lightIndex++)
@@ -208,7 +231,10 @@ Shader "__GAME__/Toon"
                     LIGHT_LOOP_END
                 #endif
 
-                // things darken a little toward the ground they stand on
+                // things darken a little toward the ground they stand on. Ceiling: one world-space height per material
+                // (_GroundY), so it suits a level whose floor is a plane; with several floor heights set _ContactShade
+                // to 0, or _GroundY per material. An object-relative height would break skinned meshes (their matrix
+                // is the root bone's) and statically batched ones (identity matrix).
                 half contact = saturate((input.positionWS.y - _GroundY) / _ContactHeight);
                 color *= lerp(1.0 - _ContactShade, 1.0, contact * contact * (3.0 - 2.0 * contact));
 
@@ -348,6 +374,20 @@ Shader "__GAME__/Toon"
             #pragma multi_compile_instancing
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DOTS.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/DepthNormalsPass.hlsl"
+            ENDHLSL
+        }
+
+        // per-object motion for TAA, STP and motion blur (URP's own pass file, as URP/Lit uses it); the outline hull
+        // has none of its own, so the few pixels it adds past the silhouette take the camera's motion
+        Pass
+        {
+            Name "MotionVectors"
+            Tags { "LightMode" = "MotionVectors" }
+            ColorMask RG
+
+            HLSLPROGRAM
+            #pragma multi_compile _ LOD_FADE_CROSSFADE
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ObjectMotionVectors.hlsl"
             ENDHLSL
         }
 

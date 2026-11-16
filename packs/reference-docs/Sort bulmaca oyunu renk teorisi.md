@@ -116,6 +116,7 @@ Aşağıdaki tablo, Machado 2009 matrisleriyle (%100 şiddet, doğrusal sRGB) ya
   - Teal + Maroon kombinasyonu biraz daha yüksek puan aldı (0.081). Ama Maroon ve Navy L 0.40–0.53'e düşüyor. Bu renkler koyu zeminde kötü okunuyor ve gizli sıvı rengine yaklaşıyor.
   - Sky eklemek üç mavi sıvı yaratıyor, bu da tritan ve küçük alan riski demek.
 - **Uyarı:** Değerler hesaplanmış; kullanıcı testinden geçmedi.
+- **Yeniden üretilebilirlik:** Bu rapordaki bütün ΔEOK/ΔE00 sayıları (0.076, 0.058 dahil) kaybolan `pal.cs` betiğiyle hesaplandı; betik bu depoda yok, sayılar olduğu gibi yeniden çalıştırılamaz. Yöntem ve yeniden yazma adımları: `research_notes/Sort bulmaca oyunu renk teorisi/palette_distinguishability.md` ("Script" maddesi). Bu sayıları alıntılamadan ya da yeni bir paleti puanlamadan önce yöntemi yeniden kur ve #FF0000 referans değerlerini doğrula.
 
 | Sıra | Ad | Önerilen hex | OKLCH (L C h) | WCAG, #1D2035 zemine | Mevcut hex |
 |---|---|---|---|---|---|

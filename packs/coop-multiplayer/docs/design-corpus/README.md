@@ -62,7 +62,7 @@ table below and the disagreement is raised, never resolved silently.
 | Scripted jokes die after one play (AP01) | One-shot traps: decoy checkpoint, twin shuttle, bait crate (Mixtrol's `bolum-01-beats.md` rule 1, not shipped) | Open — keep at most one per level, and prefer traps whose outcome depends on who acts |
 | Voice matters but must not be required (DC09, RX22) | Voice via Discord is assumed ("Sesli iletişim zorunlu") | Partly met — radio + antenna blink is the nonverbal fallback |
 | Camera shake is not default feedback (FX02) | GDD "Ses ve his" lists shake as juice; the Feel recipes put it on routine verbs | **Resolved 2026-09-22: magnitude, not absence.** Routine verbs keep it small; rare events get the largest |
-| Tether patterns (P42, RA21) | Hard chain and physics tether are out of scope | Soft logical coupling only (the cauldron's separation stress is one) |
+| Tether patterns (P42, RA21) | Hard chain and physics tether are out of scope | Soft logical coupling only. The cauldron's separation stress was the one soft form until the user took the liquid out on 2026-09-28; no soft form is built now |
 | Hidden ownership (P12) | Ownership is always public on the antenna | Deliberate — the antenna is the readability pillar; hide *other* facts (P11: the tunnel) |
 | Rooms assume 4 players | Content is built for 2; mechanics are 2–4 | Write beats as "at least two" / "everyone" (GDD rule) |
 | Deterministic recovery after disconnect (AG5) | A disconnect ends the run; no host migration | Accepted by the GDD. At 3–4 players a leave with ≥ 2 remaining re-deals the leaver's moves and continues (decided 2026-09-22, not built) |
@@ -75,9 +75,20 @@ These are the reference game's deltas, kept as the worked example. Write __GAME_
 DESIGN.md and CLAUDE.md) once its keys, player count and failure model are decided; until then read each as "what
 Mixtrol decided", not as a rule for this game. The "Known conflicts" table above is Mixtrol's in the same way.
 
-- **Inputs.** The corpus's "move, jump, crouch, dash, grab" is Mixtrol's A/D, W, Ctrl, Shift and E, plus
-  Space, which plays the move you hold of your partner's. One key per action, no alternates, **no new
-  keys** — every "no new input" rule in the corpus is already a repo rule.
+> **Dated: the cauldron's fill and spill were removed on 2026-09-28** (a side mechanic must not reach into the run;
+> `coop-chaos-design`, "loss engine"). The Mixtrol status column in `grammar.md` and `generator.md` was written
+> before that: every row that cites the cauldron's fill, spill, separation stress, `spillRate`, `CarryBlame` or
+> `launchesCarriers` spilling it (P24, P33, P42, P44, P68, RC05, CS06, CS10, EO08, OP35, OP45, OB01, OB33, RA11,
+> RA15) describes the removed version. Never cite one as an existing soft form or as something to build on; the
+> cauldron is still a carried multi-handle object.
+
+- **Inputs.** The corpus's "move, jump, crouch, dash, grab" is Mixtrol's A/D (move), W (one jump), S
+  (crouch), Left Shift (dash, one in the air) and E (grab, carry, press, pull, insert, drop), plus Space,
+  which plays the move you hold of your partner's, and R (respawn). That is the left-hand set in
+  Mixtrol's `MixtrolControls.inputactions`; a second player on the same keyboard has the arrows, Right
+  Ctrl or Numpad 0, Right Shift, Enter and Backspace for the same actions. This is the one key list the
+  pack's skills check "no new key" against. One key per action, no alternates, **no new keys** — every
+  "no new input" rule in the corpus is already a repo rule.
 - **Players.** Mechanics are 2–4, content is 2. With two players a "majority" is one against one, so a
   group or vote counter-action (AG1, AG2, P09) degenerates. **Timed or reversible counters are the only
   class that works at 2**; design those first.

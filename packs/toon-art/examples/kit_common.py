@@ -4,6 +4,8 @@ It does not run outside Mixtrol: it imports kit_palette.py, which is not include
 up from Art/LevelKit, Assets/Mixtrol/..., FBX_DIR in Game/Art/LevelKit) and ticket numbers are Mixtrol's. In a game the
 script lives in Tools/Blender and exports to Assets/__GAME__/Game/Art/Models (where OutlineNormalsPostprocessor bakes
 the outline normals); toon_prop.py is the runnable starting point. Its export() call is the unity-export preset.
+Its axis mapping (below: a Euler(90, 0, 0) child, Blender (x, y, z) -> Unity (x, z, y)) is Mixtrol's too; the template's
+builder child is Euler(90, 180, 0) with (-x, z, -y), so take to_unity() from toon_prop.py, never from here.
 
 Level kit - shared helpers for the headless Blender build (build_levelkit.py), whatever the theme.
 

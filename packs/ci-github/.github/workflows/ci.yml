@@ -1,9 +1,10 @@
 # Tests and builds __GAME__ on GitHub runners with GameCI (game.ci). Every push to main and every pull request that
-# changes more than Markdown runs the EditMode and PlayMode tests. A v* tag, or a manual run (Actions > CI > Run
-# workflow), also builds Windows, Android and WebGL through BuildMenu, the same path the menu and the agent bridge
-# use; a v* tag then pushes the WebGL build to itch.io. iOS to TestFlight is there but commented out (see the ios job). Builds are not run on every push: three Unity builds per
-# agent commit would spend the private repo's Actions minutes on work nobody downloads. Run the workflow by hand
-# before tagging when a change touches platform code (an Android or WebGL compile error shows only in a build).
+# changes more than Markdown runs the EditMode and PlayMode tests and type-checks the Android and iOS player scripts
+# (the compile job: no player is built). A v* tag, or a manual run (Actions > CI > Run workflow), also builds Windows,
+# Android and WebGL through BuildMenu, the same path the menu and the agent bridge use; a v* tag then pushes the WebGL
+# build to itch.io. iOS to TestFlight is there but commented out (see the ios job). Builds are not run on every push:
+# three Unity builds per agent commit would spend the private repo's Actions minutes on work nobody downloads. Run the
+# workflow by hand before tagging when a change touches WebGL-only code (a WebGL compile error shows only in a build).
 # Secrets and variables: packs/ci-github/README.md in unity-game-template.
 # Third-party actions are pinned to a commit SHA (the tag is in the comment); to bump one, read the new tag's SHA
 # with `gh api repos/<owner>/<repo>/commits/<tag> --jq .sha`.
@@ -22,11 +23,12 @@ on:
 permissions:
   contents: read
 
+# the event name keeps a manual pre-tag build in its own group: a push to main cancels only older push runs
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
-# The Unity credentials are set only on the two GameCI steps, so no other action or script sees them.
+# The Unity credentials are set only on the GameCI steps, so no other action or script sees them.
 # GAMEKIT_TOKEN lets Package Manager clone GameKit from the private unity-game-template repo; the job's own
 # GITHUB_TOKEN reaches only this repo.
 
@@ -38,8 +40,11 @@ jobs:
       contents: read
       checks: write
     steps:
-      # Feel is committed under Assets/Feel (the repo is private), so this checkout brings it
+      # Feel is committed under Assets/Feel (the repo is private), so this checkout brings it. No token left in
+      # .git/config for the GameCI container: GameCI takes its tokens as inputs.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/cache@v6
         with:
           path: Library
@@ -55,8 +60,66 @@ jobs:
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           gitPrivateToken: ${{ secrets.GAMEKIT_TOKEN }}
 
+  # Type-checks the player scripts for Android and iOS on every run, so `#if UNITY_ANDROID` / `#if UNITY_IOS` code
+  # (and DISABLESTEAMWORKS) breaks here, not first in a tag build. A compile only, no player: much cheaper than the
+  # build job. AgentBridge.CompilePlayerScriptsBatch (GameKit 0.1.3 or later) exits 0 on OK, 1 on a compile error
+  # and 2 when the image lacks the platform module (a skip, not a pass); the check step after it reads that code.
+  # The report is Logs/agent/compile-player.log, also printed in the Unity log.
+  compile:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - targetPlatform: Android
+            platform: android
+          - targetPlatform: iOS
+            platform: ios
+    steps:
+      - if: matrix.targetPlatform == 'Android'
+        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      # the same key as the build job's leg for this platform: either job warms the other's Library
+      - uses: actions/cache@v6
+        with:
+          path: Library
+          key: Library-${{ matrix.targetPlatform }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: Library-${{ matrix.targetPlatform }}-
+      # continue-on-error so exit 2 can be a skip; the next step fails the job on anything but 0 or 2
+      - id: unity
+        continue-on-error: true
+        uses: game-ci/unity-builder@eb1b9fba120c6e62c9fb7a7a81d6c107ce004c45 # v6.0.0
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: ${{ matrix.targetPlatform }}
+          buildMethod: GameKit.Editor.AgentBridge.CompilePlayerScriptsBatch
+          customParameters: -platform ${{ matrix.platform }}
+          gitPrivateToken: ${{ secrets.GAMEKIT_TOKEN }}
+          versioning: None
+      - name: Check the compile result
+        env:
+          CODE: ${{ steps.unity.outputs.engineExitCode }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          case "$CODE" in
+            0) echo "$PLATFORM player scripts compile" ;;
+            2) echo "::warning::$PLATFORM compile skipped: the Unity image has no $PLATFORM module (not a pass)" ;;
+            *) echo "::error::$PLATFORM player scripts do not compile (exit '${CODE:-none}'): Logs/agent/compile-player.log in the Unity log above"; exit 1 ;;
+          esac
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: Compile-${{ matrix.targetPlatform }}
+          path: Logs/agent/compile-player.log
+          if-no-files-found: ignore
+
   build:
-    needs: test
+    needs: [test, compile]
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
     strategy:
@@ -84,6 +147,8 @@ jobs:
       - if: matrix.targetPlatform == 'Android'
         uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/cache@v6
         with:
           path: Library
@@ -163,3 +228,42 @@ jobs:
   #         xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/App.xcarchive" \
   #           -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" "${AUTH[@]}"
   #         rm -f "$KEY_PATH"
+
+  # Windows build to Steam (off; only with the steam pack, whose README covers the secrets STEAM_USERNAME and
+  # STEAM_CONFIG_VDF, IL2CPP and the depot). Runs on a v* tag only, after the build matrix; uncomment to turn it on.
+  # `needs: build` waits for every matrix leg: an Android or WebGL failure skips this job even when the Windows
+  # artifact uploaded, so fix that leg and re-run the failed jobs (Actions > the run > Re-run failed jobs).
+  # releaseBranch beta: that branch must already exist in Steamworks (App Admin > SteamPipe > Builds); the build is
+  # set live there, and moving it to the default branch is a manual step on that page.
+  # steam:
+  #   needs: build
+  #   if: startsWith(github.ref, 'refs/tags/')
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     # steam_appid.txt is the App ID's one source here (SteamAppIdCheck keeps SteamBootstrap.AppId equal to it)
+  #     - uses: actions/checkout@v7
+  #       with:
+  #         sparse-checkout: steam_appid.txt
+  #         sparse-checkout-cone-mode: false
+  #         persist-credentials: false
+  #     # 480 is Valve's Spacewar test app: steamcmd would fail late with a permission error that does not name it
+  #     - id: app
+  #       run: |
+  #         id=$(tr -d '[:space:]' < steam_appid.txt)
+  #         [ "$id" != 480 ] || { echo '::error::steam_appid.txt is still 480 (Spacewar); set the game App ID there and in SteamBootstrap.AppId'; exit 1; }
+  #         echo "id=$id" >> "$GITHUB_OUTPUT"
+  #     - uses: actions/download-artifact@v8
+  #       with:
+  #         name: Build-StandaloneWindows64
+  #         path: artifact
+  #     # IL2CPP and Burst folders that never ship
+  #     - run: rm -rf artifact/Builds/Windows/*_ButDontShipItWithYourPlayer artifact/Builds/Windows/*_DoNotShip
+  #     - uses: game-ci/steam-deploy@87f8a362c6a8a7dbde08099e4c05da88877f7113 # v3.2.2
+  #       with:
+  #         username: ${{ secrets.STEAM_USERNAME }}
+  #         configVdf: ${{ secrets.STEAM_CONFIG_VDF }}
+  #         appId: ${{ steps.app.outputs.id }}
+  #         buildDescription: ${{ github.ref_name }}
+  #         rootPath: artifact/Builds
+  #         depot1Path: Windows   # if the depot ID is not appId + 1: firstDepotIdOverride in the steam-deploy docs
+  #         releaseBranch: beta

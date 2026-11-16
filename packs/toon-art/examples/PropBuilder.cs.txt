@@ -2,6 +2,9 @@
 // builder that turns SM_<Thing>.fbx + SM_<Thing>.json into __GAME__/Toon materials and a prefab, in place. Copy the
 // two classes into Assets/__GAME__/Editor/Art/PropModelPostprocessor.cs and PropBuilder.cs and rename them for the
 // thing they build. The builder is written for the template's Editor assembly (__GAME__.Editor), next to ToonShader.
+// Ceiling: one mesh and a BoxCollider per prop. An asset from blender-image-to-3d (SM_<Name>_LOD0..N, COL_ proxies,
+// asset-manifest.json) needs the LODGroup and convex MeshCollider steps the art-pipeline skill lists for it.
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
@@ -10,9 +13,11 @@ using UnityEngine;
 namespace __GAME__.Editor.Art
 {
     /// <summary>
-    /// Pins the import of the generated models under Game/Art/Models (the unity-export skill's Unity side): one metre
-    /// is one metre, axis conversion baked, no rig or clips, no imported materials (the builder assigns them).
-    /// OutlineNormalsPostprocessor bakes the outline normals into the same folder; this one never touches tangents.
+    /// Pins the import of the generated props, the FBX files directly in Game/Art/Models (the unity-export skill's
+    /// Unity side): one metre is one metre, axis conversion baked, no rig or clips, no imported materials (the builder
+    /// assigns them). Subfolders (Models/&lt;Asset&gt;/ from blender-image-to-3d, a rigged character) are left to their
+    /// own postprocessor, which keeps a rig as Generic or Humanoid and imports its clips.
+    /// OutlineNormalsPostprocessor bakes the outline normals into the whole tree; this one never touches tangents.
     /// </summary>
     internal sealed class PropModelPostprocessor : AssetPostprocessor
     {
@@ -23,7 +28,9 @@ namespace __GAME__.Editor.Art
 
         void OnPreprocessModel()
         {
-            if (!assetPath.StartsWith(Folder) || !assetPath.EndsWith(".fbx")) return;
+            // only the top level, where PropBuilder reads its manifests: a subfolder belongs to another postprocessor
+            if (!assetPath.StartsWith(Folder) || assetPath.IndexOf('/', Folder.Length) >= 0
+                || !assetPath.EndsWith(".fbx", System.StringComparison.OrdinalIgnoreCase)) return;
             var importer = (ModelImporter)assetImporter;
             importer.globalScale = 1f;
             importer.useFileScale = true;
@@ -39,9 +46,10 @@ namespace __GAME__.Editor.Art
     }
 
     /// <summary>
-    /// Rebuilds every prop that has a manifest under Game/Art/Models: one __GAME__/Toon material per palette role and a
-    /// prefab per model. Both are written in place (same path, same GUID), so scenes keep their references; a rerun
-    /// rewrites the prefab from scratch, which is how it strips what it made last time. Never edit the outputs by hand.
+    /// Rebuilds every prop that has a manifest under Game/Art/Models: one __GAME__/Toon material per palette role and
+    /// outline choice, and a prefab per model. Both are written in place (same path, same GUID), so scenes keep their
+    /// references; a rerun rewrites the prefab from scratch, which is how it strips what it made last time. Never edit
+    /// the outputs by hand.
     /// </summary>
     internal static class PropBuilder
     {
@@ -64,38 +72,94 @@ namespace __GAME__.Editor.Art
             public Vector3 colliderSize;
         }
 
+        // the palette values one rebuild has set on each role, so two scripts that disagree on a role fail loudly
+        // instead of the last manifest in file order silently winning
+        sealed class RoleValues
+        {
+            public Color color;
+            public float smoothness;
+            public string source;
+        }
+
         [MenuItem("__GAME__/Art/Rebuild Props")]
         public static void RebuildAll()
         {
+            // a headless Blender run writes the FBX while the Editor may be unfocused: import it before reading it
+            AssetDatabase.Refresh();
+            if (!Directory.Exists(Models))
+            {
+                Debug.Log($"[PropBuilder] 0 rebuilt, 0 skipped, 0 failed (no {Models} yet: export a prop first)");
+                return;
+            }
             Directory.CreateDirectory(Materials);
             Directory.CreateDirectory(Prefabs);
-            foreach (string json in Directory.GetFiles(Models, "*.json"))
-                Rebuild(json.Replace('\\', '/'));
+            var roles = new Dictionary<string, RoleValues>();
+            int rebuilt = 0, skipped = 0, failed = 0;
+            foreach (string file in Directory.GetFiles(Models, "*.json").OrderBy(f => f, System.StringComparer.Ordinal))
+            {
+                string json = file.Replace('\\', '/');
+                try
+                {
+                    var manifest = JsonUtility.FromJson<Manifest>(File.ReadAllText(json));
+                    if (manifest == null || string.IsNullOrEmpty(manifest.mesh) || manifest.roles == null
+                        || manifest.roles.Length == 0)
+                    {
+                        Debug.LogWarning($"[PropBuilder] {json}: not a prop manifest (no mesh or roles), skipped");
+                        skipped++;
+                        continue;
+                    }
+                    Rebuild(json, manifest, roles);
+                    rebuilt++;
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogError($"[PropBuilder] {json}: {e.Message}");
+                    failed++;
+                }
+            }
             AssetDatabase.SaveAssets();
+            string summary = $"[PropBuilder] {rebuilt} rebuilt, {skipped} skipped, {failed} failed";
+            if (failed > 0) Debug.LogError(summary);
+            else Debug.Log(summary);
         }
 
-        static void Rebuild(string jsonPath)
+        static void Rebuild(string jsonPath, Manifest manifest, Dictionary<string, RoleValues> roles)
         {
-            var manifest = JsonUtility.FromJson<Manifest>(File.ReadAllText(jsonPath));
             string fbxPath = Path.ChangeExtension(jsonPath, ".fbx");
             Mesh mesh = AssetDatabase.LoadAllAssetsAtPath(fbxPath).OfType<Mesh>().FirstOrDefault(m => m.name == manifest.mesh);
             if (mesh == null) throw new System.InvalidOperationException($"{fbxPath} has no mesh {manifest.mesh}");
-            if (mesh.subMeshCount != manifest.roles.Length)
+            int count = manifest.roles.Length;
+            if (mesh.subMeshCount != count || manifest.colors?.Length != count || manifest.smoothness?.Length != count)
                 throw new System.InvalidOperationException(
-                    $"{manifest.mesh}: {mesh.subMeshCount} submeshes, manifest names {manifest.roles.Length} roles");
+                    $"{manifest.mesh}: {mesh.subMeshCount} submeshes, manifest names {count} roles, " +
+                    $"{manifest.colors?.Length ?? 0} colours, {manifest.smoothness?.Length ?? 0} smoothness values");
 
-            var materials = new Material[manifest.roles.Length];
-            for (int i = 0; i < materials.Length; i++)
-                materials[i] = RoleMaterial(manifest.roles[i], manifest.colors[i], manifest.smoothness[i], manifest.outline);
+            var materials = new Material[count];
+            for (int i = 0; i < count; i++)
+            {
+                string role = manifest.roles[i];
+                Color color = manifest.colors[i];
+                float smoothness = manifest.smoothness[i];
+                if (roles.TryGetValue(role, out RoleValues seen))
+                {
+                    if (seen.color != color || !Mathf.Approximately(seen.smoothness, smoothness))
+                        throw new System.InvalidOperationException(
+                            $"role {role}: {manifest.mesh} gives {color} / {smoothness}, {seen.source} gave " +
+                            $"{seen.color} / {seen.smoothness}; a role has one palette value in every script");
+                }
+                else roles[role] = new RoleValues { color = color, smoothness = smoothness, source = manifest.mesh };
+                materials[i] = RoleMaterial(role, color, smoothness, manifest.outline);
+            }
 
             string name = manifest.mesh.Replace("SM_", "");
             var root = new GameObject(name);
             try
             {
-                // the imported mesh is still Z up (see toon_prop.py's header): a child turned 90 on X stands it up
+                // the imported mesh is still Z up (see toon_prop.py's header): a child turned 90 on X stands it up,
+                // and 180 on Y turns its Blender front (-Y) to the prefab's transform.forward (+Z)
                 var view = new GameObject("Mesh");
                 view.transform.SetParent(root.transform, false);
-                view.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                view.transform.localRotation = Quaternion.Euler(90f, 180f, 0f);
                 view.AddComponent<MeshFilter>().sharedMesh = mesh;
                 view.AddComponent<MeshRenderer>().sharedMaterials = materials;
 
@@ -112,10 +176,12 @@ namespace __GAME__.Editor.Art
             Debug.Log($"[PropBuilder] {name}: {manifest.triangles} triangles, {materials.Length} materials");
         }
 
-        // one material per role, shared by every prop that uses the role; updated in place so its GUID survives
+        // one material per role and outline choice (M_<Role>, M_<Role>_Outline), shared by every prop that makes the
+        // same choice, so a level piece without an outline never switches it on or off for a prop; updated in place
+        // so its GUID survives
         static Material RoleMaterial(string role, Color srgb, float smoothness, bool outline)
         {
-            string path = $"{Materials}/M_{role}.mat";
+            string path = $"{Materials}/M_{role}{(outline ? "_Outline" : "")}.mat";
             var material = AssetDatabase.LoadAssetAtPath<Material>(path);
             bool created = material == null;
             if (created) material = new Material(ToonShader.Shader ?? Shader.Find("Universal Render Pipeline/Lit"));

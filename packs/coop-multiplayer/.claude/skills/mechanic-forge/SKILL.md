@@ -1,12 +1,12 @@
 ---
 name: mechanic-forge
-description: A __GAME__ co-op mechanic, room, segment card through design corpus. Use for "mutate this", "make it more social", "how can this be trolled", "boring after ten minutes", "harder without new keys", "3-4 players", "recoverable". Batches are idea-forge.
+description: A __GAME__ co-op mechanic, room, segment card through design corpus. Use for "mutate this", "mutasyon yap", "make it more social", "daha sosyal yap", "nasıl trollenir", "harder without new keys", "3-4 players". Batches: idea-forge.
 ---
 
 <!-- The full trigger set, kept here because the listing budget caps the description at 250 characters: generating,
 mutating and critiquing co-op mechanics, devices, rooms and segments with docs/design-corpus (the 25-field card,
 Pass A-J, the 13-axis rubric, the recipe modes, tier-1 recovery design "make this failure recoverable in place");
-"what else can the swap / cauldron / plate do", "this feels flat", "make it work for 3-4 players", "find the clip
+"what else can the swap / cauldron / plate do", "how can this be trolled", "boring after ten minutes", "recoverable", "this feels flat", "make it work for 3-4 players", "find the clip
 moments", "anti-grief pass", "what would kill this idea", before handing a mechanic to implementation. A batch of N
 ideas in its own context is the idea-forge agent; the go/no-go gate is coop-chaos-design. -->
 
@@ -58,18 +58,20 @@ per action), do not resolve it: carry on, and end the answer with a "Decisions f
 
 ## What is fixed before any idea
 
-- **Keys:** A/D, W (one jump), Space (the move you hold of your partner's), S (crouch), Shift (dash, one in
-  the air), E, R. No new
+- **Keys:** the fixed set in `docs/design-corpus/README.md` (Mixtrol deltas, Inputs; Mixtrol's is A/D,
+  W, S, Shift, E, R and Space), replaced by __GAME__'s once DESIGN.md records them. No new
   key, no alternate, no hold-to-X that changes an existing key's meaning without the user's say.
 - **Players:** mechanics work for 2–4 without bespoke exceptions; content is built for 2. Write "at least
   two" or "everyone", never "exactly two".
-- **Coupling:** control swap is primary (GDD). One multi-handle carried object per level; at 3–4 players,
-  one handle per player.
+- **Coupling:** the primary coupling DESIGN.md records. Mixtrol's: control swap is primary (its GDD), one
+  multi-handle carried object per level, at 3–4 players one handle per player.
 - **Failure:** two tiers — tier 1 recovers in place, next decision within 3–8 s; tier 2 is shared death
   + one segment back. A new mechanic must say which tier each of its failures lands in.
-- **Authority:** world state is the host's (`NetworkMechanisms` or a SyncVar); a character is its owner's;
-  a swapped move lands one round trip late.
-- **Scope:** no procedural levels, no hard tether, no gamepad, no new package without asking.
+- **Authority:** the split in CLAUDE.md's Networking section (default: world state is the host's, a character is
+  its owner's). Mixtrol's world state lived in `NetworkMechanisms` or a SyncVar, and a swapped move landed one round
+  trip late.
+- **Scope:** no new package without asking; the rest is DESIGN.md's out-of-scope list. Mixtrol's: no procedural
+  levels, no hard tether, no gamepad.
 
 ## Pass A–J
 
@@ -81,7 +83,7 @@ per action), do not resolve it: carry on, and end the answer with a "Decisions f
 | D Sabotage | One legal action with existing keys that can hurt locally | The harm is permanent, or needs a key the saboteur does not have |
 | E Readability | Who caused it, and can the screen say so (FP11, FP27, the game's blame label if it has one; Mixtrol's was `Blame` / `BlameBoard` in `Core/Level/Blame.cs`)? | The blame label would name the victim for the partner's act (P37 without AG8) |
 | F Recovery | Fail-forward, rescue, role inversion, mutation (RC, P61–P70) | The only recovery is death, or tier 1 takes longer than 8 s |
-| G Escalation | Harder through timing, distance, combination, owner (EO) | It adds a key, a UI screen or a second loss engine — the swap is the floor, and a beat carries at most one loss engine (today the chase) on top |
+| G Escalation | Harder through timing, distance, combination, owner (EO) | It adds a key, a UI screen or a second loss engine — the primary coupling is the floor, and a beat carries at most one loss engine on top (Mixtrol's floor was the swap, its loss engine the chase) |
 | H Clip | Accidental failure, deliberate troll, accidental hero — each 5–10 s | Any of the three needs narration to follow (RX23) |
 | I Anti-grief | Every indefinite stall a hostile player can create (AG1–AG8) | A stall has no counter. With two players only a timed or reversible counter counts |
 | J Production cut | Delete rules before adding systems; fewest replicated states | A rule can go and the funny outcome survives — then it goes |
@@ -151,8 +153,8 @@ When the card survives, convert it without changing its intent (RX26): states an
 value-type `State` + static `Solver` taking `dt`; tunables → a Config ScriptableObject flattened to a
 `Tuning` struct; authority → field 20; events → field 21, reset at the top of `Step`; presentation →
 the action's row in `gamekit:game-feel`'s `references/feedback-stack.md`; reset guarantees → what
-respawn restores (today: players, the cauldron, and the crates and push blocks a `CarryHome` holds —
-never one on a plate); network edge cases → simultaneous input, one-trip lag, disconnect. Then
+respawn restores (the game's own list; Mixtrol's: players, the cauldron, and the crates and push blocks a
+`CarryHome` holds — never one on a plate); network edge cases → simultaneous input, one-trip lag, disconnect. Then
 `gamekit:unity-architecture` for placement and `gamekit:unity-performance` for anything per frame. Tests only if the
 user asks (`gamekit:unity-testing`).
 

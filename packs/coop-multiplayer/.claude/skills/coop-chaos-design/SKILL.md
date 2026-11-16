@@ -98,7 +98,7 @@ hazard, not a co-op mechanic.
 ## Forgiveness goes to the connection, not the individual
 
 - **Do not raise coyote time or the jump buffer to absorb co-op chaos.** `coyoteTime` and
-  `jumpBufferTime` (in Mixtrol `Assets/__GAME__/Core/Data/PlayerMovement.asset`; wherever the game's movement config
+  `jumpBufferTime` (in Mixtrol `Assets/Mixtrol/Core/Data/PlayerMovement.asset`; wherever the game's movement config
   lives) stay under 0.15 s. Individual forgiveness makes players harder
   to blame. Above 0.15 s is a red flag — `gamekit:game-feel` has the bands.
 - **Put the forgiveness in the coupling:** the swap's visible ask-back before a partner presses. That window is co-op's coyote time. (The difficulty dial does not turn it —
@@ -109,26 +109,29 @@ hazard, not a co-op mechanic.
 
 ## Authority
 
-Networking is built (FishNet host + client). A card must fit it, not the other way round.
+Fit the authority split in CLAUDE.md's Networking section (FishNet host + client), whether or not its code
+exists yet. A card must fit it, not the other way round.
 
 - The world — table, cauldron, crate holder, plates, doors, floors, seesaw, checkpoints, deaths — is the
   **host's**. New world state goes through the game's mechanism registry (Mixtrol's `NetworkMechanisms`:
   index into the hierarchy-ordered list) or a SyncVar, never a new `NetworkObject` without cause
   (`.claude/rules/networking.md`).
 - Characters are their **owner's**. A partner's swapped move lands **one round trip late**
-  (`NetworkInput`): never gate a beat on two machines agreeing inside 1 s.
+  (Mixtrol's `NetworkInput`): never gate a beat on two machines agreeing inside 1 s.
 - **Prefer a discrete state the host decides over shared physics** (RX13).
 - Celebrate on the host-confirmed edge, not the local trigger (FX06).
 
 ## Where the code goes
 
 `__GAME__.Core` is value types and static step functions taking `dt`; `__GAME__.Game` is Unity glue.
-`MovementSolver.Step` solves **one character in isolation**.
+The game's character State / Solver pair in Core (Mixtrol's was `MovementState` / `MovementSolver.Step`;
+the shape is CLAUDE.md's Core convention) solves **one character in isolation**. A game without one yet
+writes it first.
 
-- Coupling state is a **new Core value type + static solver**, mirroring `MovementState` /
-  `MovementSolver`. Do not invent a second shape for the same problem.
+- Coupling state is a **new Core value type + static solver**, mirroring the character State / Solver
+  pair. Do not invent a second shape for the same problem.
 - It takes carrier **positions** and returns displacement plus per-carrier force; it does not hold a
-  reference to `MovementState`. If the design needs `MovementSolver` to know about *other characters*,
+  reference to the character state. If the design needs the character solver to know about *other characters*,
   it has drifted toward a hard tether — stop and say so.
 - **Keep the edge-flag contract.** One-step flags reset at the top of every `Step` are the only channel
   from simulation to presentation.

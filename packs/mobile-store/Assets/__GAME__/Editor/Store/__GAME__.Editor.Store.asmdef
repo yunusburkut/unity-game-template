@@ -1,0 +1,17 @@
+{
+    "name": "__GAME__.Editor.Store",
+    "rootNamespace": "__GAME__.Editor",
+    "references": [
+        "GameKit.Editor",
+        "Unity.Notifications"
+    ],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -93,8 +93,10 @@ colour's name, the verb ("zıplat"). The UI feeds the Discord conversation; it d
 **CL09, never colour alone.** Pair a colour with a direction, a name or a shape. (src: GAG) Today's pairing is the
 direction of the slice plus the online name (repo: minimal-hud). See §H.1: offline there are no names.
 
-**CL10, attribution in the middle third.** Put it in world space, outlined, at least 26 px at 1080p. Corners are
-the first thing a vertical crop loses: a 9:16 crop of a 16:9 frame keeps 31.6% of its width. (src: CLIP, XAG)
+**CL10, attribution inside the 9:16 crop window (about the centre 30 %, narrower than the middle third).** Put it in world space, outlined, at least 26 px at 1080p. Corners are
+the first thing a vertical crop loses: a 9:16 crop of a 16:9 frame keeps 31.6% of its width.
+That holds for a landscape frame; a portrait game keeps its whole width in a 9:16 crop and only needs the safe area
+(plugin skill player-clarity, CL10). (src: CLIP, XAG)
 
 ## D. The three moments (MIX-301's open items)
 

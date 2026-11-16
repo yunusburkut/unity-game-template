@@ -17,12 +17,14 @@ Blender'dan üretilen 3D sanat ve çizgi film (toon) görünümü için. Pixel V
 
 - Işık Pixel Volley'den: gerçek ana ışık ve gölgesi (gölge mesafesinde yumuşak sönüş), nokta ve spot ışıklar aynı iki
   bantla (Forward ve Forward+), light layer'lar, sis ve light probe'lardan ortam ışığı. Lightmap ve shadowmask
-  okunmaz: toon objeler gerçek zamanlı ışıkla aydınlanır, baked ışığı probe'lardan alır. Mixtrol'ün sahte sabit ışığı
-  oyuna özeldi.
+  okunmaz: toon objeler gerçek zamanlı ışıkla aydınlanır, baked ışığı probe'lardan alır. Gölge bandı da ana ışıkla
+  ölçeklenir (tint, aydınlık tarafın oranı), bu yüzden akşam, gece ve iç mekân sahneleri bütün olarak kararır. Mixtrol'ün
+  sahte sabit ışığı oyuna özeldi.
 - Kontur Mixtrol'den: normal, tangent'e pişiriliyor (skinned mesh'te de çalışıyor), kalınlık 1080p piksel cinsinden.
   Telefon ve monitörde aynı kalınlıkta görünüyor. URP renderer'da Depth Priming kapalı kalmalı (varsayılan), yoksa
   kontur kaybolur.
-- SSAO ve decal'lar için DepthNormals, lightmapper için Meta pass'i var; GPU Resident Drawer ve LOD cross-fade
-  destekleniyor.
+- SSAO (iki bandı ve ortam ışığını koyulaştırır), DBuffer decal'lar (yüzey rengine) ve Adaptive Probe Volume'lar
+  okunuyor. SSAO ve decal'ların okuduğu normal için DepthNormals, TAA, STP ve motion blur için MotionVectors,
+  lightmapper için Meta pass'i var; GPU Resident Drawer ve LOD cross-fade destekleniyor.
 - Shader her yeni oyunda `ToonShaderCheck` ile derlenip kontrol ediliyor: `Logs\setup.log` içinde
   `[toon-art] Toon shader OK` yoksa Console'daki `[toon-art]` hatalarına bak.

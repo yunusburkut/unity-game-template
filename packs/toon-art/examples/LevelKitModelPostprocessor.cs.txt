@@ -7,7 +7,8 @@ namespace Mixtrol.Editor.Art
     /// Pins the import of the Parkur level kit's FBX files under <c>Game/Art/LevelKit</c>, exported by
     /// <c>Art/LevelKit/build_levelkit.py</c> at Unity scale. Like the props: no rig, no animation, one
     /// metre is one metre, axis conversion baked, so a mesh keeps Blender X and negates Z and every
-    /// kit prefab stands it up with a child turned Euler(90, 0, 0).
+    /// kit prefab stands it up with a child turned Euler(90, 0, 0) (Mixtrol's mapping; the template's builders use
+    /// Euler(90, 180, 0), see toon_prop.py).
     /// <para>
     /// Unlike the props, no mesh compression: modules are laid end to end on the grid, and quantised
     /// vertices would open millimetre seams between them and put walk surfaces off the grid height.

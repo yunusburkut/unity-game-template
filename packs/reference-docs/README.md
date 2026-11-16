@@ -3,9 +3,14 @@
 Okumak için, oyunlara kopyalanmaz. Her biri belirli bir oyun için yazıldı; yöntem ve sayılar başka oyunlarda da işe
 yarar.
 
-`packages.md` ile `shipping-2026.md` istisna: her oyuna uyarlar, ama bu klasör oyunlara gitmediği için oyundaki
-ajanlar onları göremez. Tek kaynakları gamekit eklentisine (`unity-package-management` ve `launch-review`
-referansları) taşınınca buradaki satırlar oraya işaret eder.
+`packages.md` ile `shipping-2026.md` istisna: her oyuna uyarlar, bu yüzden tek kaynakları gamekit eklentisine taşındı
+(`plugin/skills/unity-package-management/references/select-packages.md` ve
+`plugin/skills/launch-review/references/shipping-2026.md`); buradaki iki dosya yalnızca oraya işaret eder. Düzeltmeyi
+eklentide yap.
+
+Dosyalardaki `docs/...` yolları yazıldıkları oyunun (Mixtrol) deposundaki yollardır: `docs/windows-build.md` buradaki
+`windows-build.md`'dir; `docs/level-kit.md`, `docs/network-testing.md` ve `docs/gdd.md` buraya alınmadı. Burada yalnız
+tablodaki dosyalar var.
 
 | Dosya | Ne anlatıyor |
 |---|---|
@@ -19,5 +24,5 @@ referansları) taşınınca buradaki satırlar oraya işaret eder.
 | `design-audit.md` | Bir oyunun tasarım korpusuna göre denetimi, örnek bir audit (Mixtrol) |
 | `Sort bulmaca oyunu renk teorisi.md` | Sort bulmaca oyunlarında renk teorisi raporu (Magic Sort) |
 | `research_notes/` | O raporun notları: tür karşılaştırması, renk ayırt edilebilirliği, Unity renk hattı, görsel hiyerarşi |
-| `packages.md` | Oyuna göre eklenecek paketler (PrimeTween, Localization, IAP, debug console), kurulum satırlarıyla; alınmayanlar ve nedenleri |
-| `shipping-2026.md` | 2026 mağaza kuralları: Play API 36, AAB, 16 KB, geri hareketi, Xcode 26, privacy manifest, 120 Hz, itch.io WebGL |
+| `packages.md` | İşaretçi: oyuna göre eklenecek paketler ve alınmayanlar `unity-package-management` referansında |
+| `shipping-2026.md` | İşaretçi: 2026 mağaza kuralları (Play API 36, AAB, 16 KB, Xcode 26, itch.io WebGL) `launch-review` referansında |

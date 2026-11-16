@@ -2,7 +2,8 @@
 
 Our paraphrase of `source/01_social_sabotage_design_grammar_expanded.pdf` (PDF pages 1–13). Every entry is checked against the game as it stood on 2026-09-22.
 Cite by ID (P31, FC13, AG1, DC05); IDs are stable. Add new entries at the end and never renumber.
-Status: ✅ built · 🟡 partial · 🧩 cheap with existing systems, no new key · 🆕 needs a new system · ⛔ conflicts with a recorded decision · — not applicable to a horizontal 2.5D lane.
+Mixtrol status (the marks in the Mixtrol columns): ✅ built · 🟡 partial · 🧩 cheap with existing systems, no new key · 🆕 needs a new system · ⛔ conflicts with a recorded decision · — not applicable to a horizontal 2.5D lane.
+In __GAME__ these marks and the class names beside them describe Mixtrol, never this game: rate a card's production cost and devices reused against __GAME__'s own systems (DESIGN.md, the code); `docs/design-audit.md` holds this game's own status once its first design audit fills it.
 
 ## Decomposition
 
@@ -73,9 +74,9 @@ The PDF subtitle says 60 patterns, but the list has 70; use the list. The tags a
 | P39 | Bluffable Intent | trust, social play | Players signal a plan without being bound to it. | Success must never require deceit. | 🟡 the radio ask is non-binding; the holder has no intent cue |
 | P40 | Rescue Bargain | trust, reciprocity | Rescuing a teammate costs the rescuer position, resources or time. | Always keep an anti-hostage fallback. | 🟡 helping means leaving the plate or dropping the cauldron (E) |
 | P41 | Body-as-Tool | physics, co-op | Player bodies act as platforms, weights, shields or links. | Stabilise physics and collision layers. | 🟡 bodies weigh on plates and the `Seesaw`; standing on a partner is unverified |
-| P42 | Tethered Pair | physics, dependency | Two players are joined by a tether of limited length. | Make the tension readable and give a safe way to unstick. | ⛔ no hard tether (GDD Kapsam Dışı); the cauldron is the soft form |
+| P42 | Tethered Pair | physics, dependency | Two players are joined by a tether of limited length. | Make the tension readable and give a safe way to unstick. | ⛔ no hard tether (GDD Kapsam Dışı); the cauldron was the soft form until its spill was removed 2026-09-28 |
 | P43 | Counterweight Team | physics, balance | Players distribute their weight to move a device. | No precision that depends on frame rate. | ✅ `Seesaw`: torque from weight × distance, solved on the host |
-| P44 | Unstable Cargo | physics, care | Shared cargo degrades under tilt or impact. | Failure should change the cargo, never force a restart. | ✅ the cauldron spills when carriers separate; fill drops and the run continues |
+| P44 | Unstable Cargo | physics, care | Shared cargo degrades under tilt or impact. | Failure should change the cargo, never force a restart. | 🟡 removed 2026-09-28: the cauldron spilled when carriers separated (fill dropped, the run continued); the liquid is gone |
 | P45 | Shared Center of Mass | physics, coordination | The group's combined position steers a platform or vehicle. | Generous thresholds and a smoothed response. | ✅ `Seesaw` tilts from the summed torque of all riders; no vehicle yet |
 | P46 | Push / Pull Asymmetry | physics, roles | Some roles can only push, others only pull. | Role icons must be obvious. | 🆕 no pull verb: `Pushable` only pushes, E only carries |
 | P47 | Collision Ownership | physics, blame | The last player to touch something becomes its owner. | A short lockout stops ownership churn. | 🧩 `SeparateFromPartners`'s capsule-distance test can detect a touch that swaps the taken moves, with a lockout |

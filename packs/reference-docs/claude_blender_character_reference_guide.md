@@ -96,7 +96,9 @@ Recommended Blender preview:
 Eyes/pupils/brows may remain separate materials.
 
 ## Rig
-Use a Generic rig, not Humanoid.
+Use a Generic rig, not Humanoid. This is a deliberate exception to the Humanoid item in `unity-export`'s
+`unity-checklist.md`: the stub legs and antennae have no humanoid bone set, and the clips are authored for this one
+skeleton, so nothing is retargeted. Tick that item as "Generic by design" for this character.
 
 Suggested hierarchy:
 - Root

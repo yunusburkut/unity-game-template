@@ -25,6 +25,11 @@ except testing the relay itself. The relay path (host a room, copy the join code
 needs the internet, a UGS project linked in `Edit > Project Settings > Services` and Relay enabled on the Unity
 dashboard; when Relay is off, make the status line say so rather than hang.
 
+A WebGL client has no direct path: test it over the relay, with the Editor hosting a room and a WebGL development
+build (served locally, `Build And Run`) joining with the code; its transport setup is the Platforms section of
+`.claude/rules/networking.md`. A phone host is tested the same way, plus one background-and-return on the phone
+while the Editor client watches its status line.
+
 ## Latency
 
 FishNet's latency simulator sits on the `TransportManager` component of the `NetworkManager` prefab: **Enabled**,

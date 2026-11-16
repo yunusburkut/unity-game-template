@@ -9,7 +9,7 @@ How the numbers in this file were made (read first):
   - CVD was simulated with the Machado-Oliveira-Fernandes 2009 matrices at severity 1.0. They were applied in linear sRGB, with output clamped to [0,1].
 - **"Worst-case"** means the minimum over four conditions: normal vision, protanopia, deuteranopia and tritanopia.
 - **The "combined" metric** is min(ΔEOK, ΔE00/100). It makes a pair pass both metrics.
-- **Script:** a C# file-based app, `pal.cs`, run with `dotnet run pal.cs`. It lives in the session scratchpad at `C:\Users\Burkut\AppData\Local\Temp\claude\C--GitHub-Magic-Sort-Clone\098a0732-eab3-4afa-8dd4-beaf2b33333a\scratchpad\pal\`. The scratchpad is temporary, so copy the script into the repo if it must be kept.
+- **Script:** the figures came from a C# file-based app, `pal.cs` (`dotnet run pal.cs`), kept only in a temporary session scratchpad; it was lost (checked 2026-11-16) and is not in this repo or the Magic Sort repo. The figures cannot be re-run as they stand. To check them or score a new palette, re-implement from the method above (OKLab matrices, Sharma CIEDE2000 with the two test pairs, Machado 2009 at severity 1.0 in linear sRGB, minimum over the four conditions) and confirm the #FF0000 values first.
 - **Assumed background:** oklch(0.25 0.04 270), a dark blue-grey. It was used only for the contrast columns.
 
 ---

@@ -2,8 +2,8 @@
 
 The protocol's recipe library (03, pages 2–4) rewritten for Mixtrol. Every recipe runs inside the
 four passes in `SKILL.md` and ends in cards, not a list. The corpus defaults ("4 players; move, jump,
-crouch, dash, grab") become Mixtrol's fixed set: 2–4 players with 2-player content; A/D, W, Space,
-S (crouch), Shift, E.
+crouch, dash, grab") become Mixtrol's fixed set: 2–4 players with 2-player content, and the key list in
+`docs/design-corpus/README.md` (Mixtrol deltas, Inputs).
 
 ## Contents
 

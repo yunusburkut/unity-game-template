@@ -1,5 +1,9 @@
 # Taking a Windows build
 
+This page shows Mixtrol's own `Mixtrol → Build` menu. A game made from the template has **GameKit > Build >
+Windows** instead (development build: tick File > Build Profiles > Development Build first, or run
+`gk-bridge build windows dev`); see the gamekit plugin's `platform-targets` skill, section "Building".
+
 One menu click (MIX-48). Take one early and often — the first build always breaks something an
 Editor session never notices, and launch week is the wrong time to find out.
 

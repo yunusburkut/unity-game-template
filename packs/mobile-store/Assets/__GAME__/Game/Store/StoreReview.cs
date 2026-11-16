@@ -20,7 +20,16 @@ namespace __GAME__.Store
 #if UNITY_ANDROID && !UNITY_EDITOR
         static ReviewManager manager;
         static PlayReviewInfo info;
-        static bool preparing;
+        static float infoTime, preparingSince = -1f;
+
+        // Google documents the review info only as short-lived, with no figure: five minutes is this class's guess.
+        // A prompt that never shows despite a fresh Prepare is the sign to lower it.
+        const float InfoLifetime = 300f;
+        // a fetch normally ends in a few seconds; one whose host died never clears its flag, so it times out here
+        const float PrepareTimeout = 10f;
+
+        static bool Preparing => preparingSince >= 0f && Time.realtimeSinceStartup - preparingSince < PrepareTimeout;
+        static bool HasFreshInfo => info != null && Time.realtimeSinceStartup - infoTime < InfoLifetime;
 #endif
 
         /// <summary>Fetches the Android review info so a later Request shows the prompt without the wait. Does
@@ -30,7 +39,7 @@ namespace __GAME__.Store
         public static void Prepare(MonoBehaviour host)
         {
 #if UNITY_ANDROID && !UNITY_EDITOR
-            if (info == null && !preparing) host.StartCoroutine(PrepareAndroid());
+            if (!HasFreshInfo && !Preparing) host.StartCoroutine(PrepareAndroid());
 #endif
         }
 
@@ -51,19 +60,20 @@ namespace __GAME__.Store
 #if UNITY_ANDROID && !UNITY_EDITOR
         static IEnumerator PrepareAndroid()
         {
-            preparing = true;
+            preparingSince = Time.realtimeSinceStartup;
             manager ??= new ReviewManager();
             var request = manager.RequestReviewFlow();
             yield return request;
             info = request.Error == ReviewErrorCode.NoError ? request.GetResult() : null; // no prompt is normal
-            preparing = false;
+            infoTime = Time.realtimeSinceStartup;
+            preparingSince = -1f;
         }
 
         static IEnumerator RequestAndroid()
         {
-            // a Prepare still in flight is not waited for: its host may have died, leaving preparing set
-            if (info == null) yield return PrepareAndroid();
-            if (info == null) yield break;
+            while (Preparing) yield return null; // a Prepare in flight: use its result instead of a second fetch
+            if (!HasFreshInfo) yield return PrepareAndroid();
+            if (!HasFreshInfo) yield break;
             var launch = info;
             info = null; // the info is good for one launch and goes stale; fetch a fresh one next time
             yield return manager.LaunchReviewFlow(launch);
