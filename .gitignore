@@ -1,0 +1,2 @@
+# Local Blender sample (43 MB, untracked on purpose): test-all.ps1 uses it when present, else a headless fixture
+_asset-samples/

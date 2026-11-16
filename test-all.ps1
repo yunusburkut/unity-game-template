@@ -29,8 +29,9 @@
     Blender is the one BLENDER_PATH names, else PATH's, else the newest install (as the hook and the *_for_cli tools
     pick it), with a warning when its version has no MCP add-on; every tracked .py and every ~/.claude/skills/blender-*,
     unity-export .py compiles in it, a cube exports headless with unity-export's FBX call verbatim, toon-art's
-    toon_prop.py exports a prop and a consistent manifest, blender-image-to-3d's test_pack_mask.py passes, and with the
-    local _asset-samples\PR_Anvil its validate, export_delivery and roundtrip --manifest exit 0; every --background
+    toon_prop.py exports a prop and a manifest whose collider signs hold for an off-centre copy too,
+    blender-image-to-3d's test_pack_mask.py passes, and its validate, export_delivery and roundtrip --manifest exit 0
+    on the local _asset-samples\PR_Anvil or, without it, a fixture with a packed mask built headless; every --background
     line in those user-level skills carries --factory-startup; the Blender MCP
     extension's copies keep their stdin=DEVNULL patch (README.md, Blender step 5) and the active copy's run_blender_cli
     answers with stdin held open; grill-me's card fields and unity-games.md's gk-bridge exit codes match the plugin; a
@@ -381,8 +382,14 @@ $houseBad = @(
     $ug = [IO.File]::ReadAllText((Resolve-Path -LiteralPath 'plugin/skills/ui-ugui/SKILL.md'))
     foreach ($s in '**House rules win.**', '`InputSystemUIInputModule`, not `StandaloneInputModule`', '`SafeAreaFitter` (GameKit)',
         'importExamples: false, interactive: false)', 'Split canvases by change rate', '## Screens', 'Inspector refs are not',
-        'ContentSizeFitter on a child of a Layout Group') {
+        'ContentSizeFitter on a child of a Layout Group', 'Feature folders inside the game folder', 'nothing to close') {
         if (-not $ug.Contains($s)) { "ui-ugui SKILL.md lost house edit: $s" }
+    }
+    # one line from each house block of the ScrollRect reference
+    $sv = [IO.File]::ReadAllText((Resolve-Path -LiteralPath 'plugin/skills/ui-ugui/references/scrollview-setup.md'))
+    foreach ($s in 'a pooled long list: RectTransform only', '`RectMask2D` (no stencil', 'Mathf.Max(0, count',
+        'a pooled list never sets `content.sizeDelta`') {
+        if (-not $sv.Contains($s)) { "ui-ugui scrollview-setup.md lost house edit: $s" }
     }
     $ucFront = [regex]::Match($uc, '(?s)\A---\r?\n(.*?)\r?\n---').Groups[1].Value
     if ($ucFront -notmatch 'allowed-tools:' -or $ucFront -match '(?m)^\s*-\s*(Bash|PowerShell)\s*$|(?m)^allowed-tools:.*\b(Bash|PowerShell)\b(?!\()') { 'unity-cli allowed-tools is not narrowed to read-only unity forms' }
@@ -657,36 +664,104 @@ sys.exit(1 if bad else 0)
         if (Test-Path -LiteralPath $maskOut) { Remove-Item -LiteralPath $maskOut -Recurse -Force -ErrorAction SilentlyContinue }
     }
     # the delivery half of the PR_Anvil gate runner (blender-image-to-3d SKILL.md), about 15 s: validate, export_delivery
-    # --format FBX and roundtrip --manifest on the committed baked file, written to %TEMP% so the sample stays as it is.
-    # The sample is local and untracked (_asset-samples/): absent, this is a skip. Ceiling: bake_maps' bake itself and
-    # the Unity half (unity-check.ps1) stay manual; they need minutes and an Editor.
+    # --format FBX and roundtrip --manifest, written to %TEMP% so the source stays as it is. The source is the local,
+    # untracked _asset-samples\PR_Anvil baked file when present; otherwise a fixture built headless here: a 0.8 m UV'd
+    # cube in LOW wired to a basecolor and a roughness PNG, plus a packed mask named in scene["packed_channels"] the way
+    # bake_maps --pack-mask writes it, so texture shipping, the mask swap and the manifest comparison all run on any
+    # machine. Ceiling: bake_maps' bake itself and the Unity half (unity-check.ps1) stay manual; they need minutes and
+    # an Editor.
     $anvil = Join-Path $PSScriptRoot '_asset-samples\PR_Anvil\PR_Anvil_baked.blend'
     $i3d = Join-Path $skillDir 'blender-image-to-3d\scripts'
-    if ((Test-Path -LiteralPath $anvil) -and (Test-Path -LiteralPath (Join-Path $i3d 'roundtrip.py'))) {
+    if (Test-Path -LiteralPath (Join-Path $i3d 'roundtrip.py')) {
         $delOut = Join-Path $env:TEMP "gk-test-all-delivery-$PID"
         New-Item -ItemType Directory -Force $delOut | Out-Null
         $delBad = @(
-            foreach ($step in @(
-                @('validate', "--python `"$i3d\validate.py`" -- --blend `"$anvil`" --collections LOW --out `"$delOut\validate.json`" --budget-tris 1500 --require-uv"),
-                @('export_delivery', "--python `"$i3d\export_delivery.py`" -- --blend `"$anvil`" --out `"$delOut`" --name PR_Anvil --format FBX --collections LOW --no-animation --engine Unity"),
-                @('roundtrip', "--python `"$i3d\roundtrip.py`" -- --file `"$delOut\PR_Anvil.fbx`" --out `"$delOut\rt`" --expect-height 0.80 --manifest `"$delOut\asset-manifest.json`" --res 256"))) {
-                # --factory-startup on every step, as the skill's own command lines run them
-                $res = cmd /c "`"$blender`" --background --factory-startup --python-exit-code 1 $($step[1]) 2>&1"
-                if ($LASTEXITCODE -ne 0) { "$($step[0]) exit ${LASTEXITCODE}: $(($res | Where-Object { $_ -match 'FAIL|ERRORS|Error|Traceback' } | Select-Object -First 2) -join ' ')"; break }
-                if ($step[0] -eq 'roundtrip' -and -not ($res -match '^ERRORS \[\]')) { 'roundtrip printed no empty ERRORS list' }
+            if (Test-Path -LiteralPath $anvil) { $delBlend = $anvil; $delName = 'PR_Anvil' }
+            else {
+                $delName = 'PR_Fixture'
+                $delBlend = Join-Path $delOut 'src\PR_Fixture_baked.blend'
+                $fixPy = Join-Path $delOut 'make_fixture.py'
+                [IO.File]::WriteAllText($fixPy, @"
+import bpy, os
+from mathutils import Matrix
+blend = r'$delBlend'
+tex = os.path.join(os.path.dirname(blend), 'textures')
+os.makedirs(tex, exist_ok=True)
+bpy.ops.wm.read_factory_settings(use_empty=True)
+scene = bpy.context.scene
+low = bpy.data.collections.new('LOW')
+scene.collection.children.link(low)
+bpy.ops.mesh.primitive_cube_add(size=0.8)
+ob = bpy.context.active_object
+ob.name = ob.data.name = 'PR_Fixture'
+ob.data.transform(Matrix.Translation((0.0, 0.0, 0.4)))
+for c in list(ob.users_collection): c.objects.unlink(ob)
+low.objects.link(ob)
+def png(name, colour, non_color):
+    img = bpy.data.images.new(name, 32, 32)
+    img.generated_color = colour
+    if non_color: img.colorspace_settings.name = 'Non-Color'
+    img.filepath_raw = os.path.join(tex, name + '.png'); img.file_format = 'PNG'; img.save()
+    return img
+mat = bpy.data.materials.new('M_PR_Fixture')
+mat.use_nodes = True
+nt = mat.node_tree
+bsdf = next(n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED')
+for img, socket in ((png('PR_Fixture_basecolor', (0.6, 0.4, 0.2, 1.0), False), 'Base Color'),
+                    (png('PR_Fixture_roughness', (0.5, 0.5, 0.5, 1.0), True), 'Roughness')):
+    node = nt.nodes.new('ShaderNodeTexImage'); node.image = img
+    nt.links.new(node.outputs['Color'], bsdf.inputs[socket])
+ob.data.materials.append(mat)
+png('PR_Fixture_mask', (0.0, 1.0, 0.0, 0.5), True)
+scene['packed_channels'] = 'R metallic, G AO, A 1-roughness; files: PR_Fixture_mask.png'
+bpy.ops.wm.save_as_mainfile(filepath=blend)
+"@, (New-Object Text.UTF8Encoding $false))
+                $res = cmd /c "`"$blender`" --background --factory-startup --python-exit-code 1 --python `"$fixPy`" 2>&1"
+                if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $delBlend)) { "fixture build exit ${LASTEXITCODE}: $(($res | Select-Object -Last 3) -join ' ')" }
+            }
+            if (Test-Path -LiteralPath $delBlend) {
+                foreach ($step in @(
+                    @('validate', "--python `"$i3d\validate.py`" -- --blend `"$delBlend`" --collections LOW --out `"$delOut\validate.json`" --budget-tris 1500 --require-uv"),
+                    @('export_delivery', "--python `"$i3d\export_delivery.py`" -- --blend `"$delBlend`" --out `"$delOut\export`" --name $delName --format FBX --collections LOW --no-animation --engine Unity"),
+                    @('roundtrip', "--python `"$i3d\roundtrip.py`" -- --file `"$delOut\export\$delName.fbx`" --out `"$delOut\rt`" --expect-height 0.80 --manifest `"$delOut\export\asset-manifest.json`" --res 256"))) {
+                    # --factory-startup on every step, as the skill's own command lines run them
+                    $res = cmd /c "`"$blender`" --background --factory-startup --python-exit-code 1 $($step[1]) 2>&1"
+                    if ($LASTEXITCODE -ne 0) { "$($step[0]) exit ${LASTEXITCODE}: $(($res | Where-Object { $_ -match 'FAIL|ERRORS|Error|Traceback' } | Select-Object -First 2) -join ' ')"; break }
+                    if ($step[0] -eq 'roundtrip' -and -not ($res -match '^ERRORS \[\]')) { 'roundtrip printed no empty ERRORS list' }
+                }
+                if ($delName -eq 'PR_Fixture' -and -not $LASTEXITCODE) {
+                    # the mask replaces the roughness map and ships beside the FBX with the basecolor
+                    $shipped = @(Get-ChildItem -LiteralPath "$delOut\export" -Filter *.png | ForEach-Object Name | Sort-Object) -join ','
+                    if ($shipped -ne 'PR_Fixture_basecolor.png,PR_Fixture_mask.png') { "shipped textures '$shipped', expected the basecolor and the mask" }
+                }
             }
         )
-        Check 'blender-image-to-3d: PR_Anvil validate, export_delivery FBX and roundtrip against its manifest exit 0' (-not $delBad) ($delBad -join '; ')
+        Check "blender-image-to-3d: $delName validate, export_delivery FBX and roundtrip against its manifest exit 0" (-not $delBad) ($delBad -join '; ')
         Remove-Item -LiteralPath $delOut -Recurse -Force -ErrorAction SilentlyContinue
-    } else { Write-Host '  skip  blender-image-to-3d delivery chain: no _asset-samples\PR_Anvil here' }
+    } else { Write-Host '  skip  blender-image-to-3d delivery chain: the skill''s scripts are not installed' }
     # toon-art's runnable chain, Blender half: toon_prop.py builds, checks and exports SM_Barrel, and its manifest's
     # collider is the mesh bounds in Unity prefab space: the size is Blender (x, z, y), the centre is (-x, z, -y) of the
-    # Blender bounds centre (the barrel is centred, so x and z are 0), the pivot at the base. Ceiling: the Unity half
+    # Blender bounds centre, the pivot at the base. The barrel is centred, so the same process then moves its mesh by
+    # Blender (+0.1, +0.2, 0) and has toon_prop's own write_manifest write SM_Barrel_offset.json, whose centre must be
+    # Unity (-0.1, h/2, -0.2): a lost minus sign in to_unity() fails there. Ceiling: the Unity half
     # (PropBuilder.cs.txt, the Euler(90,180,0) child that turns Blender's front -Y to transform.forward) runs only
-    # when a game copies it in.
+    # when a game copies it in; test-template -Packs toon-art checks the pack's own compile, not this example.
     $toonOut = Join-Path $env:TEMP 'gk-test-all-toon'
     if (Test-Path -LiteralPath $toonOut) { Remove-Item -LiteralPath $toonOut -Recurse -Force }
-    $res = cmd /c "`"$blender`" --background --factory-startup --python-exit-code 1 --python `"$((Resolve-Path -LiteralPath 'packs/toon-art/examples/toon_prop.py').Path)`" -- `"$toonOut`" 2>&1"
+    New-Item -ItemType Directory -Force $toonOut | Out-Null
+    $toonPy = Join-Path $toonOut 'run_toon_prop.py'
+    [IO.File]::WriteAllText($toonPy, @"
+import bpy, os
+from mathutils import Matrix
+src = r'$((Resolve-Path -LiteralPath 'packs/toon-art/examples/toon_prop.py').Path)'
+g = {'__name__': '__main__', '__file__': src}
+exec(compile(open(src, encoding='utf-8').read(), src, 'exec'), g)
+ob = bpy.data.objects[g['NAME']]
+ob.data.transform(Matrix.Translation((0.1, 0.2, 0.0)))
+ob.data.update()
+g['write_manifest'](ob, 0, os.path.join(r'$toonOut', 'SM_Barrel_offset.json'))
+"@, (New-Object Text.UTF8Encoding $false))
+    $res = cmd /c "`"$blender`" --background --factory-startup --python-exit-code 1 --python `"$toonPy`" -- `"$toonOut`" 2>&1"
     $toonCode = $LASTEXITCODE
     $models = Join-Path $toonOut 'Assets\__GAME__\Game\Art\Models'
     $dims = [regex]::Match(($res -join "`n"), '\[toon_prop\] SM_Barrel: (\d+) triangles, ([\d.]+) x ([\d.]+) x ([\d.]+) m')
@@ -703,6 +778,9 @@ sys.exit(1 if bad else 0)
             if ([math]::Abs($c.y - $s.y / 2) -gt 0.001) { "colliderCenter.y $($c.y) is not half the height $($s.y): the pivot is not the base" }
             if ([math]::Abs($c.x) -gt 0.001 -or [math]::Abs($c.z) -gt 0.001) { "colliderCenter ($($c.x), $($c.z)) off the axis for the centred barrel: the (-x, z, -y) mapping broke" }
             if (@($man.roles).Count -ne @($man.colors).Count -or @($man.roles).Count -ne @($man.smoothness).Count) { 'roles, colors and smoothness differ in length' }
+            $off = if (Test-Path -LiteralPath "$toonOut\SM_Barrel_offset.json") { (Get-Content -LiteralPath "$toonOut\SM_Barrel_offset.json" -Raw | ConvertFrom-Json).colliderCenter }
+            if (-not $off) { 'no SM_Barrel_offset.json' }
+            elseif ([math]::Abs($off.x + 0.1) -gt 0.001 -or [math]::Abs($off.z + 0.2) -gt 0.001 -or [math]::Abs($off.y - $c.y) -gt 0.001) { "colliderCenter ($($off.x), $($off.y), $($off.z)) for the barrel moved by Blender (+0.1, +0.2, 0) is not (-0.1, $($c.y), -0.2): to_unity() lost the (-x, z, -y) signs" }
         }
     )
     Check 'toon-art: toon_prop.py exports SM_Barrel and a manifest whose collider is the bounds in Unity space' (-not $toonBad) ($toonBad -join '; ')

@@ -14,7 +14,9 @@
     references, mobile-2d's 2D renderer and Main, mobile-store's notification defaults, steam's DISABLESTEAMWORKS on
     Android, iOS and WebGL). -Tests or mobile-store adds one launch of GameKit's AgentBridge.CompilePlayerScriptsBatch
     -platform android (its exit 0/1/2 contract and the #if UNITY_ANDROID code; exit 2, no Android module, is a skip).
-    -Tests also runs the game's EditMode and PlayMode tests (two more Unity launches).
+    -Tests also runs unity-package-management's headless.md PackageInstaller once without -quit (one launch: exit 0
+    and the package in packages-lock.json, then manifest and lock restored) and the game's EditMode and PlayMode tests
+    (two more Unity launches).
     -Tests, coop-multiplayer or toon-art adds one launch that compiles and runs skill code (AssetAudit.cs,
     urp-postprocessing's Editor classes run in a throwaway scene, unity-package-management's headless.md installer
     classes and unity-architecture's core-system skeleton compiled, a FishNet relay probe with coop-multiplayer,
@@ -192,6 +194,51 @@ if (($Tests -or $Packs -contains 'mobile-store') -and -not $setupFailed) {
             $tail = if (Test-Path -LiteralPath $cpReport) { $cpReport } else { $cpLog }
             if (Test-Path -LiteralPath $tail) { Get-Content -LiteralPath $tail -Tail 30 | ForEach-Object { Write-Host "    $_" } }
         }
+    }
+}
+
+# unity-package-management's headless install route, run as headless.md writes it: its first csharp block (the
+# installer itself, read from the page so the check cannot drift from it) with one leaf package no template, pack or
+# transitive dependency brings, launched without -quit so the async AddAndRemove finishes and EditorApplication.Exit
+# sets the code, then the page's Verify proof (the id in packages-lock.json). Manifest, lock and installer are put back
+# afterwards, so the test runs below see the usual project.
+if ($Tests -and -not $setupFailed) {
+    $piId = 'com.unity.device-simulator.devices'
+    $piDir = Join-Path $game 'Assets\Editor\ProjectBootstrap'
+    $piLog = Join-Path $game 'Logs\package-installer.log'
+    $piManifest = Join-Path $game 'Packages\manifest.json'
+    $piLock = Join-Path $game 'Packages\packages-lock.json'
+    $piSaved = @{}
+    foreach ($f in $piManifest, $piLock) { if (Test-Path -LiteralPath $f) { $piSaved[$f] = [IO.File]::ReadAllText($f) } }
+    $piCode = [regex]::Match([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'plugin\skills\unity-package-management\references\headless.md')), '(?s)```csharp\r?\n(.*?)```').Groups[1].Value
+    $piInLock = { (Test-Path -LiteralPath $piLock) -and (Select-String -LiteralPath $piLock -SimpleMatch "`"$piId`":" -Quiet) }
+    if ($piCode -notmatch 'class PackageInstaller' -or -not $piCode.Contains('"<id>",')) {
+        Check $false 'headless.md: first csharp block is PackageInstaller with its "<id>", placeholder line'
+    } elseif (& $piInLock) {
+        Check $false "headless install probe: $piId is already in packages-lock.json, pick another leaf package so the check proves something"
+    } else {
+        New-Item -ItemType Directory -Force $piDir | Out-Null
+        [IO.File]::WriteAllText((Join-Path $piDir 'PackageInstaller.cs'), $piCode.Replace('"<id>",', "`"$piId`","), (New-Object Text.UTF8Encoding $false))
+        $run = Start-Process -FilePath $Unity -PassThru -NoNewWindow -ArgumentList @(
+            '-batchmode', '-projectPath', "`"$game`"", '-executeMethod', 'ProjectBootstrap.PackageInstaller.Install', '-logFile', "`"$piLog`"")
+        $null = $run.Handle   # PowerShell 5.1: without the cached handle ExitCode reads empty after the exit
+        $piOk = $false
+        if (-not $run.WaitForExit($TimeoutMinutes * 60000)) {
+            cmd /c "taskkill /T /F /PID $($run.Id) >nul 2>&1"
+            Check $false "headless PackageInstaller (unity-package-management headless.md) killed after $TimeoutMinutes min"
+        } else {
+            Check ($run.ExitCode -eq 0) "headless PackageInstaller (unity-package-management headless.md) exit $($run.ExitCode)"
+            Check (& $piInLock) "headless install resolved $piId into packages-lock.json"
+            $piOk = $run.ExitCode -eq 0 -and (& $piInLock)
+        }
+        if (-not $piOk) {
+            if (Test-Path -LiteralPath $piLog) { Select-String -LiteralPath $piLog -Pattern '\[PackageInstaller\]|error' | Select-Object -First 20 | ForEach-Object { Write-Host "    $($_.Line)" } }
+        }
+        cmd /c rmdir /s /q "\\?\$piDir"
+        Remove-Item -LiteralPath "$piDir.meta" -ErrorAction SilentlyContinue
+        $piEditor = Split-Path $piDir
+        if (-not (Get-ChildItem -LiteralPath $piEditor -Force -ErrorAction SilentlyContinue)) { Remove-Item -LiteralPath $piEditor, "$piEditor.meta" -Force -ErrorAction SilentlyContinue }
+        foreach ($f in $piSaved.Keys) { [IO.File]::WriteAllText($f, $piSaved[$f], (New-Object Text.UTF8Encoding $false)) }
     }
 }
 
