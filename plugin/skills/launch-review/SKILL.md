@@ -1,6 +1,6 @@
 ---
 name: launch-review
-description: Use when writing patch notes, shipping a hotfix, preparing a release build or upload, making store screenshots or capsule art, planning price, tags, demo, soft launch or wishlists (Steam, Play, App Store, itch.io). Read-only audits: launch-auditor.
+description: Use when writing patch notes, shipping a hotfix, preparing a release build or upload, making store screenshots or capsule art, planning price, tags, demo, soft launch or wishlists (Steam, Play, App Store, itch.io).
 ---
 
 # Auditing the launch

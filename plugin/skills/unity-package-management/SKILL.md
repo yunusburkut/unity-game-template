@@ -1,6 +1,6 @@
 ---
 name: unity-package-management
-description: Use for "install a Unity package", "add com.unity.*", "paket ekle", "hangi paketler", "which packages for a [genre] game" - adding, removing, upgrading or verifying UPM packages (live Editor or headless/CI), or upgrading the Unity Editor.
+description: Use for "install a Unity package", "add com.unity.*", "paket ekle", "hangi paketler", "which packages for a [genre] game" - adding, removing, upgrading or verifying UPM packages, or upgrading the Unity Editor.
 allowed-tools:
   - Read
   - Bash(unity command package search:*)

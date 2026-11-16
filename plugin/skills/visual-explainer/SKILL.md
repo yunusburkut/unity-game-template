@@ -1,6 +1,6 @@
 ---
 name: visual-explainer
-description: Use when asked "nasıl çalışıyor", "adım adım göster", "mimarisini çiz", "walk me through", or "açıkla"/"anlat" about a system, algorithm or data flow of 3+ parts, or when Visual Clarity picks VISUAL EXPLAINER. Turkish, with a diagram.
+description: Use when asked "nasıl çalışıyor", "adım adım göster", "mimarisini çiz", "walk me through", or "açıkla"/"anlat" about a system, algorithm or data flow of 3+ parts, or when Visual Clarity picks VISUAL EXPLAINER.
 ---
 
 # Visual explainer

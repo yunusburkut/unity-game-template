@@ -651,7 +651,7 @@ run 'bad usage is unknown' 2 frobnicate
     foreach ($f in Get-ChildItem -LiteralPath (Join-Path $HOME '.claude\skills') -Filter SKILL.md -Recurse -ErrorAction SilentlyContinue) {
         $um = [regex]::Match([IO.File]::ReadAllText($f.FullName), '(?m)^description:[ \t]*(.*)$'); $userDesc += $um.Groups[1].Value.Trim().Length }
     Write-Output "NOTE skill listing: gamekit descriptions $descTotal + ~/.claude/skills $userDesc characters, against a budget of about 8,000 at a 200k context (plugins not counted)"
-    Check "plugin: gamekit skill descriptions total $descTotal characters, at most the 6,050 ratchet" ($descTotal -le 6050)
+    Check "plugin: gamekit skill descriptions total $descTotal characters, at most the 6,025 ratchet" ($descTotal -le 6025)
     # A skill named as the one to load or invoke must exist: in the plugin, in ~/.claude/skills or in a pack.
     $known = @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'skills') -Directory | ForEach-Object Name) +
         @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'agents') -Filter *.md | ForEach-Object BaseName) +

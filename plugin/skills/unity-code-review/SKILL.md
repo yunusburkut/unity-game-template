@@ -1,6 +1,6 @@
 ---
 name: unity-code-review
-description: Use when asked to review, audit or critique game C# ("kodu incele", "kodu gözden geçir") - correctness, culture, Core/Game boundary, lifecycle, ownership, saves and untrusted input, allocations, PC/mobile/WebGL gaps, pre-Unity-6 API, complexity.
+description: Use when asked to review, audit or critique game C# ("kodu incele", "kodu gözden geçir") - correctness, Core/Game boundary, lifecycle, ownership, saves and untrusted input, allocations, PC/mobile/WebGL gaps, pre-Unity-6 API.
 ---
 
 # Reviewing code

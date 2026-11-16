@@ -1,6 +1,6 @@
 ---
 name: unity-cli
-description: Reference for the Unity CLI itself - unity status/command/list, flags, output formats, exit codes, Safe Mode, Editor installs, modules, licenses, auth, logs. Use when a unity command or flag is unclear; game Editor edits are unity-editor-cli.
+description: Reference for the Unity CLI itself - unity status/command/list, flags, output formats, exit codes, Safe Mode, Editor installs, modules, licenses, auth, logs. Use when a unity command or flag is unclear; Editor edits: unity-editor-cli.
 allowed-tools:
   - Bash(unity --version)
   - Bash(unity status:*)

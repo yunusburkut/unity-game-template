@@ -1,6 +1,6 @@
 ---
 name: sync-template
-description: Template updates into a game made from it ("template'i güncelle", "template güncellemesini al", "sync template", "template'te ne değişti", "GameKit'i güncelle", "GameKit'e geçir"): skeleton, packs, GameKit tag. The plugin updates itself.
+description: Template updates into a game made from it ("template'i güncelle", "sync template", "template'te ne değişti", "GameKit'i güncelle", "GameKit'e geçir"): skeleton, packs, GameKit tag. The plugin updates itself.
 ---
 
 # Syncing a game with the template

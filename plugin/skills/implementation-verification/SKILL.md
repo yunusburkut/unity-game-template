@@ -1,6 +1,6 @@
 ---
 name: implementation-verification
-description: Use at the end of every change in a Unity game made from the template, instead of test suites or builds - a cheap check of the change, the spec card acceptance items ticked with evidence, and a Play Mode checklist for PC and the phone.
+description: Use at the end of every change in a game, instead of test suites or builds - a cheap check of the change, the spec card acceptance items ticked with evidence, and a Play Mode checklist for PC and the phone.
 ---
 
 # Verifying a change

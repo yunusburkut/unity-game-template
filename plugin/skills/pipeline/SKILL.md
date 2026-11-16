@@ -36,7 +36,8 @@ Rewrite the user's prompt into this card under PLAN.md `## Now` (replace the TOD
 one with `## Now`, `## Next`, `## Pending Play Mode checks` and `## Known issues`). The card adds facts the
 prompt left implicit (files, targets, existing helpers) and a checkable done; it never adds requirements. A design
 question ("would X feel good?", "is X fun?") is not a card: it is a spike, `gamekit:prototype`. "Does X work?" about
-existing code is a bug or a check, not a spike.
+existing code is a bug or a check, not a spike. "What should we add?" with no feature chosen is not a card either: it
+is `gamekit:game-ideas`, and the idea the user picks comes back as the prompt.
 
 Now already holds another card, or a `prototype <Name>: <question>` line (a `gamekit:prototype` spike waiting for its
 verdict): ask whether to finish it (`devam`; a spike: play it, then PROCEED / PIVOT / KILL, `gamekit:prototype`) or
