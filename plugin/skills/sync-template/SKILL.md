@@ -32,11 +32,14 @@ never clone over one) or a game without `Assets/<Game>/Core/<Game>.Core.asmdef` 
 commits since `base`.
 
 - `base` taken from the date fallback (a game made before the marker existed): confirm it with the user first.
+- A `DIRTY:` block (the game was copied while the template had uncommitted edits): `base` does not describe the
+  files it lists. Treat them as game-owned: a reject or "already exists" on one is expected; confirm each with the user.
 - `company` empty: ask the user; a patch with `__COMPANY__` unfilled must not be applied.
 - Packs: the `Packs:` line of the start or last sync commit when it has one; otherwise each pack with any of its files
   at `base` present in the game, printed as `pack <p>: <have>/<total> files present`. A partial count means the game
   deleted or renamed some pack files; tell the user. A wrong list: fix the `PACKS=` line in `.git/sync-template.env`.
-- `base` equal to `template`, or an empty commit list: already in sync; say so and stop.
+- `base` equal to `template`, or an empty commit list: already in sync; say so and stop (with `GameKit'e geçir`, go on to the last
+  section).
 
 The script works from `origin/main`, never from the template's working tree (it may hold uncommitted experiments).
 
@@ -61,22 +64,35 @@ bash "${CLAUDE_SKILL_DIR}/scripts/sync.sh" patch <sha of each take and partly co
 ```
 
 It applies only those commits, oldest first, each as its own patch with the template prefix stripped and `__GAME__` /
-`__COMPANY__` filled in (`git apply --reject`). Skipped commits never enter the patch. Scenes, prefabs, `*.asset`,
-`ProjectSettings/`, `Packages/` and each pack's `README.md`, `examples/` and `packages.json` are never patched as text.
-Then, in order:
+`__COMPANY__` filled in (`git apply --reject`). Skipped commits never enter the patch, and a sha outside
+`base..template` or named twice stops it before anything is applied. Scenes, prefabs, `*.asset`, `ProjectSettings/`,
+`Packages/` and each pack's `README.md`, `examples/` and `packages.json` are never patched as text (the list is
+`held()` in `sync.sh`; `examples/` is never copied, so it needs nothing). Then, in order:
 
 1. **Rejects** (`<file>.<sha>.rej`, one per commit so a later reject does not overwrite an earlier one): each is a hunk
    whose context the game changed. Merge it by hand using the template's intent rather than its exact text; delete
    every `.rej` afterwards. A **partly** commit: edit out the part the user did not take; a file it added that the
-   user does not want is removed with `rm` (it is untracked, so `git checkout --` cannot drop it).
+   user does not want is removed with `rm` (it is untracked, so `git checkout --` cannot drop it). A
+   `git apply reported failures` line with no `REJECT` line for a file names one the game deleted, renamed or already
+   has (git writes no `.rej` then, only the error above it): apply that change by hand to the game's equivalent file,
+   or tell the user which change could not land.
 2. **Excluded files:** `sync.sh excluded` lists the template commits since `base` that touched them, with paths. For
    each the user took, say what it needs instead: rerun **GameKit > Set Up Project**, a change in the Editor, or a
    package or scoped registry added by hand to the game's `Packages/manifest.json` next to its own (a pack's
-   `packages.json` change lands here; without it, code synced from that pack does not compile).
+   `packages.json` change lands here; without it, code synced from that pack does not compile). A pack `README.md`
+   change matters only where it edits what new-game.ps1 lifted into the game's CLAUDE.md: the fenced block under
+   `## CLAUDE.md'ye eklenecek satır` (the game's `## Packs` bullets) or a fenced ```` ```markdown ```` `## ...` section
+   (coop-multiplayer's `## Networking`, which net-auditor reads). Merge that changed block or section into the game's
+   CLAUDE.md by hand; the README's human setup text needs nothing.
 3. **GameKit** (games that have the package only): `sync.sh tag` moves the game's `#gamekit-v...` tag to the one the
    template's `origin/main` manifest names (the released tag, not merely the newest local one), after checking that
-   the tag is on the template's origin, and prints the GameKit commits between the two tags: read them for anything
-   the game must change with it. A `file:` GameKit entry is a local experiment: the script leaves it and says so.
+   the tag is on the template's origin (a game already on a newer tag is left as it is), and prints the GameKit
+   commits between the two tags: read them for anything the game must change with it. A `file:` GameKit
+   entry is a local experiment: the script leaves it and says so. A game moved from `gamekit-v0.1.1` or older never
+   got the build defaults (they are written only on the first **Set Up Project**; a rerun only lists what differs):
+   after step 4, run **GameKit > Apply Build Defaults** once. It writes WebGL Brotli, the responsive template and High
+   stripping, the resizable PC window and URP post-processing variant stripping, overwriting those settings, so first
+   ask the user about any of them the game changed on purpose.
 4. **Compile:** a moved tag needs a package resolve, which a scripted refresh does not run (probed on 6000.6): ask
    the user to focus Unity and wait until `Packages/packages-lock.json` is newer than `Packages/manifest.json`. Then
    `gk-bridge refresh` in Bash must PASS; fix errors that the sync caused. Exit 2 (Editor closed, Play Mode, a bridge
@@ -98,7 +114,9 @@ Verified: gk-bridge refresh PASS <time>; Play Mode pending
 
 The marker `unity-game-template@<sha>` in the subject is what step 1 reads next time; keep it exact even when every
 commit was skipped. The `Packs:` line (space or comma separated) spares the next sync the file-presence guess. Hand
-the user the Play Mode checks for what changed behaviour (`gamekit:implementation-verification`).
+the user the Play Mode checks for what changed behaviour (`gamekit:implementation-verification`). Then
+`rm .git/sync-template.env`: its facts belong to the commit before this one (the script refuses them anyway once
+HEAD has moved, and `facts` writes a fresh one next time).
 
 ## Moving a game made before GameKit to the package
 
@@ -106,11 +124,17 @@ Only when the user asks (`GameKit'e geçir`), after step 1, as its own commit af
 
 1. Add the GameKit line from the template's manifest to the game's, at the tag step 1 printed (it prints the line:
    `. .git/sync-template.env; git -C "$T" show origin/main:project/Packages/manifest.json | grep gamekit`). The
-   game's Editor asmdef gets `GameKit.Editor` in its references.
+   game's Editor asmdef gets `GameKit.Editor` in its references and its Game asmdef gets `GameKit`, as the
+   template's `__GAME__.Game.asmdef` has (a custom asmdef does not see the package's assemblies on its own).
 2. Delete the game's own copies of what GameKit ships (`AgentBridge`, `BuildMenu`, `ProjectSetup`, `FrameLog`,
    `SafeAreaFitter`): two bridges would both answer `request.txt`, two FrameLogs both write. Keep a copy whose
    `.cs.meta` guid a scene or prefab uses (`grep -rl <guid> Assets --include=*.unity --include=*.prefab`): moving it
    shows "Missing Script", so it stays and the user hears which.
+   Game code that used a deleted copy now needs `using GameKit;` (FrameLog, SafeAreaFitter) or `using GameKit.Editor;`;
+   the gate in step 3 names each file. A kept copy of a self-starting component still doubles up: GameKit's `FrameLog`
+   creates itself at startup (`[RuntimeInitializeOnLoadMethod]`), so a scene's FrameLog copy writes beside it. With the
+   user's yes, remove that component from the scene or prefab in the Editor and delete the copy; otherwise strip the
+   copy's own bootstrap and logging so it is an inert placeholder, and say so.
 3. Ask the user to focus Unity (the old bridge cannot refresh), then `gk-bridge refresh` must PASS.
 4. Take the template's CLAUDE.md "Agent bridge" section into the game's, and commit `tools: move to the GameKit
    package` with the gate's `Verified:` line.

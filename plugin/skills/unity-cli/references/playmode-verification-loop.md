@@ -9,6 +9,11 @@ running (not frozen), look at it, read its console, and tune it, all without lea
 
 Relative links in this file resolve to the skill directory's `references/` folder, so `../SKILL.md` is the skill's main page.
 
+> **In a gamekit game do not follow this recipe:** verify with `gk-bridge play-capture` and hand gameplay checks
+> to the user as a Play Mode checklist (`gamekit:unity-editor-cli`, `gamekit:implementation-verification`). Do not
+> enter Play Mode, persist `editor set_auto_tick` or change `Application.runInBackground` yourself (the override
+> block in `../SKILL.md`).
+
 ## Contents
 
 - Why this loop, and not `editor.playmode start` + a screenshot

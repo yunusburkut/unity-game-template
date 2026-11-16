@@ -13,8 +13,9 @@ you bought. Most of the game is uGUI.
 - **prestige-reset**: When growth slows, a reset trades the run for a lasting bonus that multiplies all output,
   and the button shows what you would gain now. Why: a wall becomes a choice, and each climb is faster than the
   last. Break it when: one long climb with no reset is asked for. [pecorella-2]
-- **away-earnings**: The game keeps earning while closed: save a UTC timestamp in `OnApplicationPause(true)` and
-  on quit, and on return pay for the time away (clamp a negative gap to zero, the device clock can move back) and
+- **away-earnings**: The game keeps earning while closed: save a UTC timestamp in `OnApplicationPause(true)`, on
+  quit, on `OnApplicationFocus(false)` and every few seconds of play, then `PlayerPrefs.Save()` (a closed WebGL tab
+  raises neither pause nor quit reliably, `gamekit:platform-targets`), and on return pay for the time away (clamp a negative gap to zero, the device clock can move back) and
   show how long you were away and what you earned. Why: the game grew without you, so returning is a reward. Break
   it when: the game is about being there, and nothing happens while you are gone. [clicker-heroes-1], [pecorella-2]
 

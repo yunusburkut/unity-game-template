@@ -5,11 +5,12 @@ description: Use when asked to review, audit or critique game C# ("kodu incele",
 
 # Reviewing code
 
-This file is the checklist of the `gamekit:unity-reviewer` agent. `review et` / `puanla` belong to the `pipeline`
-skill's scored review loop, not to this skill. For a diff, a commit range or a card, spawn `gamekit:unity-reviewer`
-(or run the pipeline's review step). Reviewing inline instead: follow that agent's steps (getting the change, scope
-`Assets/<Game>` only, the compile.log check) and its report format and **[yüksek]** / **[orta]** / **[düşük]** tags;
-**[karar]** is defined in `pipeline/references/review-rubric.md`.
+This file is the checklist of the `gamekit:unity-reviewer` agent. `review et` / `puanla` for a PLAN.md card or a
+commit range belong to the `pipeline` skill's scored review loop (run its review step). `review et` on files or a diff
+with no card or range is this skill: spawn `gamekit:unity-reviewer` unscored. Reviewing inline instead: follow that
+agent's steps (getting the change, scope `Assets/<Game>` only, the compile.log check) and its report format and
+**[yüksek]** / **[orta]** / **[düşük]** tags; **[karar]** is defined in
+`${CLAUDE_PLUGIN_ROOT}/skills/pipeline/references/review-rubric.md`.
 
 Report what materially matters. Do not nitpick style that already matches its surroundings.
 
@@ -25,7 +26,8 @@ Report what materially matters. Do not nitpick style that already matches its su
 2. **Boundary violations** — a `MonoBehaviour`, `Physics` call, `Time` or `Input` access or scene API that has drifted
    into `<Game>.Core`; game rules that have drifted into a MonoBehaviour. Runtime wiring through `GameObject.Find`,
    `FindFirstObjectByType` / `FindAnyObjectByType` / `FindObjectsByType`, `FindWithTag` or `SendMessage` instead of a
-   serialized reference (a one-time Editor tool may scan). Game content loaded by string path through
+   serialized reference. The one exemption, here and in item 11: an Editor tool, or a one-time bootstrap scan that
+   runs once at startup and caches what it finds. Game content loaded by string path through
    `Resources.Load`: a rename breaks it only at runtime, and everything under `Resources/` ships in every build.
 3. **Lifecycle** — work in `Awake` that depends on another object's `Awake`; `OnEnable` subscriptions with no matching
    `OnDisable`; a mutable `static` with no `SubsystemRegistration` reset (Play Mode reload is disabled, so this only
@@ -36,6 +38,10 @@ Report what materially matters. Do not nitpick style that already matches its su
      (disabling only the component does not stop them). A coroutine that must survive starts in `OnEnable`.
    - An `async` / `Awaitable` continuation runs after `Destroy` unless it checks `destroyCancellationToken`; one that
      touches `this` after `OnDisable` is a bug.
+   - An `Awaitable` is pooled: await it exactly once, never store it in a field or share it between callers (a reused
+     instance fails intermittently). A result several callers await, or one kept for later, uses `Task` /
+     `TaskCompletionSource`. `AwaitableCompletionSource` is manual completion for one awaiter only: its `.Awaitable`
+     is the same pooled, await-once type.
    - On a `UnityEngine.Object`, `?.`, `??` and `is null` skip Unity's destroyed check. Use `== null` or the bool
      operator.
    - An `Update` that idles in some state returns early or sets `enabled = false`; it does not poll for nothing.
@@ -75,26 +81,33 @@ Report what materially matters. Do not nitpick style that already matches its su
 9. **Duplicated logic** — especially a second copy of a tuning number that already lives in a ScriptableObject.
 10. **Inspector consequences** — a renamed serialized field silently loses its scene value unless it carries
     `[FormerlySerializedAs]`. Flag it, and say which assets need re-checking.
+    - A renamed `MonoBehaviour` or `ScriptableObject` class still matches its file name, or every scene and asset
+      using it shows "Missing Script".
+    - A `[SerializeReference]` type renamed or moved to another namespace or assembly carries
+      `[UnityEngine.Scripting.APIUpdating.MovedFrom]` with the old names; without it the stored data is silently dropped.
 11. **Pre-Unity-6 API** — obsolete calls compile with only a CS0618 warning, so the compile gate passes them. Flag
     them and write the new form:
     - `Rigidbody` / `Rigidbody2D`: `.velocity` → `.linearVelocity`, `.drag` → `.linearDamping`, `.angularDrag` →
       `.angularDamping`. `PhysicMaterial` → `PhysicsMaterial` (`PhysicMaterialCombine` → `PhysicsMaterialCombine`).
       `CharacterController.velocity` and `NavMeshAgent.velocity` are not renamed.
     - `FindObjectOfType` / `FindFirstObjectByType` / `FindObjectsOfType` / the `FindObjectsSortMode` overload in
-      runtime code: the fix is an Inspector reference (item 2), not a renamed lookup. Only in an Editor tool or a
-      one-time bootstrap scan do they become `FindAnyObjectByType` and `FindObjectsByType<T>()` /
-      `FindObjectsByType<T>(FindObjectsInactive)`. 6000.6 marks `FindFirstObjectByType` and the sort-mode overload
+      runtime code: the fix is an Inspector reference (item 2), not a renamed lookup. Only under item 2's
+      exemption (an Editor tool or a one-time bootstrap scan) do they become `FindAnyObjectByType` and
+      `FindObjectsByType<T>()` / `FindObjectsByType<T>(FindObjectsInactive)`. 6000.6 marks `FindFirstObjectByType` and the sort-mode overload
       obsolete too.
-    - Any `UnityEngine.Input` call (`Input.GetKey`, `Input.GetMouseButton`, `Input.mousePosition`, `Input.touches`,
-      `Input.GetAxis`) compiles with no warning but throws `InvalidOperationException` at runtime on every target:
+    - Any `UnityEngine.Input` member (`Input.GetKey`, `Input.GetMouseButton`, `Input.mousePosition`, `Input.touches`,
+      `Input.GetAxis`, `Input.anyKey`, `Input.mouseScrollDelta`, `Input.acceleration`, `Input.inputString`) compiles with no warning but throws `InvalidOperationException` at runtime on every target:
       Active Input Handling is the Input System only. Rewrite it with an `InputAction` or the `Pointer` API
       (`platform-targets`).
     - Unity 6.4+: `InstanceID` → `EntityId`; `GetInstanceID()` → `GetEntityId()`; `InstanceIDToObject` →
       `EntityIdToObject`. A dictionary keyed on an instance ID becomes keyed on `EntityId`.
-    - Cinemachine 3: namespace `Unity.Cinemachine`; `CinemachineVirtualCamera` → `CinemachineCamera`; Transposer →
-      `CinemachineFollow`; FramingTransposer → `CinemachinePositionComposer`; Composer →
-      `CinemachineRotationComposer`; FreeLook → `CinemachineCamera` + `CinemachineOrbitalFollow`; no `m_` fields
-      (`m_Follow` → `Follow`).
+    - Cinemachine 3: `using Cinemachine;` → `using Unity.Cinemachine;`; `CinemachineVirtualCamera` →
+      `CinemachineCamera`; `CinemachineTransposer` → `CinemachineFollow`; `CinemachineFramingTransposer` →
+      `CinemachinePositionComposer`; `CinemachineComposer` → `CinemachineRotationComposer`; `CinemachineFreeLook` →
+      `CinemachineCamera` + `CinemachineOrbitalFollow`; `CinemachineOrbitalTransposer` → `CinemachineOrbitalFollow`;
+      `CinemachinePOV` → `CinemachinePanTilt`; `CinemachineTrackedDolly` → `CinemachineSplineDolly`;
+      `CinemachineCollider` → `CinemachineDeoccluder`; no `m_` fields (`m_Follow` → `Follow`, `m_LookAt` →
+      `LookAt`, `m_Lens` → `Lens`).
     - URP custom pass: `Execute(ScriptableRenderContext, ref RenderingData)` and `OnCameraSetup` →
       `RecordRenderGraph(RenderGraph, ContextContainer)` with `renderGraph.AddRasterRenderPass`; read the camera
       colour from `frameData.Get<UniversalResourceData>().activeColorTexture`, not `cameraColorTargetHandle`. The old
@@ -103,10 +116,12 @@ Report what materially matters. Do not nitpick style that already matches its su
     - `WWW` → `UnityWebRequest`; `Application.LoadLevel` → `SceneManager.LoadScene`.
 
     This list is the source; the mechanical grep that mirrors it is the "obsolete API" section of
-    `bash "${CLAUDE_PLUGIN_ROOT}/skills/refactor-pass/scripts/survey.sh" --all` (its "Old Input manager" and
-    "Scene scans" sections cover the `Input` and item 2 hits). Run it before reading the diff by eye. A rename added
-    here is added to that regex too, with a matching line in `refactor-pass/scripts/test-survey.sh`'s `Obsolete.cs`
-    fixture.
+    `bash "${CLAUDE_PLUGIN_ROOT}/skills/refactor-pass/scripts/survey.sh" <base-ref>`, where `<base-ref>` is the commit
+    before the range under review (the card's Base): it scans only the `.cs` files changed since then, uncommitted ones
+    included. `--all` is for a whole-project audit only. Its "Old Input manager" and "Scene scans" sections cover the
+    `Input` and item 2 hits. Run it before reading the diff by eye. A rename added here is added to that regex too,
+    with a matching line in `refactor-pass/scripts/test-survey.sh`'s `Obsolete.cs` fixture; check both whenever the
+    list changes.
 
 ## Convention checks
 

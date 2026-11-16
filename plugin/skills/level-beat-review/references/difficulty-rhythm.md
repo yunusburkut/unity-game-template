@@ -8,8 +8,9 @@ cite them in reviews, append new ones, never renumber. This file is the canonica
 the game-specific research doc this file was distilled from (§D). It uses the same DR01–DR28 numbers, but several rules
 and thresholds differ (for example its DR16 is report-only and its DR24 is a refuge rule). In such a game, write this
 file's rules as `LBR-DRxx` and that doc's as `doc-DRxx`, never a bare `DRxx`, and never mix one catalogue's ID with the
-other's threshold. Where the game doc is stricter or decided for that game, it wins as a `DESIGN.md`-level override:
-cite both IDs.
+other's threshold. This file is the default and wins where the two differ, unless the game's `DESIGN.md` adopts the
+doc's rule; then the doc rule wins as a `DESIGN.md`-level override. A doc rule that is stricter but not adopted is
+reported as a **Karar**, not applied. Either way, cite both IDs.
 
 Values marked *(start)* are starting values, not findings: tune them in Play Mode and write the result into
 `DESIGN.md`. Source keys in square brackets resolve in §D.
@@ -34,8 +35,11 @@ Values marked *(start)* are starting values, not findings: tune them in Play Mod
 - Nintendo's four-step teach (introduce, develop, twist, conclude) is the standard shape of one tooth [Hayashida12].
 - Failure that is fast to retry and clearly the player's own is tolerated and even enjoyed; failure that costs time or
   feels arbitrary is not [Juul09, Juul10].
-- How people remember an episode is weighted by its peak and its end, not its average [Kahneman93]: design the peak and
-  the exit of every unit on purpose.
+- How people remember an episode is weighted by its peak and its end, not its average [Kahneman93, Finn10]; in games,
+  the worst moment and the ending shape how hard the whole game is remembered [Gutwin16]: design the peak and the exit
+  of every unit on purpose.
+- Sharp early swings in difficulty go with more quitting, and quitting on hard levels is more common early in a game
+  [Allart17, Roohi20; both correlational]: start smooth and step peaks gently (DR12).
 - Tutorials that teach by doing, once, in a safe space, beat text and repeated prompts [Hodent, Linehan14].
 
 The direction (waves, valleys, short retry, peak and end) is well supported. The magnitudes below are starting values.
@@ -70,7 +74,7 @@ quick easy win on a known mechanic.
 | ID | Rule | Threshold |
 |---|---|---|
 | DR08 | **The checkpoint is the first safe ground after the peak**, and nothing after the peak can cost the peak again. | No tier-2 failure between a cleared peak and its checkpoint. |
-| DR09 | **Replay to the peak is short.** | Checkpoint (or level start) to the peak ≤ 60 s *(start)* on a clean run. |
+| DR09 | **Replay to the peak is short.** | Checkpoint (or level start) to the peak ≤ 60 s *(start)* on a clean run; in a segment longer than 60 s the twist sits within its first 60 s and the lap fills the rest. |
 | DR10 | **Modes change only knobs**: checkpoint density, timers, hazard speed, hints. No geometry change, no hidden runtime difficulty adjustment without the user's decision. | Every mode plays the same beats in the same order. |
 
 ### Ceiling and steps
@@ -124,8 +128,10 @@ Use for "bölümü yorumla", a level order, or a level pack. Read-only: never ed
 
 Every value in the map carries one tag:
 
-- **M** measured: timed in Play Mode, a recording, or a playtest log.
-- **D** documented: written in `DESIGN.md` (`## Levels`) or read from scene/level data (`unity-editor-cli`, read-only).
+- **M** measured: timed in Play Mode, a recording, a playtest log, or a shipped build's per-level analytics funnel
+  (attempts to win, win rate, quit rate per level), the standard input for a mobile pack's curve.
+- **D** documented: written in `DESIGN.md` (`## Levels`) or read from scene, prefab or level-data files as text (or
+  through `unity-editor-cli`, read-only, when the Editor is open and you are in the main session).
 - **E** estimated: inferred by the reviewer. Every E names the measurement that would replace it.
 
 ### C.2 Scales
@@ -166,7 +172,7 @@ floor of the next run. Name the substitute in the finding.
 | T | Meaning |
 |---|---|
 | T0 | Nothing; cannot fail |
-| T1 | Tier 1: recovered in place, next decision within 3–8 s |
+| T1 | Tier 1: recovered in place, within the Recoverable failure row of `SKILL.md` The numbers (its single source) |
 | T2 | Tier 2: back to the checkpoint, ≤ 60 s replay |
 | T3 | Tier 2 with more than 60 s replay, or a lost resource that persists |
 
@@ -188,7 +194,8 @@ edges. Example: `▁▂ ‖ ▂▃▂▃▄ | ▂▃▄▃▄`.
 
 | Check | Rules |
 |---|---|
-| Is there a sawtooth, or a flat line or a wall? | DR01, DR04, DR12 |
+| Is there a sawtooth, or a flat line or a wall? Are showpieces rare, with no two peaks in a row asking the same question? | DR01, DR04, DR12, DR13 |
+| Is every beat rated for both C and T, and do the modes change only knobs? | DR02, DR10 |
 | Does every segment have one identifiable twist and a lap? | DR03 |
 | Where does each mechanic first appear, and at what C and T? | DR05, DR06 |
 | Is any mechanic carrying too many peaks? | DR07 |
@@ -241,6 +248,11 @@ the top of this file):
 
 | Key | Source |
 |---|---|
+| Schell | J. Schell, *The Art of Game Design*: Lens of the Interest Curve, and the zig-zag through the flow channel (read via secondary transcriptions) |
+| Hodent | C. Hodent, "The Gamer's Brain", GDC16 and GDC17 talks |
+| Hayashida12 | C. Nutt interviewing K. Hayashida: "The secret to Mario level design" and "The Structure of Fun" (2012) |
+| Valve14 | M. Scott, "Level Design Workshop, Section Three: Pacing", GDC China 2014 |
+| Booth09 | M. Booth (Valve), "The AI Systems of Left 4 Dead" (2009) |
 | Linehan14 | Linehan, Bellord, Kirman, Morford, Roche, "Learning Curves", CHI PLAY 2014 |
 | Gutwin16 | Gutwin et al., "Peak-End Effects on Player Experience in Casual Games", CHI 2016 |
 | Kahneman93 | Kahneman, Fredrickson, Schreiber, Redelmeier, "When More Pain Is Preferred to Less: Adding a Better End", *Psychological Science* 4(6), 1993 |
@@ -251,14 +263,7 @@ the top of this file):
 | Roohi20 | Roohi et al., "Predicting Game Difficulty and Churn Without Players", CHI PLAY 2020 (correlational) |
 | Depping17 | Depping and Mandryk, CHI PLAY 2017 |
 
-Not in that doc, added as general background; verify before citing:
-
-| Key | Source |
-|---|---|
-| Schell | Jesse Schell, *The Art of Game Design: A Book of Lenses*: interest curves, flow |
-| Hodent | Celia Hodent, *The Gamer's Brain* (2017): learning, attention, onboarding |
-| Valve14 | Valve developer commentary (Half-Life 2, Portal series): pacing, teaching through level design |
-| Booth09 | Michael Booth, "The AI Systems of Left 4 Dead" (2009): pacing by intensity, relax phases |
-| Hayashida12 | Koichi Hayashida on Super Mario 3D Land level design (2012): the four-step teach |
-
-When a claim matters to a decision, verify the source before citing it to the user.
+Every key above matches that doc's §D, which also keeps each source's URL, evidence class (official, academic, book,
+industry) and the rules it supports. Cite a key only with the source given here. A key added later that is not in
+that doc goes in a separate table marked "verify before citing" (none today); when a claim matters to a decision,
+check that table's source before citing it to the user.

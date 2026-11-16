@@ -1,6 +1,6 @@
 ---
 name: feel-authoring
-description: Use when adding or changing juice, shake, hit stop, particles, sound or vibration ("juice ekle", "titreşim") - wiring Feel (MMF_Player, shakers, Nice Vibrations) into the game. A feedback that misbehaves is feel-troubleshooting.
+description: Use when adding or changing juice, shake, hit stop, particles, sound, music or vibration ("juice ekle", "müzik ekle", "ses", "titreşim") - wiring Feel (MMF_Player, haptics), mixer, volume. Numbers: game-feel; broken feedback: feel-troubleshooting.
 ---
 
 # Using Feel
@@ -33,8 +33,9 @@ The simulation does not know presentation exists (`unity-architecture`). The cha
 flags (`Landed`, `Matched`, `Cleared`), reset at the top of every step: the view polls them right after stepping and
 plays a feedback. Continuous values (speed, combo count) are read the same way for intensity.
 
-Practically: a `<Thing>Feel` MonoBehaviour in `Assets/<Game>/Game/Feel/` holding serialized `MMF_Player` fields, fed
-by the controller after it steps. Do not grow a feedback field per event on the controller itself; do not look up an
+Practically: the system's `<System>View` MonoBehaviour in its own folder `Assets/<Game>/Game/<System>/` (the
+convention is in `unity-architecture`, Cross-system communication) holding serialized `MMF_Player` fields, fed by the
+controller after it steps. Do not grow a feedback field per event on the controller itself; do not look up an
 `MMF_Player` in a per-frame path.
 
 Scale intensity from the simulation rather than hardcoding it: `PlayFeedbacks(position, intensity)` takes it
@@ -50,12 +51,45 @@ Play session.
   on PC Nice Vibrations only rumbles a connected gamepad, so no `#if` is needed. Keep a player setting to turn them
   off (`HapticController.hapticsEnabled`, which covers phone and gamepad alike), and keep them
   short: a light preset for taps, a medium one for a win, never a continuous rumble.
-- **Shake less on a phone.** The screen is in the player's hand and close to the eyes: scale camera shake by a tuning
-  value per tier rather than authoring two players.
-- **Hit stop** (`MMF_FreezeFrame`) needs an `MMTimeManager` in the scene and does not eat presses as long as input
-  is read in `Update` and buffer/coyote timers count the simulation's scaled step (`SimulationStep.Delta`), so they
-  pause with the freeze; unscaled time is for camera shake and UI (`game-feel` references/numbers.md section 3.1).
+- **WebGL has no haptics.** Nice Vibrations does nothing in a browser, phone browsers included, so feedback that
+  carries meaning (refused, invalid, fail) must also be visible or audible, never haptic alone.
+- **Shake less on a phone.** The screen is in the player's hand and close to the eyes. House rule: the `<System>View`
+  scales only the shake, in `Awake` (one player, not two; never by lowering the `PlayFeedbacks` intensity, which also
+  quietens sound, squash and haptics and shifts intensity windows). The scale is one float, `tuning.MobileShakeScale` (0.5),
+  on the system's `<System>Tuning` SO, applied when the quality tier is Mobile (`platform-targets` Quality tiers):
+  `if (QualitySettings.GetQualityLevel() == 0) foreach (var s in player.GetFeedbacksOfType<MMF_CameraShake>()) s.CameraShakeProperties.Amplitude *= tuning.MobileShakeScale;`
+  for each player (and `AmplitudeX/Y/Z` if used). `Main` stays loaded, so a tier changed in settings applies from
+  the next app launch; say so next to the quality option rather than re-scaling live.
+- **Hit stop** (`MMF_FreezeFrame`) needs an `MMTimeManager` in the scene; how it avoids eating presses (input in
+  `Update`, buffers on `SimulationStep.Delta`, unscaled time only for shake and UI) is `game-feel`
+  references/numbers.md section 3.1, the single source.
 - **Particles** are the first thing to cut on the Mobile tier (`unity-performance`).
+
+## Music, ambience and volume
+
+- **Routing.** One AudioMixer with Master, Music, SFX and UI groups (the four sliders, `player-clarity` CL35). Start
+  plain: music is a looped `AudioSource` on the Music group in the `Main` scene, SFX go through `MMF_Sound` with
+  `PlayMethod` set to `Cached` (`Pool` when the same sound overlaps itself) and `SfxAudioMixerGroup` set to the SFX
+  or UI group. Its default, `Event`, only raises an event that MMSoundManager catches, so without one it plays
+  nothing; an empty mixer group skips the volume sliders. Adopt
+  `MMSoundManager` (its tracks sit on its own mixer) only when music must cross scenes, crossfade or follow a playlist;
+  then play it with `Loop` and `Persistent` set in `MMSoundManagerPlayOptions`, on the `Music` track. The trade-off
+  and the API are `references/feel-api.md` section 8. Import settings for music (Streaming, Vorbis) are
+  `unity-performance`.
+- **WebGL starts silent.** A browser keeps audio locked until the first click, tap or key; Unity resumes it on that
+  input by itself, so no unlock code is needed, but anything played before it may be lost. Start the music from the
+  title screen and put no essential sound before the first input.
+- **Pause and interruption.** `Time.timeScale = 0` does not stop audio. On the game's pause and on focus loss (a
+  phone call, the app sent to the background; `platform-targets` App lifecycle) set `AudioListener.pause = true`, and
+  false on resume; it covers MMSoundManager's pooled sources too, which do not pause themselves. Pause-menu UI sounds
+  play from one dedicated `AudioSource` on the UI group with `ignoreListenerPause = true` (through `MMF_AudioSource`
+  or a direct `AudioSource.PlayOneShot`), not through `MMF_Sound`, whose runtime-made sources expose no such field and stay muted.
+- **Volume survives restarts.** Volumes are settings, so they go in `PlayerPrefs` with the other settings (never the
+  progress save, `unity-code-review` item 4), stored 0-1 and applied in `Start`, not `Awake`: `AudioMixer.SetFloat`
+  is ignored in `Awake`. On a plain mixer write decibels,
+  `mixer.SetFloat("MusicVolume", Mathf.Log10(Mathf.Max(v, 0.0001f)) * 20f)`; with MMSoundManager call
+  `SetVolumeMusic(v)` and friends, and turn the settings SO's `AutoSave` and `AutoLoad` off: they write their own
+  file through `MMSaveLoadManager`'s BinaryFormatter, a second store and the format item 4 forbids.
 
 ## References
 

@@ -6,6 +6,11 @@ environment variables, exit codes, and common workflows. All global flags (`--fo
 
 Relative links in this file resolve to the skill directory's `references/` folder, so `../SKILL.md` is the skill's main page.
 
+> **In a gamekit game:** tests and builds run through `gk-bridge` (`run-tests`, `build <target>`) only after the
+> user's yes, never `unity test` / `unity build` / `unity run` against the open project, and the suite is never run
+> as a routine completion step, so rule 3 of "Run the cheapest test that proves the change" does not apply there
+> (the game's CLAUDE.md, `gamekit:unity-testing`; the override block in `../SKILL.md`).
+
 ### Contents
 
 - Run — batch/headless execution

@@ -7,14 +7,15 @@ reasoning behind them (durations, squash bands, shake budgets, forgiveness windo
 
 Conventions used throughout:
 
-- Every `MMF_Player` is a `[SerializeField] private` field on a `<Thing>Feel` component in
-  `Assets/<Game>/Game/Feel/`, fired by polling a simulation edge flag right after the step.
+- Every `MMF_Player` is a `[SerializeField] private` field on the system's `<System>View` in
+  `Assets/<Game>/Game/<System>/` (`unity-architecture`, Cross-system communication), fired by polling a simulation edge flag right after the step.
 - Target a **visual child**, never the root a controller writes every frame.
 - Pass intensity from the simulation: `PlayFeedbacks(position, intensity)`.
 - Anything that must survive a freeze frame or a pause gets `TimescaleMode = Unscaled`.
 - Camera feedbacks are event-based and need `MMCameraShaker` on a shaker node that the follow
   script does not move (see `feedback-catalog.md`, Camera).
-- On the Mobile tier, shake less (the screen is in the player's hand) and cut particles first.
+- On the Mobile tier, shake less (the screen is in the player's hand; the mechanism is SKILL.md, *Shake less on a
+  phone*) and cut particles first.
 
 ## Contents
 
@@ -41,7 +42,7 @@ applied the velocity by the time the flag is visible, and no feedback should add
 | Feedback | Values | Why |
 |---|---|---|
 | `MMF_SquashAndStretch` on the visual | axis `YtoXZ`, duration 0.10 s, peak Y ≈ 1.2 | Stretch band 1.15–1.3; 60–120 ms so it is gone before the apex |
-| `MMF_Sound` | cached mode, pitch random ±1 semitone (0.944–1.059), volume ±2 dB | Round-robin pitch is the cheapest fatigue fix |
+| `MMF_Sound` | cached mode, pitch random ±1 semitone (0.944–1.059), `MinVolume` 0.8, `MaxVolume` 1.0 (about -2 dB to 0 dB; linear and clamped to 1, so leave headroom in the clip or mixer) | Round-robin pitch is the cheapest fatigue fix |
 | `MMF_ParticlesInstantiation` (dust at feet) | pooled, burst 8–12, lifetime 0.4 s | A jump is not an impact; keep it small |
 | optional `MMF_CameraShake` | 0.08 s, tiny amplitude | Usually omit: a shake on every jump becomes invisible and costs readability |
 
@@ -59,7 +60,7 @@ long fall must not play the same thing.
 | or `MMF_SquashAndStretch` | 0.12 s, peak Y ≈ 0.8 | Squash band 0.7–0.85, 80–150 ms |
 | `MMF_Sound` | pitch ±1 semitone, volume scaled by intensity | A soft landing should be quiet, not just shorter |
 | `MMF_ParticlesInstantiation` dust | pooled, burst 10–20 scaled by intensity, lifetime 0.6 s | |
-| `MMF_CameraShake`, **heavy impacts only** | `UseIntensityInterval` min 0.6, 0.15 s | The intensity interval gives "only when it was a real fall" without branching in code |
+| `MMF_CameraShake`, **heavy impacts only** | `UseIntensityInterval` min 0.6, max above 1 (e.g. 1.01; the window is [min, max) and max defaults to 0), 0.15 s | The intensity interval gives "only when it was a real fall" without branching in code |
 | `MMF_FreezeFrame`, **only for an impact that matters** | 0.05 s (3 frames at 60 fps) | Needs `MMTimeManager`. Wrong for routine landings |
 
 The cheapest camera win on a platformer is often not a feedback: snap the camera's vertical follow
@@ -98,7 +99,7 @@ the player sees what happened; a fail in a fast retry loop needs to get out of t
 |---|---|---|
 | Fail | `MMF_Sound` | descending sting |
 | Fail | `MMF_FreezeFrame` (optional) | 0.05–0.1 s, the only place a longer freeze is earned |
-| Fail | `MMF_CameraShake` | 0.2 s, medium; half on Mobile |
+| Fail | `MMF_CameraShake` | 0.2 s, medium; half on Mobile (`tuning.MobileShakeScale`, SKILL.md) |
 | Hold | none, or a slow `MMF_TimescaleModifier` | 0.3–0.7 s, the time the player needs to read the cause |
 | Return | `MMF_Fade` or none | Fast retry loops skip the fade |
 | Appear | `MMF_ScaleSpring` bump on the visual | damping 0.5, frequency 10 |
@@ -156,10 +157,10 @@ The finger hides what it touches: feedback has to show *around* the finger and i
 | Case | Feedback | Values |
 |---|---|---|
 | Panel open / close | `MMF_CanvasGroup` alpha + `MMF_RectTransformOffset` | 0.15–0.2 s, EaseOutCubic, Unscaled |
-| Button press | `MMF_Scale` to 0.92 and back + `Selection` haptic | 0.08–0.12 s, EaseOutBack |
+| Button press | `MMF_Scale` to 0.92 and back; a `Selection` haptic only on confirm / commit buttons, never on every tap (`game-feel` numbers.md section 8) | 0.08–0.12 s, EaseOutBack |
 | Value change | `MMF_TextColor` flash + `MMF_TextFontSize` punch | 0.15 s |
 
-All UI feedbacks get `TimescaleMode = Unscaled`. Use the uGUI text feedbacks if the UI uses
+All UI feedbacks get `TimescaleMode = Unscaled` (Conventions above). Use the uGUI text feedbacks if the UI uses
 `UnityEngine.UI.Text`, the TMP ones if it uses TextMeshPro. A closed panel is disabled, not alpha 0,
 so it costs no overdraw on a phone.
 
@@ -217,7 +218,7 @@ The presets available are `Selection`, `Success`, `Warning`, `Failure`, `LightIm
 
 ## Composition notes
 
-- **One player per event**, not one player per object. A `<Thing>Feel` component holding five
+- **One player per event**, not one player per object. A `<System>View` holding five
   `MMF_Player` fields is clearer than one player with thirty feedbacks and direction conditions.
 - **Sequential vs Parallel**: `PlayMode = Sequential` with `SequentialDelay` is cleaner than
   inserting `MMF_Pause` feedbacks for a beat-by-beat sequence.
@@ -226,7 +227,6 @@ The presets available are `Selection`, `Success`, `Warning`, `Failure`, `LightIm
 - **Cooldowns**: `CooldownDuration` on the player guards against an event that can fire many times
   a second. Set it shorter than the game's own cooldown so it never swallows a legitimate play.
 - **Budget check**: before adding a fourth simultaneous effect to one event, ask which of the three
-  existing ones the player would actually miss. Feel's *Bounce* demo
-  (`Assets/Feel/FeelDemos/Bounce/FeelBounce.unity`) shows the same jump with and without feedbacks
-  and is worth opening as a calibration reference; *Toaster* ships 20+ shake variations side by side.
-  Both exist only if the Feel demos were imported (games made by `new-game.ps1` do not have `FeelDemos/`).
+  existing ones the player would actually miss. Feel's *Bounce* demo (the same jump with and without
+  feedbacks) is worth opening as a calibration reference, and *Toaster* for shake variations; paths and
+  when they exist are in SKILL.md, *References*.

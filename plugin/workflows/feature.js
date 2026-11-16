@@ -29,7 +29,7 @@ const CHECK = {
     card: { enum: ['none', 'same', 'other'], description: 'none: "## Now" holds no spec card and no prototype line (only its TODO line or nothing); same: a card, and the typed request (if any) asks for its goal; other: a card for something else, or a `prototype <Name>: <question>` line (a running gamekit:prototype spike, never built over)' },
     ready: { type: 'boolean' },
     reason: { type: 'string' },
-    base: { type: 'string', description: 'the card\'s "Base:" line after "Base:", as written; with no such line, or one with no sha: git rev-parse --short=7 HEAD if no Plan line is ticked, else "yok"' },
+    base: { type: 'string', description: 'the card\'s "Base:" line after "Base:", as written when it holds a sha; else recovered as the prompt says, "<sha>" or "<sha> (önce: <x>)", or "yok"' },
     goal: { type: 'string' },
     accept: { type: 'array', items: { type: 'string' } },
     done: { type: 'array', items: { type: 'string' }, description: 'Plan lines already ticked [x]' },
@@ -57,24 +57,31 @@ const PLAN = {
           line: { type: 'integer', minimum: 1, description: 'the number of its line in the card\'s "Plan:" list, as written there (ticked lines keep theirs)' },
           title: { type: 'string' },
           files: { type: 'string' },
-          platforms: { type: 'array', items: { enum: ['android', 'ios'] }, description: 'phones whose code the unit touches: #if UNITY_ANDROID / UNITY_IOS, or #if !UNITY_EDITOR code they compile' },
+          platforms: { type: 'array', items: { enum: ['android', 'ios', 'webgl'] }, description: 'players whose code the unit touches: #if UNITY_ANDROID / UNITY_IOS / UNITY_WEBGL, or #if !UNITY_EDITOR code they compile' },
         },
         required: ['line', 'title', 'files', 'platforms'],
       },
     },
     reviewers: {
       type: 'array',
-      items: { enum: ['gamekit:unity-reviewer', 'gamekit:clarity-reviewer', 'gamekit:design-critic'] },
+      // a bare name is a project agent in the game's .claude/agents (pipeline 6.1), such as the coop-multiplayer
+      // pack's net-auditor; one the plan names wrongly never answers and the card stays open with "review missing"
+      items: {
+        type: 'string',
+        pattern: '^(gamekit:(unity-reviewer|clarity-reviewer|design-critic)|[a-z0-9][a-z0-9-]*)$',
+        description: 'a gamekit reviewer, or the name of a project agent whose .claude/agents/<name>.md exists',
+      },
     },
     rulings: { type: 'array', items: { type: 'string' } },
+    coopGate: { type: 'boolean', description: 'true when .claude/skills/coop-chaos-design exists and the card builds or changes a co-op mechanic' },
   },
-  required: ['units', 'reviewers', 'rulings'],
+  required: ['units', 'reviewers', 'rulings', 'coopGate'],
 }
 const BUILD = {
   type: 'object',
   properties: {
-    status: { enum: ['PASS', 'FAIL', 'UNKNOWN'] },
-    gate: { type: 'string', description: 'the gk-bridge verdict line' },
+    status: { enum: ['PASS', 'FAIL', 'UNKNOWN'], description: 'the verdict of `gk-bridge refresh`, or FAIL when a platform compile failed; a platform compile UNKNOWN (module not installed) leaves it PASS' },
+    gate: { type: 'string', description: 'the gk-bridge verdict line, plus "compile <p> unverified" for each platform compile that was UNKNOWN' },
     commit: { type: 'string', description: 'short sha and subject, or empty' },
     note: { type: 'string', description: 'a step the user must do (Inspector, scene, a build check), else empty' },
     playerText: { type: 'boolean', description: 'true when this commit adds or changes player-facing text (UI strings, hints, labels)' },
@@ -127,6 +134,14 @@ const SCORE = {
   },
   required: ['score', 'findings', 'inspector', 'older'],
 }
+const GATE = {
+  type: 'object',
+  properties: {
+    blocking: { type: 'array', items: { type: 'string' }, description: 'failed rows whose "Fail means" starts "Do not build" or "Fix before building": "<#> <test> - <why it fails> - seçenekler: <fix it> ya da zayıflığı adıyla gönder"' },
+    other: { type: 'array', items: { type: 'string' }, description: 'any other failed row, "<#> <test> - <why>"' },
+  },
+  required: ['blocking', 'other'],
+}
 const HANDOFF = {
   type: 'object',
   properties: {
@@ -169,8 +184,13 @@ const checkCard = () => call(
   '"Now\'da başka kart var: `devam` ile bitir ya da `kartı Next\'e taşı` yaz"; a prototype line: "Now\'da bir prototip ' +
   'var: `devam` ile oyna ve karar ver (PROCEED / PIVOT / KILL)"; dirty code: "commit edilmemiş kod var: ' +
   '`commit et` ya da geri al"; exit 1: "derleme zaten kırık (<first error>): bu satırı yapıştır, Claude düzeltir"; exit 2: ' +
-  'its line). base = the card\'s "Base:" line as written (with none, or one with no sha: HEAD if no Plan line is ' +
-  'ticked, else "yok"). ' +
+  'its line). base = the card\'s "Base:" line as written when it holds a sha; else recover it by the gamekit:pipeline ' +
+  'skill, "Longer than one session" (skills/pipeline/SKILL.md, the single source), without writing it: a line with no ' +
+  'sha (say "TBD") -> the parent of the oldest commit whose body carries "Card: TBD", returned "<sha> (önce: TBD)"; ' +
+  'no line -> the parent of the oldest commit that added the card\'s goal line (`git log --reverse --format=%h ' +
+  '-S\'<goal>\' -- PLAN.md`), whether or not a Plan line is ticked (a "compile unverified" unit is committed but ' +
+  'unticked), returned "<sha> (önce: <x>)" when the card\'s commits carry "Card: <x>"; nothing found and no Plan line ' +
+  'ticked -> `git rev-parse --short=7 HEAD`; nothing found with a Plan line ticked -> "yok". ' +
   'done = the Plan lines already ticked. ' +
   'disputes = the card\'s "review <Base>: disputed" lines under "## Known issues". Do not edit anything.',
   { label: 'kart kontrol', phase: 'Bağlam', schema: CHECK })
@@ -232,8 +252,13 @@ const plan = await call(
   '"Base: ' + BASE + '" and any design choice under "Assumptions:" in ' + SPEC + '; edit nothing ' +
   'else. A design choice with two viable options: take the reversible one. Return each ruling in Turkish as "Seçim: ' +
   '<ne> - <neden> - <yanlışsa maliyeti>". Reviewers: always gamekit:unity-reviewer (it covers per-frame cost); add clarity-reviewer ' +
-  'for player-facing text, design-critic for a level or mechanic. WebGL-only code, and PC-player-only code (`#if ' +
-  '!UNITY_EDITOR` that phones do not compile, such as Steam), has no compile gate: say so in a ruling.',
+  'for player-facing text, design-critic for a level or mechanic, and each project agent in the game\'s ' +
+  '.claude/agents whose description matches the change, by its bare name (read those files now; in a co-op game ' +
+  'net-auditor for a change to Game/Net, a NetworkBehaviour, spawning or a moving device; a generator such as ' +
+  'idea-forge reviews nothing). coopGate: pipeline 6.1, a co-op mechanic card in a game with ' +
+  '.claude/skills/coop-chaos-design. WebGL-only code ' +
+  'gets platform webgl (`gk-bridge compile webgl`, GameKit 0.1.3+). PC-player-only code (`#if !UNITY_EDITOR` that ' +
+  'phones and WebGL do not compile, such as Steam) has no compile gate: say so in a ruling.',
   { label: 'plan', phase: 'Plan', schema: PLAN })
 if (!plan || (!plan.units.length && !check.done.length)) {
   return { stopped: 'Plan', reason: 'Plan çıkmadı: `devam` yaz, Claude planı burada yapar', context }
@@ -248,7 +273,7 @@ for (let i = 0; i < plan.units.length; i++) {
   const r = await call(
     'Build unit ' + (i + 1) + '/' + plan.units.length + ' of this run, the card\'s Plan line ' + u.line + ', in ' + SPEC +
     ': "' + u.title + '" (files: ' + u.files + '). Tick that line, number ' + u.line + ', and no other.' +
-    (u.platforms.length ? ' It touches platform #if code: also run ' + u.platforms.map(p => '`gk-bridge compile ' + p + '`').join(', then ') + ', one at a time.' : '') +
+    (u.platforms.length ? ' It touches platform #if code: also run ' + u.platforms.map(p => '`gk-bridge compile ' + p + '`').join(', then ') + ', one at a time. Your status is the refresh gate\'s (FAIL if a platform compile fails); a platform UNKNOWN (module not installed, or an older GameKit for webgl) is not a stop: write "compile <p> unverified" in gate and Not, and go on (pipeline 4.3).' : '') +
     (built.length ? ' Already built: ' + built.map(b => b.commit).join('; ') + '.' : '') + CARDLINE,
     { agentType: 'gamekit:builder', label: 'birim ' + (i + 1), phase: 'Yap', schema: BUILD })
   if (!r) return { stopped: 'Yap', reason: 'Birim ' + (i + 1) + ' cevap vermedi: `devam` yaz', built }
@@ -276,11 +301,23 @@ const needClarity = () => { if (reviewers.indexOf('gamekit:clarity-reviewer') < 
 if (built.some(b => b.playerText) || (verify && verify.playerText)) needClarity()
 
 phase('Review')
+// pipeline 6.1: a co-op mechanic passes coop-chaos-design's gate table before round 1 (design-critic leaves the ship
+// verdict to it); a blocking row is the user's [karar] and holds the handoff, any other failed row is named in it
+const gate = plan.coopGate ? await call(
+  'Run the coop-chaos-design skill\'s gate table (load it with the Skill tool) on the co-op mechanic built in ' + RANGE +
+  ', against the spec card in ' + SPEC + ' "## Now". Judge every row from the code and the card; edit nothing.',
+  { label: 'co-op kapısı', phase: 'Review', schema: GATE }) : null
+if (plan.coopGate && !gate) return { stopped: 'Review', reason: 'Co-op kapısı cevap vermedi: `devam` yaz', built }
+const gateBlocks = gate ? gate.blocking.filter(given).map(r => '[karar] co-op kapısı ' + r) : []
+const gateNotes = gate ? gate.other.filter(given).map(r => 'co-op kapısı ' + r) : []
+gateBlocks.concat(gateNotes).forEach(r => log(r))
 const rounds = []
 // a rerun on a card left "review open" keeps what its earlier rounds disputed (pipeline 6.2)
 // a dispute's key is the finding's where: "review <key>: disputed <where> - <evidence>" (a rerun) or
 // "<where> - <evidence>" (a fix round); one line per where, the latest evidence kept
-const disputeKey = d => String(d).replace(/^review \S+: disputed /, '').split(' - ')[0].trim().toLowerCase()
+// the key may be a repaired Base with its own colon ("abc1234 (önce: x)"): strip up to the first ": disputed "
+const disputedPrefix = /^review .*?: disputed /
+const disputeKey = d => String(d).replace(disputedPrefix, '').split(' - ')[0].trim().toLowerCase()
 const dedupeDisputes = ds => Array.from(new Map(ds.filter(given).map(d => [disputeKey(d), d])).values())
 // a reviewer may word the where a little differently: the same file:line matches, else the same text; a bare file
 // never matches, so a dispute about one line does not swallow another finding in that file
@@ -289,24 +326,58 @@ const sameWhere = (w, k) => { const a = fileLine(w), b = fileLine(k); return a |
 const disputedBy = f => {
   const w = String(f.where).trim().toLowerCase()
   const d = w && disputes.find(x => { const k = disputeKey(x); return k && sameWhere(w, k) })
-  return d ? String(d).replace(/^review \S+: disputed /, '') : ''
+  return d ? String(d).replace(disputedPrefix, '') : ''
 }
 let disputes = dedupeDisputes(check.disputes || [])
 let stalled = []
 let last = []
 // every review of every round: a decision or an older problem only round 1 named still reaches Teslim
 const everyRound = []
-for (let round = 1; round <= MAX_ROUNDS; round++) {
-  const reviews = await parallel(reviewers.map(type => () => agent(
+// Lean re-review (pipeline 6.5): from round 2 a reviewer starts from the round's fix commits and its own previous
+// findings instead of re-reading the whole range, and a reviewer already at 9+ whose area no fix touched keeps its
+// result. The round-specific text goes last, so every reviewer's prompt keeps the same cacheable prefix.
+const fixCommits = []
+let prev = []
+const rescore = (type, round) => {
+  const mine = round > 1 && prev.find(s => s.reviewer === type)
+  if (!mine) return ''
+  return '\nRound ' + round + ': you scored this range ' + mine.score + ' last round; the fix commits since are ' +
+    fixCommits.join(', ') + '. Read those diffs (`git show`) and the code your previous findings point at first; ' +
+    'read the rest of the range only where a fix reaches into it. List every finding still true (the fixed ones drop ' +
+    'out) plus any a fix introduced, and the Inspector steps the range still needs.' +
+    (mine.findings.length ? '\nYour previous findings:\n- ' + mine.findings.map(f => fmt(f)).join('\n- ') : '')
+}
+// unity-reviewer always re-reads (every fix commit is code); clarity-reviewer again when a fix changed player text
+const keeps = (s, fix) => s.score >= 9 && s.reviewer !== 'gamekit:unity-reviewer' &&
+  !(s.reviewer === 'gamekit:clarity-reviewer' && fix && fix.playerText)
+let lastFix = null
+const review =(types, round, retry) => parallel(types.map(type => () => agent(
     'Score this change with the review rubric. Range: ' + RANGE + '. Spec card: ' + SPEC + ' "## Now". ' +
     'List every deduction as a finding, including missing or unevidenced Accept items.' +
+    (type.startsWith('gamekit:') ? '' : ' The rubric is the gamekit plugin\'s skills/pipeline/references/review-rubric.md: ' +
+      'map each finding to its severities and list them in its format.') +
     (gaps.length ? '\nVerification left these Accept items open; one still unticked in the card scores as the rubric ' +
       'says:\n- ' + gaps.join('\n- ') : '') +
-    (disputes.length ? '\nDisputed findings from earlier rounds (re-judge each):\n- ' + disputes.join('\n- ') : ''),
-    { agentType: type, label: short(type) + ' r' + round, phase: 'Review', schema: SCORE })
+    (disputes.length ? '\nDisputed findings from earlier rounds (re-judge each):\n- ' + disputes.join('\n- ') : '') +
+    rescore(type, round),
+    { agentType: type, label: short(type) + ' r' + round + (retry ? ' tekrar' : ''), phase: 'Review', schema: SCORE })
     .then(s => s && Object.assign({ reviewer: type }, s, { score: points(s) }, s.score !== points(s) ? { claimed: s.score } : {}))))
-  last = reviews.filter(Boolean)
-  everyRound.push(...last)
+for (let round = 1; round <= MAX_ROUNDS; round++) {
+  const kept = prev.filter(s => keeps(s, lastFix) && reviewers.indexOf(s.reviewer) >= 0)
+  if (kept.length) log('Tur ' + round + ': ' + kept.map(s => short(s.reviewer) + ' ' + s.score).join(', ') + ' korunuyor (düzeltme alanına girmedi)')
+  const fresh = (await review(reviewers.filter(t => !kept.some(s => s.reviewer === t)), round)).filter(Boolean)
+  last = kept.concat(fresh)
+  // a reviewer that did not answer is asked once more inside the round (a fresh call, that one only): re-running
+  // every reviewer, or spending a round on it, costs contexts and rounds without a fix being tried
+  const missed = reviewers.filter(t => !last.some(s => s.reviewer === t))
+  if (missed.length) {
+    log('Tur ' + round + ': cevap vermeyen reviewer yeniden soruluyor: ' + missed.join(', '))
+    const again = (await review(missed, round, true)).filter(Boolean)
+    fresh.push(...again)
+    last = last.concat(again)
+  }
+  everyRound.push(...fresh)
+  prev = last
   last.filter(s => 'claimed' in s).forEach(s => log(short(s.reviewer) + ': ' + s.claimed + ' dedi, bulguları ' + s.score + ' ediyor'))
   const silent = reviewers.filter(t => !last.some(s => s.reviewer === t))
   if (silent.length) log('Tur ' + round + ': cevap vermeyen reviewer: ' + silent.join(', '))
@@ -317,8 +388,9 @@ for (let round = 1; round <= MAX_ROUNDS; round++) {
   if (round === MAX_ROUNDS) break
   const findings = last.flatMap(s => s.findings.filter(f => f.severity === 'yüksek' || f.severity === 'orta')
     .map(f => fmt(f, s.reviewer) + ' - ' + f.breaks + ' - düzeltme: ' + f.fix))
-  // a score below 9 always has findings (the arithmetic); with none, only a silent reviewer is left: call it again
-  if (!findings.length) continue
+  // a score below 9 always has findings (the arithmetic); with none, only a reviewer silent twice is left: a new
+  // round would only ask it a third time, so the card stays open with "review missing" and a rerun asks it again
+  if (!findings.length) break
   // tie-break: when every finding still costing points is one the builder already disputed with evidence, another
   // round only repeats the disagreement; it becomes the user's [karar] (accept the finding, or keep the code)
   const costing = last.flatMap(s => s.findings.filter(f => f.severity === 'yüksek' || f.severity === 'orta')
@@ -350,11 +422,15 @@ for (let round = 1; round <= MAX_ROUNDS; round++) {
     return { stopped: 'Review', reason: 'Düzeltme turu ' + round + ' ' + (fix ? 'kapısı ' + gateStop(fix) : 'cevap vermedi: `devam` yaz'), rounds, last }
   }
   built.push(fix)
+  if (given(fix.commit)) fixCommits.push(fix.commit)
+  lastFix = fix
   if (fix.playerText) needClarity()
   disputes = dedupeDisputes(disputes.concat(fix.disputes))
 }
 const silent = reviewers.filter(t => !last.some(s => s.reviewer === t))
-const passed = !silent.length && last.every(s => s.score >= 9)
+// a blocking co-op gate row holds the handoff until the user answers it (pipeline 6.1), even at 9/10
+const reviewed = !silent.length && last.every(s => s.score >= 9)
+const passed = reviewed && !gateBlocks.length
 // a stalled dispute is the user's decision (Next), not an open finding as well
 const open = last.flatMap(s => s.findings.filter(f => (f.severity === 'yüksek' || f.severity === 'orta') &&
   !(stalled.length && disputedBy(f)))
@@ -363,8 +439,9 @@ const open = last.flatMap(s => s.findings.filter(f => (f.severity === 'yüksek' 
 // a decision keeps its options (or the playtest to run), so the user can choose from PLAN.md Next alone; one per
 // file:line and question across rounds, the latest options kept (the handoff merges reworded repeats)
 const decisions = Array.from(new Map(everyRound.flatMap(s => s.findings.filter(f => f.severity === 'karar')
-  .map(f => [f.where + ' | ' + f.what, fmt(f, s.reviewer) + ' - ' + f.fix]))).values()).concat(stalled)
-// Inspector steps from the last round only, so the fix rounds do not write them: each round reads the whole range
+  .map(f => [f.where + ' | ' + f.what, fmt(f, s.reviewer) + ' - ' + f.fix]))).values()).concat(stalled, gateBlocks)
+// Inspector steps from the last round only, so the fix rounds do not write them: each re-run reviewer names the steps
+// the range still needs and a kept reviewer's carry over
 // (a step still needed is named again), and a fix may have made an earlier step obsolete (wired in code)
 const steps = uniq(last.map(s => s.inspector).filter(given).concat(built.map(b => b.note).filter(given)))
 const extras = uniq(built.flatMap(b => b.extras || []).filter(given))
@@ -375,7 +452,8 @@ const scores = rounds.map((r, i) => 'r' + (i + 1) + ' ' + r.map(s => short(s.rev
 phase('Teslim')
 // only lines the pipeline wrote are pruned: a Known issue the user reported (a failed Play Mode check) has no prefix
 const unticked = 'Every line you add under "## Known issues" starts with "review ' + KEY + ': "; Accept items still ' +
-  'unticked in the card that are not Play Mode checks go there too. A "review ' + KEY + ': " line already there that ' +
+  'unticked in the card that are not Play Mode checks go there too. A "review ' + KEY + ': " line' +
+  (ALIAS ? ' or "review ' + ALIAS + ': " line (this card\'s key before its Base was repaired)' : '') + ' already there that ' +
   'the lists below no longer name leaves the file; other lines (another card\'s key, or the user\'s with no prefix) ' +
   'stay. Lines that say the same thing become one. "## Next" keeps at most 5 items: merge related ones, and list ' +
   'what still does not fit in the commit body, older non-decision items first; a [karar] line always stays in Next ' +
@@ -395,15 +473,15 @@ const handoff = await call(passed
     'reaches Now only when the user asks for it) and keep "## Pending Play Mode checks" as concrete actions with the ' +
     'expected result for PC and, when input, UI or performance changed, the phone.\n' +
     list('Add these Inspector/scene steps to Pending Play Mode checks', steps) +
-    list('Add these under "## Known issues"', open.concat(older)) +
+    list('Add these under "## Known issues"', open.concat(gateNotes, older)) +
     list('Add these user decisions under "## Next", options included', decisions) +
     list('Add these needed extras under "## Next"', extras) +
     'Commit only PLAN.md and DESIGN.md with `git commit -F -`, subject "design: hand off ' + check.goal + '", a body ' +
     'listing the review scores (' + scores.join('; ') + '), the line "Card: ' + KEY + '", and "Verified: workflow ' +
     'gates as listed in the earlier commits".'
-  : 'The review of the spec card in ' + SPEC + ' did not reach 9/10 (gamekit:pipeline phase 6.6; load it with the Skill ' +
+  : 'The review of the spec card in ' + SPEC + (reviewed ? ' reached 9/10, but the co-op gate has blocking rows the user must answer first' : ' did not reach 9/10') + ' (gamekit:pipeline phase 6.6; load it with the Skill ' +
     'tool, and where it and this brief differ, the brief wins). Do NOT clear "## Now": keep the card, set its ' +
-    '"Review:" line to "' + scores[scores.length - 1] + '", and add the open findings under "## Known issues". ' + unticked + 'Return the card\'s Assumptions, and outOfScope empty (the scope audit is phase 7\'s).\n' + list('Open findings', open.concat(older)) +
+    '"Review:" line to "' + scores[scores.length - 1] + '", and add the open findings under "## Known issues". ' + unticked + 'Return the card\'s Assumptions, and outOfScope empty (the scope audit is phase 7\'s).\n' + list('Open findings', open.concat(gateNotes, older)) +
     list('Disputes, each kept as its "review ' + KEY + ': disputed" line', disputes) +
     list('Inspector/scene steps for Pending Play Mode checks', steps) +
     list('User decisions for "## Next", options included', decisions) + list('Needed extras for "## Next"', extras) +
@@ -430,6 +508,7 @@ return {
   rounds,
   open,
   older,
+  coopGate: gateNotes,
   decisions,
   extras,
   inspector: steps,

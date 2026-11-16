@@ -10,8 +10,15 @@ that plays at the player's level.
 
 ## Defaults
 
-None sourced yet. The rules live in a pure C# Core solver (unity-architecture), so the AI search can run off
-the main thread or spread over frames and never stalls a frame.
+None sourced yet; one hypothesis to start from, an Assumption on the card until a source backs it:
+
+- **take-back** *(hypothesis)*: Against the AI, one press takes back your last move and the AI's reply, without
+  limit in a casual game. Why: a misclick or a missed threat costs a lesson, not the whole game. Break it when: a
+  ranked or timed game, where a move played is final.
+
+The rules live in a pure C# Core solver (unity-architecture), so the AI search is spread over frames (a coroutine
+or a time-sliced search with a move budget per frame) and never stalls a frame. A worker thread is an option off
+WebGL only: a Web build runs C# on the main thread.
 
 ## Feel
 

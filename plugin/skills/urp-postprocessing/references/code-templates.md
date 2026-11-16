@@ -43,13 +43,23 @@ public static class CreateGlobalVolume
         var scene = EditorSceneManager.GetActiveScene();
         if (scene.isDirty) throw new System.Exception($"Scene '{scene.name}' already has unsaved changes: ask the user first.");
 
+        // Rerun guard: a second equal-priority global Volume makes the blend order undefined
+        foreach (var existing in Object.FindObjectsByType<Volume>())
+            if (existing.isGlobal)
+                throw new System.Exception($"Global Volume '{existing.name}' already exists: edit its profile (Modifying an Existing Volume Profile) instead.");
+
         // The game's Settings folder is where its URP assets live (Assets/<Game>/Settings)
         var settingsFolder = Path.GetDirectoryName(AssetDatabase.GetAssetPath(urpAsset)).Replace('\\', '/');
-        var assetPath = AssetDatabase.GenerateUniqueAssetPath(settingsFolder + "/PostProcessProfile.asset");
+        var assetPath = settingsFolder + "/PostProcessProfile.asset";
+        if (AssetDatabase.LoadAssetAtPath<VolumeProfile>(assetPath) != null)
+            throw new System.Exception($"{assetPath} already exists (an earlier run whose scene was not saved?): assign it to a Volume or ask before replacing it.");
         var profile = ScriptableObject.CreateInstance<VolumeProfile>();
         AssetDatabase.CreateAsset(profile, assetPath);
 
-        // MUST set overrideState = true on each property
+        // MUST set overrideState = true on each property.
+        // One shared profile for both tiers. With per-tier values ("Per-tier Volume Profile on each URP asset"
+        // below), leave Bloom and Tonemapping out of this scene profile: a parameter checked here hides the
+        // URP asset's value (SKILL.md, "Stack order").
         var bloom = profile.Add<Bloom>();
         bloom.threshold.overrideState = true;
         bloom.threshold.value = 0.9f;   // < 1: also blooms on the SDR Mobile tier
@@ -135,9 +145,12 @@ public static class EditVolumeProfile
 {
     public static string Run()
     {
-        var volumeObj = GameObject.Find("Global Volume");
-        if (volumeObj == null || !volumeObj.TryGetComponent<Volume>(out var volume) || volume.sharedProfile == null)
-            throw new System.Exception("No 'Global Volume' with a profile asset in the open scene(s).");
+        // The global Volume by component, not by name: the Create template refuses a second one
+        Volume volume = null;
+        foreach (var v in Object.FindObjectsByType<Volume>())
+            if (v.isGlobal && v.sharedProfile != null) { volume = v; break; }
+        if (volume == null)
+            throw new System.Exception("No global Volume with a profile asset in the open scene(s).");
 
         var profile = volume.sharedProfile;
         if (!profile.TryGet<Bloom>(out var bloom))
@@ -150,6 +163,102 @@ public static class EditVolumeProfile
         // correctly for the rest of the session and is lost when the session ends.
         AssetDatabase.SaveAssetIfDirty(profile);
         return $"Bloom intensity set to 2 on {AssetDatabase.GetAssetPath(profile)} (saved; commit it).";
+    }
+}
+```
+
+### Per-tier Volume Profile on each URP asset
+
+For "One profile, two tiers" (SKILL.md section 5): each URP asset gets its own Volume Profile (layer 2 of the stack
+order), so PC and Mobile can differ with no scene Volume involved. The URP assets are loaded by path from the game's
+Settings folder; `UniversalRenderPipeline.asset` is only the current quality level's asset. A profile already assigned
+to a URP asset is reused (so a rerun edits instead of duplicating), unless it is the project's Default Volume Profile,
+which every tier shares. The values are the section 5 recipes; tune them to the look. Afterwards check the scene
+profile no longer overrides Bloom or Tonemapping (section 5), then look at both quality levels.
+
+```csharp
+using System.IO;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+
+public static class PerTierVolumeProfiles
+{
+    public static string Run()
+    {
+        var active = UniversalRenderPipeline.asset;
+        if (active == null) throw new System.Exception("No UniversalRenderPipelineAsset active.");
+        // Assets/<Game>/Settings, where ProjectSetup creates URP_PC.asset and URP_Mobile.asset
+        var settingsFolder = Path.GetDirectoryName(AssetDatabase.GetAssetPath(active)).Replace('\\', '/');
+
+        var pc = ProfileFor(settingsFolder, "PC");
+        var tonemapping = GetOrAdd<Tonemapping>(pc);
+        tonemapping.mode.overrideState = true;
+        tonemapping.mode.value = TonemappingMode.ACES;
+        var pcBloom = GetOrAdd<Bloom>(pc);
+        Set(pcBloom.threshold, 1f);              // HDR: only values above white bloom
+        Set(pcBloom.intensity, 1f);
+        Set(pcBloom.scatter, 0.7f);
+        Set(pcBloom.highQualityFiltering, true);
+
+        var mobile = ProfileFor(settingsFolder, "Mobile");   // SDR on purpose: no Tonemapping here
+        var mobileBloom = GetOrAdd<Bloom>(mobile);
+        Set(mobileBloom.threshold, 0.9f);        // < 1, or it never triggers in SDR
+        Set(mobileBloom.intensity, 0.3f);
+        Set(mobileBloom.scatter, 0.7f);
+        Set(mobileBloom.filter, BloomFilterMode.Dual);
+        Set(mobileBloom.downscale, BloomDownscaleMode.Quarter);
+        Set(mobileBloom.highQualityFiltering, false);
+        Set(mobileBloom.maxIterations, 4);
+
+        return $"Saved {Save(pc)} and {Save(mobile)}; commit them with both URP assets.";
+    }
+
+    static VolumeProfile ProfileFor(string folder, string tier)
+    {
+        var urpPath = $"{folder}/URP_{tier}.asset";
+        var urp = AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>(urpPath);
+        if (urp == null) throw new System.Exception($"{urpPath} not found (ProjectSetup creates it).");
+
+        GraphicsSettings.TryGetRenderPipelineSettings<URPDefaultVolumeProfileSettings>(out var defaults);
+        var profile = urp.volumeProfile;
+        if (profile != null && defaults != null && profile == defaults.volumeProfile)
+            throw new System.Exception($"{urpPath} points at the Default Volume Profile, which every tier shares: "
+                                     + "ask before replacing it with a tier profile.");
+        if (profile == null)
+        {
+            var path = $"{folder}/URP_{tier}_VolumeProfile.asset";
+            profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>(path);
+            if (profile == null)
+            {
+                profile = ScriptableObject.CreateInstance<VolumeProfile>();
+                AssetDatabase.CreateAsset(profile, path);
+            }
+            urp.volumeProfile = profile;
+            EditorUtility.SetDirty(urp);
+            AssetDatabase.SaveAssetIfDirty(urp);   // without it the assignment is lost with the session
+        }
+        return profile;
+    }
+
+    static T GetOrAdd<T>(VolumeProfile profile) where T : VolumeComponent
+        => profile.TryGet<T>(out var c) ? c : profile.Add<T>();
+
+    static void Set<T>(VolumeParameter<T> parameter, T value)
+    {
+        parameter.overrideState = true;
+        parameter.value = value;
+    }
+
+    static string Save(VolumeProfile profile)
+    {
+        // Add<T>() only appends to the in-memory list: store each new override as a sub-asset
+        foreach (var component in profile.components)
+            if (!AssetDatabase.Contains(component)) AssetDatabase.AddObjectToAsset(component, profile);
+        EditorUtility.SetDirty(profile);
+        AssetDatabase.SaveAssetIfDirty(profile);
+        return AssetDatabase.GetAssetPath(profile);
     }
 }
 ```

@@ -6,6 +6,7 @@ Confidence tag on every row:
 - `[COMM]` community measurement, datamine or practitioner blog
 - `[CONV]` widely repeated convention with no single authority
 - `[EX]` an example starting value from design literature, not a measurement
+- `[SRC-derived]` computed from an `[SRC]` figure; the row says from which one
 
 URLs for all of these are in `sources.md`, in the same section order.
 
@@ -23,7 +24,7 @@ Frame conversions at 60 fps: 1 fr = 16.7 ms · 3 fr = 50 ms · 6 fr = 100 ms · 
 - §7 Input
 - §8 Haptics (mobile)
 - §9 Accessibility thresholds
-- §10 Starting profiles: platformer, tap puzzle, dodge roll, rhythm judgement
+- §10 Starting profiles: platformer, tap puzzle, dodge roll, rhythm judgement, impact (brawler, action, shooter)
 - §11 If the game is multiplayer: social timing windows
 
 ---
@@ -33,8 +34,8 @@ Frame conversions at 60 fps: 1 fr = 16.7 ms · 3 fr = 50 ms · 6 fr = 100 ms · 
 | Stage | Nominal | Range | Tag |
 |---|---|---|---|
 | Perceptual processor | 100 ms | 50–200 ms | [SRC] |
-| Cognitive processor | 70 ms | 30–100 ms | [SRC] |
-| Motor processor | 70 ms | 25–170 ms | [SRC] |
+| Cognitive processor | 70 ms | 25–170 ms | [SRC] |
+| Motor processor | 70 ms | 30–100 ms | [SRC] |
 | Full perceive → act loop | ~240 ms | — | [SRC] |
 
 Derived rules: response under **100 ms** = comfortable control; ~50 ms = feels like an extension of the hand; over
@@ -97,7 +98,7 @@ grants another at ~0.15 s: past it, one player's grace becomes the other's surpr
 | Fall gravity vs rise gravity | × 1.5–2.5, 2.0 is the safe default | [CONV] |
 | Jump cut (button released while rising) | × 2.0–3.0 extra gravity, or a one-shot `vy *= 0.4–0.5` | [CONV] |
 | Apex hang | gravity × 0.5 while abs vy is under ~35–40 % of launch speed and jump is held (Celeste: 40 / 105 px/s) | [SRC] |
-| Mario, past apex | gravity × 3 | [SRC] |
+| Mario, past apex | gravity × 3 (community measurement; no citable constant table, §2.4) | [COMM] |
 | Variable-height hold window | 0.2 s | [SRC] |
 
 Pittman's derivation, for designing a jump from level geometry rather than from physics: pick peak height `h`, time to
@@ -128,6 +129,8 @@ in the disassembly and are not citable. `[COMM]`
 | Ultimate hitlag | (damage × 0.65 + 6) × modifiers, capped at 30 fr | [COMM] |
 | Dead Cells critical | **1 frame** hard freeze, then a few tenths of slow motion | [SRC] |
 | Action game convention | 0.05–0.15 s (3–9 fr); on a hit the player initiated, this template caps it at ~8 fr (133 ms, SKILL.md) | [CONV] |
+| Template starting values | light 0.05 s (3 frames) for anything the player initiated; heavy 0.10 s (6 frames) for rare, meaningful events (§10.1) | [CONV] |
+| Dash start freeze | 0–3 frames, input stays live through it | [CONV] |
 
 Hit stop of 1–8 frames reads as *impact and weight* and is short enough to keep input responsive. Slow motion at time
 scale 0.1–0.3 for 0.1–0.4 s with an eased return reads as *significance*, and should be rare. Dead Cells chains them,
@@ -166,11 +169,20 @@ Why squared: `[SRC]`
 
 (Cubed: 3 %, 22 %, 73 %.)
 
+With the trauma model the duration is not set directly: trauma reaches zero after `trauma / decay` seconds, and the
+visible part is shorter because the offset is squared. At decay 1.0/s a medium event (0.35) falls under 1 % of the max
+offset after about 0.25 s (trauma 0.1), inside the notable tier below; a large one (0.6) stays above 10 % for about
+0.28 s, then leaves a faint tail. One shared `decay` lengthens or shortens every tier together, so tune it first for
+the notable and rare tiers, then set each tier's visibility with its add amount. A small 0.15 peaks at about 2 % of the
+max offset, near-invisible by design: it is for events that stack (rapid fire, a hail of pickups). An ordinary hit
+that should visibly shake for 0.1–0.15 s adds about 0.3 instead (above 3 % of the max offset for ~0.13 s at decay
+1.0/s), or plays its own short `MMF_CameraShake` outside the trauma sum.
+
 | Parameter | Value | Tag |
 |---|---|---|
-| Duration, typical hit | 0.1–0.3 s | [CONV] |
+| Duration by tier | ordinary hit 0.1–0.15 s, notable 0.15–0.25 s, rare up to 0.3 s | [CONV] |
 | Unreadably short | ≤ 30 ms | [COMM] |
-| Reads as blur | ≥ 150 ms for an ordinary hit | [COMM] |
+| Reads as blur | over 150 ms for an ordinary hit | [COMM] |
 | Amplitude, weak hit | 2–3 px equivalent | [COMM] |
 | Amplitude, strong hit | 8–10 px equivalent | [COMM] |
 | Noise frequency band | ~20–40 Hz | [CONV] |
@@ -223,7 +235,7 @@ damping ratio 0.4–0.6 for visible bounce, 0.7–1.0 for a quick settle.
 | Beat | Frames @60 | Tag |
 |---|---|---|
 | Anticipation on a *player* action | 0–4 fr (0–66 ms) | [CONV] |
-| Anticipation on an *enemy/hazard* telegraph | 12–30 fr (0.2–0.5 s); must exceed the 240 ms response window | [SRC-derived] |
+| Anticipation on an *enemy/hazard* telegraph | 15–30 fr (0.25–0.5 s); must exceed the 240 ms response window (§1) | [SRC-derived] |
 | Impact / smear frame | 1–2 fr, held during hit stop | [CONV] |
 | Follow-through settle | 6–18 fr (0.1–0.3 s), EaseOutBack or Elastic | [CONV] |
 
@@ -231,30 +243,31 @@ damping ratio 0.4–0.6 for visible bounce, 0.7–1.0 for a quick settle.
 
 | Easing | Use | Duration | Tag |
 |---|---|---|---|
-| EaseOutCubic | Panel slide, general arrival | 0.30 s | [SRC] |
-| EaseOutQuad | Camera follow, damage numbers, arcs | 0.4–0.8 s | [SRC] |
-| EaseOutBack | Button press, tactile pop | 0.15 s | [SRC] |
-| EaseOutBounce | Object landing, placement | 0.40 s | [SRC] |
-| EaseOutElastic | Reveal, dramatic wobble | 0.60 s | [SRC] |
-| EaseInOutSine | Loops, idle rotation | 1.0 s | [SRC] |
-| EaseInQuad | Things leaving or falling out | 0.2–0.4 s | [SRC] |
+| EaseOutCubic | Panel slide, general arrival | 0.30 s | [CONV] |
+| EaseOutQuad | Camera follow, arcs; the rise of damage numbers (their whole life is 1–2 s, §3.3) | 0.4–0.8 s | [CONV] |
+| EaseOutBack | Button press, tactile pop | 0.15 s | [CONV] |
+| EaseOutBounce | Object landing, placement | 0.40 s | [CONV] |
+| EaseOutElastic | Reveal, dramatic wobble | 0.60 s | [CONV] |
+| EaseInOutSine | Loops, idle rotation | 1.0 s | [CONV] |
+| EaseInQuad | Things leaving or falling out | 0.2–0.4 s | [CONV] |
 | Linear | Only constant-rate things: conveyors, timers | — | [CONV] |
 
 Default to ease-out. Ease-in-out 200–500 ms. Bounce and elastic 0.6–1.2 s, used sparingly. EaseOutBack's standard
 overshoot constant 1.70158 produces roughly 10 % overshoot.
 
-All of these exist in the project's own `Ease` enum (`Assets/<Game>/Core/Ease.cs`): `Linear`, `SineIn/Out/InOut`,
-`QuadIn/Out/InOut`, `CubicIn/Out/InOut`, `QuartIn/Out`, `QuintIn/Out`, `ExpoIn/Out/InOut`, `CircIn/Out`, `BackIn`,
-`BackOut`, `ElasticOut`, `BounceOut`. Back and Elastic deliberately leave the 0–1 range.
+Every easing in this table exists in the project's own `Ease` enum (`Assets/<Game>/Core/Ease.cs`, named
+`CubicOut`, `QuadOut`, `BackOut` and so on). The enum is the full list and grows (a new curve takes the next free
+number), so read it there rather than from a copy. Back and Elastic deliberately leave the 0–1 range.
 
 ### 4.4 UI tween durations
 
 | System | Values | Tag |
 |---|---|---|
-| Material Design 3 tokens | 50 / 100 / 250 / 300 / 450 / 500 ms | [SRC] |
+| Material Design 3 duration tokens | short 50–200, medium 250–400, long 450–600 (50 ms steps), extra-long 700–1000 ms | [SRC] |
 | MD3 standard easing | cubic-bezier(0.2, 0, 0, 1) | [SRC] |
 | Common three-tier tokens | fast 150 / medium 300 / slow 600 ms | [CONV] |
 | In-play game UI | 0.10–0.25 s | [CONV] |
+| Menu UI | up to 0.3 s | [CONV] |
 | Overshoot amount | 5–20 % | [CONV] |
 
 ---
@@ -301,15 +314,15 @@ than by zooming out.
 
 | Parameter | Value | Tag |
 |---|---|---|
-| Pitch randomization, recommended | 0–2 semitones total (≈ ±1 st ⇒ ×0.944–1.059) | [SRC] |
+| Pitch randomization, recommended | 0–2 semitones total (≈ ±1 st ⇒ ×0.944–1.059) | [COMM] |
 | Pitch randomization, common in engines | ±5–15 % | [CONV] |
 | Volume randomization | ±1–3 dB | [CONV] |
-| Round robin | 3–8 variants, shuffled, never repeating back to back | [SRC] |
-| Impact layer structure | transient + body + tail | [SRC] |
-| Transient | 1–20 ms attack, broadband; this is what conveys impact | [SRC] |
-| Body | 50–300 ms, material character | [SRC] |
-| Tail | 200 ms–2 s, conveys the space | [SRC] |
-| Sub-bass weight layer | 40–120 Hz, sidechained so it doesn't mask the transient (inaudible on phone speakers) | [SRC] |
+| Round robin | 3–8 variants, shuffled, never repeating back to back | [COMM] |
+| Impact layer structure | transient + body + tail | [COMM] |
+| Transient | 1–20 ms attack, broadband; this is what conveys impact | [COMM] |
+| Body | 50–300 ms, material character | [COMM] |
+| Tail | 200 ms–2 s, conveys the space | [COMM] |
+| Sub-bass weight layer | 40–120 Hz, sidechained so it doesn't mask the transient (inaudible on phone speakers) | [COMM] |
 | Ducking on impact | −3 to −6 dB, attack 5–20 ms, release 150–400 ms | [CONV] |
 | Max concurrent instances per event | 1–4 for frequent sounds (footsteps, pickups, hits), past it the new play is skipped (Feel's default; stealing the oldest needs own code); 1 for UI clicks | [CONV] |
 | Retrigger cooldown, same event | 30–80 ms: ten hits in one frame play once or twice, louder, not ten times | [CONV] |
@@ -401,10 +414,11 @@ dash:
   endSpeed:            0.66 x dashSpeed
 camera:
   followSmoothTimeX:   0.20 s
-  followSmoothTimeY:   platform-snap on land, else 0.30 s
+  followSmoothTimeY:   platform-snap on land, else 0.10 s (§5.1 band 0.05-0.15 s; slower trails on a long fall)
   lookAhead:           1.2 x player height, smoothing 0.35 s
   fovPunchOnDash:      +4 deg, in 0.06 s, out 0.30 s
-  shake:               trauma^2, decay 1.0/s, maxRoll 2.5 deg, maxOffset 0.12 m,
+  shake:               trauma^2, decay 1.0/s (a medium 0.35 fades under 1 % in ~0.25 s,
+                       §3.2), maxRoll 2.5 deg, maxOffset 0.12 m,
                        perlin ~25 Hz (a starting guess inside the 20-40 Hz band; Feel's
                        default is 40), unscaled time
 feedback:
@@ -413,7 +427,7 @@ feedback:
   whiteFlash:          0.07 s
   landSquash:          Y 0.80 -> 1.0, spring damping 0.5, frequency 8
   jumpStretch:         Y 1.20 -> 1.0 over 0.09 s
-  particlesPerImpact:  18-26 (PC), about half on the Mobile tier, lifetime 0.6 s
+  particlesPerImpact:  20-30 (PC), about half on the Mobile tier, lifetime 0.6 s
 audio:
   pitchRandom:         +/- 1 semitone
   volumeRandom:        +/- 2 dB
@@ -494,6 +508,36 @@ feedback:
 On touch, judge each finger's touch-down, not its release (§7). On a phone, start wide and narrow later: touch and
 audio latency vary per device more than calibration can hide.
 
+### 10.5 Impact game (brawler, action, shooter)
+
+Assembled from §3 and §6; the camera is the genre's own (genre-defaults), the shake rule is §3.2's.
+
+```yaml
+hitStop:
+  light:               0.05 s on an ordinary hit the player lands (cap ~8 fr / 133 ms on player-initiated hits, §3.1)
+  heavy:               0.10 s for a finisher, crit or parry; slow motion 0.1-0.3 time scale for 0.1-0.4 s only on rare beats
+  stacking:            rate-limit, never sum, hit stops that land in the same frame
+shake:
+  model:               trauma^2, decay 1.0/s, unscaled time, rotation-dominant in 3D (§3.2)
+  traumaAdd:           0.3 ordinary hit, 0.35 medium, 0.6 large; 0.15 only for stacking events (rapid fire)
+  amplitude:           weak hit ~2-3 px equivalent, strong 8-10 px; less on the Mobile tier
+feedback:
+  whiteFlash:          0.07 s (band 50-100 ms); <= 3 screen-filling flashes per second
+  particlesPerImpact:  20-30 (PC), about half on the Mobile tier, lifetime 0.5-1.0 s
+  damageText:          rise EaseOutQuad, whole life 1-2 s, 0.8 s in dense combat
+  chromaticPulse:      0 -> peak -> 0 over ~0.3 s, heavy hits only
+  order:               sound and haptic at the impact frame; flash, particles, number as tails after it (§3.3)
+audio:
+  layers:              transient + body + tail; the transient carries the hit
+  pitchRandom:         +/- 1 semitone
+  roundRobin:          >= 4 variants
+  maxInstances:        1-4 per hit event, retrigger cooldown 30-80 ms
+  duckOnImpact:        -4 dB, attack 10 ms, release 250 ms (heavy hits)
+```
+
+Knockback distance and enemy hit reactions have no sourced band here: set them from the game's spacing and tune in
+Play Mode.
+
 ---
 
 ## 11. If the game is multiplayer: social timing windows
@@ -503,7 +547,7 @@ co-op design literature: start there, tune in Play Mode, write the result back.
 
 | Window | Starting value | Notes |
 |---|---|---|
-| Recoverable failure: mistake → next decision | 3–8 s | A mistake that is fixed in place, not a restart |
+| Recoverable failure: mistake → next decision | 3–8 s | A mistake that is fixed in place, not a restart. Single-player and undo cases: `level-beat-review` SKILL The numbers owns them |
 | Comeback / catch window | ~2 s | Floor 240 ms; ≥ 1 s if two machines must agree |
 | Two-player reset (crank, re-grab) | ~3 s | Long enough to cost, short enough not to be labour |
 | Synchronised commitment (everyone presses within) | ~1 s | Server-tolerant; never frame-tight |

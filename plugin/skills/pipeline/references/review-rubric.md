@@ -19,7 +19,7 @@ Start at 10 and subtract. The floor is 0.
 | An acceptance item ticked without evidence on its line, or with evidence that cannot show it (a compile pass for a behaviour): list it as **[orta]** | -1 each |
 | An acceptance item left unticked because its check failed: **[yüksek]**; because its check could not run (and it is not `Play Mode (user)`): **[orta]** | -3 / -1 each |
 | An acceptance item whose evidence is `Play Mode (user)`, unticked and listed under Pending Play Mode checks | 0 (count it as pending) |
-| An unknown gate (`gk-bridge` exit 2, refresh or compile) not disclosed as unverified | -3 (disclosed: 0) |
+| An unknown gate (`gk-bridge` exit 2, refresh or compile) not disclosed as unverified: list it as **[yüksek]** (disclosed: not a finding) | -3 (disclosed: 0) |
 
 Pass = 9 or more: no **[yüksek]**, at most one **[orta]**. The score is exactly this arithmetic on the listed findings.
 

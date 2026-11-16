@@ -4,6 +4,15 @@ One minimal system with every part of the shape in `../SKILL.md`: a restartable 
 timer. Names follow `<System>Input`, `<System>State`, `<System>Tuning`, `<System>Config`, `<System>Solver`; the glue
 and the view live in Game.
 
+One type per file in a real game (`CountdownInput.cs`, `CountdownController.cs`, `CountdownView.cs`, ...), with the
+file named after the type; the types share a block below only to fit on one page. A MonoBehaviour in a file of
+another name cannot be added as a component, so split both blocks before compiling.
+
+Ceiling: no check compiles this page (`test-all.ps1` only checks that paths it names exist). After a change to
+`SimulationStep`, the Input System or this shape, paste both blocks into a game's `Core/Countdown` and
+`Game/Countdown` folders, recompile, and delete them again; the way up is a `test-template.ps1 -Tests` step that does
+the same.
+
 ## Core (`Assets/<Game>/Core/Countdown/`, namespace `<Game>.Core`)
 
 ```csharp
@@ -72,8 +81,6 @@ namespace __GAME__.Core
 }
 ```
 
-One type per file in a real game (`CountdownInput.cs`, ...); they share a block here only to fit on one page.
-
 ## Game (`Assets/<Game>/Game/Countdown/`, namespace `<Game>.Game`)
 
 ```csharp
@@ -111,7 +118,8 @@ namespace __GAME__.Game
 
     public sealed class CountdownView : MonoBehaviour
     {
-        // Serialized MMF_Player fields live here (feel-authoring), not on the controller.
+        // This system's serialized MMF_Player fields live here (feel-authoring), not on the controller
+        // and not in a separate Feel folder (../SKILL.md, Cross-system communication).
 
         public void Show(in CountdownState state)
         {

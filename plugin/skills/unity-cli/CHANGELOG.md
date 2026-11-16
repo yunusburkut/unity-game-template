@@ -15,7 +15,9 @@ release's own dated section once the CLI actually ships it.
 upstream CHANGELOG when the CLI updates, then move this line. When `unity --version` prints an older
 CLI (for example `1.0.0-beta.14`), the sections above that version describe surface the installed
 binary may not have yet: confirm a flag with `unity <command> --help`, or run `unity self-update`
-after the user's yes.
+after the user's yes. House edits to reapply after a merge are listed at the end of the override block in
+`SKILL.md` (narrowed `allowed-tools`, the bootstrap and CI build workflows moved to `references/workflows.md`,
+the `ai` catalog plugin section moved to `references/catalog-plugins.md`, gamekit notes atop four reference files).
 
 ## [Unreleased]
 

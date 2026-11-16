@@ -2,21 +2,36 @@
 name: unity-package-management
 description: Use for "install a Unity package", "add com.unity.*", "paket ekle", "hangi paketler", "which packages for a [genre] game" - adding, removing, upgrading or verifying UPM packages (live Editor or headless/CI), or upgrading the Unity Editor.
 allowed-tools:
-  - Bash
-  - PowerShell
   - Read
-  - Write
-  - Edit
+  - Bash(unity command package search:*)
+  - Bash(unity command package list:*)
+  - Bash(unity command package status:*)
+  - Bash(unity editors path:*)
+  - PowerShell(unity command package search:*)
+  - PowerShell(unity command package list:*)
+  - PowerShell(unity command package status:*)
+  - PowerShell(unity editors path:*)
 ---
 
-# Unity Package Management (headless, via the C# Client API)
+# Unity Package Management (live Editor first, headless C# Client API for CI)
 
-Add, remove, upgrade, and discover UPM (Unity Package Manager) packages programmatically with
-`UnityEditor.PackageManager.Client`, driven through the live Editor or headless from the terminal or CI. Do **not**
-hand-edit `Packages/manifest.json` to add or upgrade a **registry** package — the Client API resolves dependencies
-and compatible versions correctly, whereas manual edits routinely break resolution. Two edits in this template are
-plain manifest text on purpose: moving the GameKit `#gamekit-vX.Y.Z` tag (**`gamekit:sync-template`**) and the
-`packages.json` dependencies a pack inserts (`new-game.ps1 -Packs`).
+Add, remove, upgrade, and discover UPM (Unity Package Manager) packages through Unity's own resolver: the Pipeline
+`package` commands in the live Editor, or `UnityEditor.PackageManager.Client` headless from the terminal or CI. Do
+**not** hand-edit `Packages/manifest.json` to add or upgrade a **registry** package by id — the resolver handles
+dependencies and compatible versions correctly, whereas manual edits routinely break resolution. A registry id with a
+pinned version (the [Checked extras](references/select-packages.md#checked-extras-with-pinned-install-lines) rows)
+goes through the same route as `<id>@<version>`. Plain manifest text on purpose, and only these:
+
+- moving the GameKit `#gamekit-vX.Y.Z` tag (**`gamekit:sync-template`**);
+- a pack's `packages.json` lines, `scopedRegistries` included: `new-game.ps1 -Packs` merges them into a new game, and
+  an existing game takes the exact same lines by hand;
+- a package from a scoped registry (PrimeTween): the resolver takes only an id, so the `scopedRegistries` entry and
+  its dependency line are manifest text. A git URL is not an exception: `package add` and `Client.Add` take it.
+
+After any manifest edit, make Unity resolve it and read the outcome. Editor open: `unity command package resolve`, then
+`unity command package status` until it reads `completed` or `failed` (a failure carries the UPM error), then
+`gk-bridge refresh` must exit 0 (a clean compile alone does not prove UPM resolved the new entry). Editor closed: the
+headless run resolves it. Either way, check that `Packages/packages-lock.json` lists the package.
 
 **Ask the user before adding any package** (the game's CLAUDE.md keeps the manifest deliberately small), and check
 `packs/` in unity-game-template first: a pack's `packages.json` is the source for its dependencies (see
@@ -24,21 +39,52 @@ plain manifest text on purpose: moving the GameKit `#gamekit-vX.Y.Z` tag (**`gam
 IAP, the in-game debug console, Microsoft.Unity.Analyzers), release-automation tools and the packages not taken live
 there too, under [Checked extras](references/select-packages.md#checked-extras-with-pinned-install-lines).
 
-This complements the **`unity-cli`** skill (editor install, project creation, build/test): the
-CLI has **no** package-management command, so all package work goes through the Editor's C# API.
+This complements the **`unity-cli`** skill (editor install, project creation, build/test). The `unity` CLI itself has
+no package command; the Pipeline package (`com.unity.pipeline`, pinned in the template manifest) adds
+`unity command package ...` to a running Editor, and that is the first route. With the Editor closed, the Editor's C#
+Client API runs headless ([references/headless.md](references/headless.md)).
 
 > **Local gamekit adaptations** (this skill is a copy of the official Unity plugin's skill; re-apply these after
-> refreshing it from upstream): the manifest-edit exceptions and ask-first rule above, the "Editor open?" branch,
+> refreshing it from upstream): the manifest-edit exceptions and ask-first rule above, the "Editor open?" branch with
+> the Pipeline `package` route, the headless material moved to `references/headless.md` (with the outer time limit),
 > PowerShell recipes instead of `python3`, neutral version placeholders, the **Upgrading the Editor** section, the
-> pack-first rule, template handoffs and the **Checked extras** section in `references/select-packages.md`.
+> pack-first rule, template handoffs, the **Checked extras** section in `references/select-packages.md`, and
+> `allowed-tools` narrowed to read-only forms (upstream grants all of Bash, PowerShell and Write, which would
+> pre-approve the package adds the ask-first rule holds back).
 
 ## Editor open? Pick the route first
 
 In this template the user's Editor is normally open. Unity refuses a second instance on the same project, so the
-batchmode route below fails or hangs while it is.
+batchmode route fails or hangs while it is. The Editor is open when `unity status --project-path <project>` lists an
+instance for the project, or when `<project>/Temp/UnityLockfile` exists **and** is held: Unity keeps it open without
+sharing (gk-bridge's `editor_open` test). A lock file that opens fine is stale from a crashed Editor, so the Editor is
+closed.
 
-- **Editor open** (`<project>/Temp/UnityLockfile` exists): drive the live Editor. Write a one-method script
-  **outside** `Assets/` (the scratchpad directory) that only fires the request, and run it with
+- **Editor open**: use the Pipeline `package` commands (com.unity.pipeline 0.10.0-exp.1 and newer). The
+  `--caller plugin --skill unity-package-management` labels are optional in gamekit (see **`unity-cli`**), so the
+  examples omit them. One package per call:
+
+  ```powershell
+  unity command package search --query <id>                         # id exists; versions; installed flag
+  unity command package add --name <id> --dry-run true              # preview the plan, changes nothing
+  unity command package add --name <id> --confirm true --wait true  # apply; blocks up to 300 s
+  unity command package status                                      # completed | failed, with the error
+  unity command package list                                        # the resolved set (indirect too)
+  ```
+
+  A bare `<id>` resolves the latest compatible release and is the default. Write `<id>@<version>` only for a
+  [Checked extras](references/select-packages.md#checked-extras-with-pinned-install-lines) row, a required minimum, an
+  upgrade or a pin. `--name` also takes a git URL or `file:../Path`; `package remove --name <id>` takes the same `--dry-run`,
+  `--confirm` and `--wait`. Without `--confirm true` the call is refused; `busy` means another package operation is
+  running, so poll `package status` first. Upgrade or pin = `add` with the new `<id>@<version>` (take the version from
+  `package search`, never from memory). The add triggers a recompile and domain reload that can drop the synchronous
+  reply: `package status` reads a Temp file that survives it, so it is the result to trust. Then `gk-bridge refresh`
+  must exit 0. The parameter spellings are the command's own (`name`, `confirm`, `dry-run`, `wait`, `timeout` in
+  0.10.0-exp.1, checked against that version's `PackageManagerCommand.cs`; 0.9.x spelled them `identifier` and
+  `dry_run`); if one is refused, read them from `unity command --query package`.
+
+  **Fallback**, for a Pipeline package with no `package` group (`unity command --query package` finds nothing): write
+  a one-method script **outside** `Assets/` (the scratchpad directory) that only fires the request, and run it with
   `unity command script run` (see **`gamekit:unity-editor-cli`**):
 
   ```csharp
@@ -61,7 +107,10 @@ batchmode route below fails or hangs while it is.
   `gk-bridge refresh` exits 0. An unfocused Editor may not finish the resolve (not probed on 6000.6): if the lock file
   does not update, ask the user to focus Unity, or to add the package themselves (**Window > Package Manager > + >
   Add package by name**).
-- **Editor closed** (CI, a throwaway project): use the headless installer below.
+- **Editor closed** (CI, a throwaway project): the headless installer, registry search, launcher (with its outer time
+  limit), verification and the headless import/save are in [references/headless.md](references/headless.md). In
+  short: an `Editor/` script calls `Client.AddAndRemove` and exits itself, and the Editor binary runs in `-batchmode`
+  **without** `-quit`, because `unity run` injects `-quit` and quits before UPM resolves.
 
 ## When to use
 
@@ -79,224 +128,6 @@ genre / look / platform / monetization → package mapping, plus how to search t
 in [references/select-packages.md](references/select-packages.md). Produce a **deduplicated
 list of package ids** and read it back to the user before installing.
 
-## The `-quit` problem — why NOT `unity run` for installs
-
-`Client.Add` / `Client.AddAndRemove` are **asynchronous**: they return a `Request` that only
-completes on later `EditorApplication.update` ticks (the UPM child process marshals its result
-back on the Editor's main-loop pump, so a blocking `while (!req.IsCompleted)` busy-wait
-deadlocks it). The Editor must **stay alive** after `-executeMethod` returns, until the request
-finishes.
-
-`unity run` **cannot** be used for the installer: its default path injects `-quit` (see the reserved
-flags in the **`unity-cli`** skill). With `-quit`, the Editor quits the instant the method
-returns — before UPM resolves — so packages never install and the callback never runs.
-
-**Solution:** launch the **Editor binary directly** in `-batchmode` **without** `-quit`. The
-Editor stays alive, `EditorApplication.update` keeps ticking, the poll callback runs, and it
-calls `EditorApplication.Exit(code)` itself when done — which both quits and sets the process
-exit code.
-
-## The installer script
-
-Write this to `Assets/Editor/ProjectBootstrap/PackageInstaller.cs`. It must live under an
-`Editor/` folder (or an Editor-only assembly) because it uses `UnityEditor`.
-
-```csharp
-using System.Linq;
-using UnityEditor;
-using UnityEditor.PackageManager;
-using UnityEditor.PackageManager.Requests;
-using UnityEngine;
-
-namespace ProjectBootstrap
-{
-    // Installs (and optionally removes) a fixed set of packages via the PackageManager
-    // Client API, headless-safe.
-    public static class PackageInstaller
-    {
-        // EDIT this list to the selection the user approved (see references/select-packages.md).
-        // Leave out what the manifest already has (the template ships Input System, URP, uGUI, Test Framework).
-        static readonly string[] PackagesToAdd =
-        {
-            "<id>",
-            // "<id>@<version>"  // pin a version with @ when a minimum is required
-        };
-
-        // Optionally drop packages in the same resolution pass (e.g. a template default you don't want).
-        static readonly string[] PackagesToRemove = { };
-
-        const double TimeoutSeconds = 600; // UPM resolution + downloads can be slow
-
-        static AddAndRemoveRequest _request;
-        static double _deadline;
-
-        // Invoke with: -executeMethod ProjectBootstrap.PackageInstaller.Install  (NO -quit)
-        public static void Install()
-        {
-            if (PackagesToAdd.Length == 0 && PackagesToRemove.Length == 0)
-            {
-                Debug.Log("[PackageInstaller] Nothing to do.");
-                EditorApplication.Exit(0);
-                return;
-            }
-
-            Debug.Log($"[PackageInstaller] Adding: {string.Join(", ", PackagesToAdd)}");
-            _request = Client.AddAndRemove(packagesToAdd: PackagesToAdd, packagesToRemove: PackagesToRemove);
-            _deadline = EditorApplication.timeSinceStartup + TimeoutSeconds;
-            EditorApplication.update += Poll;
-        }
-
-        static void Poll()
-        {
-            if (_request == null) return;
-
-            if (!_request.IsCompleted)
-            {
-                if (EditorApplication.timeSinceStartup > _deadline)
-                {
-                    EditorApplication.update -= Poll;
-                    Debug.LogError("[PackageInstaller] Timed out waiting for UPM.");
-                    EditorApplication.Exit(2);
-                }
-                return;
-            }
-
-            EditorApplication.update -= Poll;
-
-            if (_request.Status == StatusCode.Success)
-            {
-                var names = _request.Result.Select(p => $"{p.name}@{p.version}");
-                Debug.Log($"[PackageInstaller] Resolved: {string.Join(", ", names)}");
-                EditorApplication.Exit(0);
-            }
-            else
-            {
-                Debug.LogError($"[PackageInstaller] Failed: {_request.Error?.message}");
-                EditorApplication.Exit(1);
-            }
-        }
-    }
-}
-```
-
-`AddAndRemove` installs the whole set in a single UPM resolution pass — faster and less
-error-prone than one `Client.Add` per package.
-
-**Add / remove / upgrade with one script:**
-- **Add**: list the id in `PackagesToAdd`.
-- **Remove**: list the id in `PackagesToRemove`.
-- **Upgrade / pin**: add the id with `@<version>` (`<id>@<version>`; take the version from the registry, see
-  Discovering below, never from memory). Without a version, resolution picks the latest compatible release.
-
-## Discovering / verifying packages
-
-To confirm an id exists or list its versions before adding it, search the registry. The
-in-Editor `Client.SearchAll()` / `Client.Search("<id>")` calls are also async, so they use the
-**same poll-and-`Exit` pattern and the same headless run** as the installer. Write
-`Assets/Editor/ProjectBootstrap/PackageSearch.cs`:
-
-```csharp
-using System.Linq;
-using UnityEditor;
-using UnityEditor.PackageManager;
-using UnityEditor.PackageManager.Requests;
-using UnityEngine;
-
-namespace ProjectBootstrap
-{
-    public static class PackageSearch
-    {
-        const double TimeoutSeconds = 120;
-        static SearchRequest _request;
-        static double _deadline;
-
-        // Invoke with: -executeMethod ProjectBootstrap.PackageSearch.SearchAll  (NO -quit)
-        public static void SearchAll()
-        {
-            _request = Client.SearchAll();                 // or Client.Search("<id>")
-            _deadline = EditorApplication.timeSinceStartup + TimeoutSeconds;
-            EditorApplication.update += Poll;
-        }
-
-        static void Poll()
-        {
-            if (_request == null) return;
-            if (!_request.IsCompleted)
-            {
-                if (EditorApplication.timeSinceStartup > _deadline)
-                {
-                    EditorApplication.update -= Poll;
-                    Debug.LogError("[PackageSearch] Timed out.");
-                    EditorApplication.Exit(2);
-                }
-                return;
-            }
-            EditorApplication.update -= Poll;
-
-            if (_request.Status == StatusCode.Success)
-            {
-                foreach (var p in _request.Result.OrderBy(p => p.name))
-                    Debug.Log($"[PackageSearch] {p.name}@{p.versions.latestCompatible}  {p.displayName}");
-                Debug.Log($"[PackageSearch] {_request.Result.Length} packages found.");
-                EditorApplication.Exit(0);
-            }
-            else
-            {
-                Debug.LogError($"[PackageSearch] Failed: {_request.Error?.message}");
-                EditorApplication.Exit(1);
-            }
-        }
-    }
-}
-```
-
-`_request.Result` is a `PackageInfo[]`; each entry exposes `name`, `displayName`, `description`,
-and `versions` (`.latest`, `.latestCompatible`, `.all`). For a terminal-only check without the
-Editor (a **known** id, not free-text search), query the registry directly — see
-[references/select-packages.md](references/select-packages.md#discovering-and-verifying-packages).
-
-## Run it headless (direct Editor invocation, no `-quit`)
-
-Only with the Editor **closed** (see "Editor open?" above). Resolve the Editor binary from the version, then run it
-in batch mode. The script owns quitting via `EditorApplication.Exit`, so do **not** pass `-quit`. The template is
-Windows-only and this machine has no Python, so the recipe is PowerShell:
-
-```powershell
-$project = '<project-path>'
-$method  = 'ProjectBootstrap.PackageInstaller.Install'   # or ...PackageSearch.SearchAll
-# The version the project pins (or name an installed one)
-$version = ((Get-Content "$project\ProjectSettings\ProjectVersion.txt" |
-    Select-String '^m_EditorVersion:').Line -split ':\s*')[1].Trim()
-
-# Install directory of that editor (Hub layout), via the unity CLI: { "data": { "path": ... } }
-$ed = (unity editors path $version --format json | Out-String | ConvertFrom-Json).data.path
-$unityBin = Join-Path $ed 'Editor\Unity.exe'
-if (-not (Test-Path $unityBin)) { throw "No Editor at $unityBin" }
-
-& $unityBin -batchmode -projectPath $project -executeMethod $method -logFile - | Out-Host
-"Exit code: $LASTEXITCODE"   # 0 = success, 1 = UPM error, 2 = timeout
-```
-
-On macOS the binary is `<dir>/Unity.app/Contents/MacOS/Unity` (or `<dir>/Contents/MacOS/Unity` when the path is the
-`.app` itself); on Linux it is `<dir>/Editor/Unity`.
-
-`-logFile -` streams the Editor log (including the `[PackageInstaller]` / `[PackageSearch]`
-lines) to stdout so you can watch resolution progress and read any UPM error. If
-`unity editors path` output shape differs on your build, get the directory from
-`unity editors --installed --format json` instead.
-
-## Verify
-
-```bash
-# Every requested id should appear as a dependency
-cat "<project-path>/Packages/manifest.json"
-```
-
-Confirm the run exited `0` and each package from the list is present in `manifest.json`. If a
-package fails to resolve, `_request.Error.message` is logged; read it and check the id/version
-against the registry. The Editor's own log (including the `[PackageInstaller]` lines) is the
-stdout you streamed with `-logFile -` above — read it there, not via `unity logs` (which shows
-the CLI's own log, not the Editor's).
 
 ## Upgrading the Editor
 
@@ -310,48 +141,16 @@ the CLI's own log, not the Editor's).
 5. Compile gate: `gk-bridge refresh` (exit 0 only), then `gk-bridge compile android` and `gk-bridge compile ios`.
 6. Fix the obsolete API: CS0619 is an error and fails the gate; CS0618 is a warning in `Logs/agent/compile.log`. Fix
    each one or list it in the handoff.
-7. Record one DESIGN.md Decisions line: `YYYY-MM-DD: Unity <from> -> <to>. Why.`
+7. Tooling check: `unity status --until-ready --project-path <project>`, then `unity command package list`. If it
+   cannot connect, the Pipeline package did not load on the new Editor (Safe Mode, or a `com.unity.pipeline` the new
+   Editor rejects): read `unity status` and the package's changelog before any later `unity command` step.
+8. Behaviour check: ask the user, then `gk-bridge run-tests` and `gk-bridge run-tests playmode` in the background
+   (**`gamekit:unity-testing`**). An engine jump can compile and still change physics, serialization or URP output;
+   list each failure in the handoff, and hand the user a Play Mode check of the core loop.
+9. Record one DESIGN.md Decisions line: `YYYY-MM-DD: Unity <from> -> <to>. Why.`
 
 Knowledge gap: when the pinned Unity is newer than what you know, the manual and the upgrade guide are the source.
 Write down what you could not confirm; never fill a gap from memory.
-
-## Import & save headlessly (generate `.meta` files)
-
-After a script or tool writes new `.cs`/asset files, Unity must **import** them so it generates
-the `.meta` file each asset needs — and every `.cs`/asset MUST be committed together with its
-`.meta`. Merely opening the project once (`unity open "<project-path>"`) imports and generates
-them; use this method when you need it **headless** (in a script or CI). With the Editor open, `unity run` cannot
-start a second instance: run `gk-bridge refresh` instead, which imports the new files in the live Editor.
-
-Unlike the package installer, this is **synchronous** — it finishes before returning — so it's
-safe to run via `unity run` (its injected `-quit` is harmless; the method also calls
-`EditorApplication.Exit` for a clean exit code). Write
-`Assets/Editor/ProjectBootstrap/ProjectSaver.cs`:
-
-```csharp
-using UnityEditor;
-using UnityEngine;
-
-namespace ProjectBootstrap
-{
-    public static class ProjectSaver
-    {
-        // Invoke with: -executeMethod ProjectBootstrap.ProjectSaver.SaveAll
-        public static void SaveAll()
-        {
-            AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
-            AssetDatabase.SaveAssets();
-            Debug.Log("[ProjectSaver] Assets imported and saved.");
-            EditorApplication.Exit(0);
-        }
-    }
-}
-```
-
-```bash
-unity run "<project-path>" --editor-version <version> \
-  -- -executeMethod ProjectBootstrap.ProjectSaver.SaveAll
-```
 
 ## Notes
 

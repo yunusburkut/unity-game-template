@@ -19,6 +19,8 @@ Section numbers match `numbers.md`.
 
 ## 1. Human response budget, foundations
 
+- Card, Moran & Newell (1983), *The Psychology of Human-Computer Interaction*, ch. 2: the Model Human Processor
+  (perceptual 100 [50–200] ms, cognitive 70 [25–170] ms, motor 70 [30–100] ms), the primary source for the §1 table
 - Swink, *Game Feel*, chapter 1 (PDF) — http://mycours.es/gamedesign2014/files/2014/10/Game-Feel-Steve-Swink-chapter-1.pdf
 - Overview — https://en.wikipedia.org/wiki/Game_feel · https://lizengland.com/blog/review-game-feel-by-steve-swink/
 - ADSR of input, the 240 ms model, per-frame latency budgets — https://gamedesignframework.net/designing-game-controls/ · https://www.gamedeveloper.com/design/designing-game-controls
@@ -81,7 +83,8 @@ Juice technique lists, used throughout:
   https://www.animationmentor.com/blog/squash-and-stretch-the-12-basic-principles-of-animation/ ·
   https://rebusfarm.net/blog/squash-and-stretch-in-animation-the-essential-principle-for-lifelike-motion
 - https://easings.net/ · https://gamedevcheatsheet.com/easing · https://web.dev/articles/choosing-the-right-easing
-- Material Design 3 / Carbon motion tokens — https://v10.carbondesignsystem.com/guidelines/motion/overview/
+- Material Design 3 duration tokens and standard easing — https://m3.material.io/styles/motion/easing-and-duration/tokens-specs
+- Carbon motion tokens — https://v10.carbondesignsystem.com/guidelines/motion/overview/
 
 ## 5. Camera
 

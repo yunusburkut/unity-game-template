@@ -77,12 +77,19 @@ without words; in Cuphead, anything pink can be parried. (src: FORCE)
 name, the player's name.
 
 **CL09, never colour alone.** Pair a colour with a direction, a name, an icon or a shape. (src: GAG) About 1 in 12 men
-has a colour vision deficiency; check every colour code with a colour-blind simulation.
+has a colour vision deficiency; check every colour code with a colour-blind simulation. A set of colours that tells
+categories apart (teams, pieces, liquids) also meets the distances in `references/palette-distinguishability.md`.
 
-**CL10, key information in the centre 30 % of the width.** Put attribution and key labels in world space or near the
-action, outlined, at least 26 px at 1080p. Corners are the first thing a vertical crop loses: a 9:16 crop of a 16:9
-frame keeps 31.6 % of its width (81/256), less than the middle third, so the band to aim for is the centre 30 %
-around the action. On a phone, corners also sit under notches and thumbs. (src: CLIP, XAG)
+**CL10, key information where a vertical crop keeps it.** Put attribution and key labels in world space or near the
+action, outlined, at least 26 px at 1080p. Corners are the first thing a vertical crop loses.
+- **Landscape:** a 9:16 crop of a 16:9 frame keeps 31.6 % of its width (81/256), less than the middle third, so the
+  band to aim for is the 9:16 crop window around the action, about the centre 30 % of the width. The camera keeps the
+  action in that window; a label pinned to a body follows the body (CL05), and the body sitting off-centre is a camera
+  finding, not a reason to drag the label away from it.
+- **Portrait** (for example 1080×1920): a 9:16 crop keeps the whole width, so there is no width band; key labels only
+  stay inside the safe area and out of the thumb zone (`platform-targets`).
+
+On a phone, corners also sit under notches and thumbs. (src: CLIP, XAG)
 
 ## D. The three moments
 
@@ -111,7 +118,9 @@ in multiplayer, the player by name, on that player's screen.
 sits on the body or in the world. Celeste's bird shows the dash as the bridge falls. (src: CELESTE, ABTEST)
 
 **CL17, every hint retires.** Each hint has a done-condition, counted per player. After (start) 2–3 successes it stops
-showing, and it may come back after a long stretch unused. Valve's game instructor works this way. (src: VALVE)
+showing, and it may come back after a long stretch unused: (start) 7 days or 3 sessions without that verb, whichever
+comes first. The counts are saved per profile in the save file, never kept only in memory. Valve's game instructor
+works this way. (src: VALVE)
 
 **CL18, never repeat the world.** No hint says what the world already shows.
 
@@ -139,7 +148,8 @@ Write it into `DESIGN.md` Look, on a `Voice` line, once; these are the defaults:
 - Names, not roles.
 - **The word budget** (the one place it is set; CL01, CL12 and CL20 use it): one to four words for a prompt, a label
   or an attribution; up to six for the persistent world rule line (CL12); three or fewer for a recovered-in-place
-  label (CL20). An arrow (→) and a colour count as words.
+  label (CL20); a dialogue, narrator (CL05 rung 3) or hint line: one sentence of about 120 characters or fewer. An
+  arrow (→) and a colour count as words.
 - Sentence case. Capitals only for the shout of a moment.
 - Numbers only when they are the stake or the joke.
 - Never: "Congratulations", "Mission:", "Objective:", "Are you ready?", stacked exclamation marks, "you can …"
@@ -204,7 +214,8 @@ gameplay-related stays on screen while the player cannot act on it. (src: CCGS)
 - Merge repeats that arrive within 500 ms: "+5 coins ×3", not three toasts.
 - At most two on screen at once `(start)`: a template guess; CCGS leaves this number open for playtesting.
 - Critical messages (danger, the failure cause) skip the queue.
-- Every timer and auto-dismiss has a stated duration. Text the player must act on stays at least 5 s (and CL04).
+- Every timer and auto-dismiss has a stated duration. An informational toast stays at least 5 s (and CL04). Text the
+  player must act on never auto-dismisses: it stays until acted on, or until the away cap (CL15).
 
 ## I. Text that survives translation
 
@@ -232,8 +243,10 @@ form is its own key, picked in code from the language's rule.
 (`CurrentCulture`, or the selected Locale), never string concatenation.
 
 **CL31, Turkish casing and glyphs.**
-- Upper and lower case for shown text use the tr-TR culture (`ToUpper(CultureInfo.GetCultureInfo("tr-TR"))`), so
-  i → İ and ı → I. `ToUpperInvariant` is for IDs only.
+- Upper and lower case for shown text use the culture of the language being shown (the selected Locale's
+  `CultureInfo`): tr-TR for Turkish (`ToUpper(CultureInfo.GetCultureInfo("tr-TR"))`), so i → İ and ı → I, and the
+  English culture for English, so "Quit" stays "QUIT", never "QUİT". Never the invariant culture or the OS culture for
+  display; `ToUpperInvariant` is for IDs only.
 - The TMP font asset and each fallback cover ç ğ ı İ ö ş ü Ç Ğ Ö Ş Ü. A static atlas lists them in its character
   set; a dynamic asset needs a source font that has them. A missing glyph shows as a box.
 
@@ -245,9 +258,13 @@ conditions; a number marked `(start)` or sourced only to CCGS (a checklist with 
 it needs a stated reason in `DESIGN.md` Decisions, and with no reason it fails.
 
 **CL32, contrast.** (src: WCAG)
-- Text at least 4.5:1 against what is behind it (SC 1.4.3); large text (24 px, or 19 px bold) at least 3:1.
+- Text at least 4.5:1 against what is behind it (SC 1.4.3); large text (24 px, or 19 px bold) at least 3:1. WCAG's
+  sizes are CSS px (18 pt, 14 pt bold); here they are read at the 1080 CanvasScaler reference, the CL33 basis, checked
+  on the smallest target phone, and text in doubt takes 4.5:1.
 - UI parts and icons that carry meaning at least 3:1 (SC 1.4.11).
-- Text over gameplay gets a backing plate or an outline. Subtitles: 7:1 on a backing box.
+- Text over gameplay gets a backing plate or an outline. Subtitles sit on a backing box and pass at 4.5:1 like all
+  text; (start) 7:1 text-to-box (the AAA level of SC 1.4.6) is their target, so a 5:1 box passes but needs its reason
+  in `DESIGN.md` Decisions.
 - AAA 7:1 elsewhere is advice, never a failure.
 
 **CL33, text size.** Body text at least about 18 px at the 1080 CanvasScaler reference. No gameplay-critical text is
@@ -279,7 +296,7 @@ reported as NOT ASSESSED, with what was missing. It is never a pass.
 - **BABA:** https://www.gamedeveloper.com/disciplines/road-to-the-igf-hempuli-oy-s-i-baba-is-you-i-
 - **CCGS:** Claude-Code-Game-Studios accessibility, HUD and interaction-pattern templates (MIT, Donchitos 2026). A
   checklist with no primary source cited for its numbers: treat them as `(start)` values. Licence text:
-  `genre-defaults/LICENSE.md`.
+  `${CLAUDE_PLUGIN_ROOT}/skills/genre-defaults/LICENSE.md`.
   https://github.com/Donchitos/Claude-Code-Game-Studios
 - **CELESTE:** https://digitaltrends.com/gaming/celeste-review
 - **CLIP:**

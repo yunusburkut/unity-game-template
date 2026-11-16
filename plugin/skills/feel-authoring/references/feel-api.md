@@ -2,9 +2,10 @@
 
 Verified against the copy at `Assets/Feel` (v6.1, `Assets/Feel/readme.txt`), cross-checked with
 https://feel-docs.moremountains.com/ and the Doxygen API at http://feel-docs.moremountains.com/API/.
-The check is by hand (last: 2026-11, every `Trigger(` signature read from the source); no test guards it, so after a
-Feel update the compiler wins over this file: grep the event's `static void Trigger` in `Assets/Feel` and fix the
-snippet here.
+`plugin/test-hooks.ps1` checks that every backticked MM name and member here exists in a real Feel copy and that each
+`MM*Event.Trigger` has a static `Trigger`. Argument lists and the section 5 defaults are checked by hand (last:
+2026-11, every `Trigger(` signature read from the source), so after a Feel update the compiler wins over this file:
+grep the event's `static void Trigger` in `Assets/Feel`, re-read the section 5 defaults, and fix the snippet here.
 
 Namespaces: `MoreMountains.Feedbacks` (player, feedbacks, shakers, springs, floating text,
 MMTimeManager, MMWiggle), `MoreMountains.Tools` (MMSoundManager, MMRadio, poolers),
@@ -153,6 +154,9 @@ Pause feedbacks), `PlayCount`, `InPreviewMode`.
 **Channel** — `MMF_ChannelMode`, `MMF_Channel` (0), `MMF_ChannelDefinition`.
 
 **Kill switch** — `static MMFeedbacks.GlobalMMFeedbacksActive` disables every player in the project.
+It is a Feel static with no reset, and domain reload is off: write it at startup from the saved setting (as with
+`Haptics.Enabled`, recipes §11) or reset it in a `SubsystemRegistration` method, or one Play session with it off
+leaves every later one silent. The same holds for each feedback's `static FeedbackTypeAuthorized`.
 
 **Events** — `Events` (`MMFeedbacksEvents`): `OnPlay`, `OnPause`, `OnResume`, `OnStop`,
 `OnComplete`, `OnChangeDirection`, `OnRestoreInitialValues`, `OnSkipToTheEnd`,
@@ -195,7 +199,7 @@ Read-only: `IsPlaying`, `InCooldown`, `PlaysLeft`, `InInitialDelay`, `FeedbackSt
 | `MMFeedbacksDirectionCondition` | `Always` | `OnlyWhenForwards`, `OnlyWhenBackwards` |
 | `PlayDirection` | `FollowMMFeedbacksDirection` | `Opposite…`, `AlwaysNormal`, `AlwaysRewind` |
 | `ConstantIntensity` | false | Ignore the caller's intensity, always play at full |
-| `UseIntensityInterval` + `IntensityIntervalMin` / `Max` | false / 0 / 0 | Only play inside an intensity window — how you get "heavy landing only" |
+| `UseIntensityInterval` + `IntensityIntervalMin` / `Max` | false / 0 / 0 | Only play inside an intensity window — how you get "heavy landing only". The window is [Min, Max): Max must be set (at 0 nothing plays), and above 1 (e.g. 1.01) when intensity is normalised to 0..1, or the hardest hit is dropped |
 | `Sequence` / `TrackID` / `Quantized` / `TargetBPM` | — / 0 / false / 120 | MMSequence-driven playback |
 | `UseScriptDrivenTimescale` / `ScriptDrivenDeltaTime` / `ScriptDrivenTime` | false | |
 
@@ -280,8 +284,8 @@ MMSoundManagerSoundPlayEvent.Trigger(clip, MMSoundManager.MMSoundManagerTracks.S
 ```
 
 `MMTimeManager` keeps timescale modifiers on a **stack**, so simultaneous slow-downs coexist and
-unwind individually. Anything that must keep animating through a freeze needs
-`TimescaleMode = Unscaled`.
+unwind individually. Anything that must keep animating through a freeze needs `Unscaled` (the
+`TimescaleMode` row of `MMFeedbackTiming` above).
 
 `MMF_PlayerEvent.Modes` covers `PlayFeedbacks`, `StopFeedbacks`, `PauseFeedbacks`,
 `ResumeFeedbacks`, `Initialization`, the direction variants, `RestoreInitialValues`, `SkipToTheEnd`,
@@ -369,7 +373,9 @@ MMSoundManagerTrackEvent.Trigger(MMSoundManagerTrackEventTypes.PauseTrack,
 A new project starts with no mixer and no MMSoundManager, and that is a fine place to stay. Adopting MMSoundManager is a decision to
 make deliberately (it brings a mixer asset, a settings SO and a scene singleton), not something to
 slip in with the next sound. The plain `MMF_Sound` feedback needs none of it and is
-the right starting point; `MMF_MMSoundManagerSound` gains tracks, fades, concurrency limits and
+the right starting point, as long as its `PlayMethod` is `Cached` (`Pool` for a sound that overlaps itself, `OnDemand`
+for a rare one), never the default `Event`, which only raises an event for MMSoundManager to catch and so plays
+nothing without one; set `SfxAudioMixerGroup` to the SFX or UI group so the volume sliders reach it; `MMF_MMSoundManagerSound` gains tracks, fades, concurrency limits and
 save/load when there is a reason for them.
 
 ---
@@ -388,7 +394,7 @@ using UnityEngine;
 [FeedbackPath("<Game>/My Feedback")]
 public class MMF_MyFeedback : MMF_Feedback
 {
-    public static bool FeedbackTypeAuthorized = true;     // the accessibility kill switch
+    public static bool FeedbackTypeAuthorized = true;     // the accessibility kill switch; a static with no reset (see Kill switch)
     public override float FeedbackDuration => Duration;
 
     [MMFInspectorGroup("My Feedback", true, 12)]

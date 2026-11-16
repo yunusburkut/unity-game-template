@@ -9,7 +9,9 @@ shot and pans back; a perspective camera behind the ball for 3D golf.
 ## Defaults
 
 - **same-shot-same-result**: Physics runs in `FixedUpdate` on the fixed timestep (the default simulation mode), never
-  tied to the frame rate, and shots are applied there too, so the same shot does the same thing on the same build.
+  tied to the frame rate, and shots are applied there too (Core still steps in `Update` for aiming, scoring and the
+  win check; only the body write sits in `FixedUpdate`, the exception `unity-architecture` names under The split), so
+  the same shot does the same thing on the same build.
   Each level keeps a recorded clear, the input that solves it, because no solver can search physics. Across devices
   the result can still differ *(verify)*. Why: a puzzle the player can solve twice, where luck never decides. Break it
   when: chaos is the fun, a sandbox of things to topple. [box2d-1], [matter-1], [fiedler-1]

@@ -6,7 +6,7 @@
     {
       "name": "gamekit",
       "source": "./plugin",
-      "description": "Unity skills, review agents and hooks for games made from unity-game-template."
+      "description": "Claude Code layer for games made from unity-game-template: skills (task router, the pipeline from spec card to scored review until 9/10, Unity, Feel, game feel, clarity, levels, launch), agents, hooks, the gk-bridge compile gate, the /gamekit:feature workflow and the Visual Clarity output style. The template README.md lists each part."
     }
   ]
 }

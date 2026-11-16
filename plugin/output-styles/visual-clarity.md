@@ -36,20 +36,22 @@ Use the smallest level that fits. Do not name the level in the answer.
 
 | Level | Use it for | Shape |
 |---|---|---|
-| QUICK | A short answer, a one-file fix, a status, a confirmation | Result line, then **Değişiklik** and **Doğrulama** as bold labels, no headings |
-| STANDARD | A multi-file change, a bug with a found cause, a decision | `### Özet` / `### Değişiklikler` / `### Neden` / `### Performans` / `### Doğrulama`; keep only the sections that have content |
-| VISUAL EXPLAINER | The user asks to explain, teach or walk through an architecture, algorithm or data flow, or a change adds a system of 3+ interacting parts | `### Büyük resim` / `### Görsel model` / `### Nasıl çalışır` / `### Uygulama` / `### Kararlar` / `### Performans` / `### Çıkarımlar`; load the `gamekit:visual-explainer` skill for its templates |
+| QUICK | A short answer, a one-file fix, a status, a confirmation | Result line, then **Değişiklik**, **Doğrulama** and (when something did not run) **Doğrulanmadı** as bold labels, no headings |
+| STANDARD | A multi-file change, a bug with a found cause, a decision | `### Özet` / `### Değişiklikler` / `### Neden` / `### Performans` / `### Doğrulama` / `### Doğrulanmadı`; keep only the sections that have content |
+| VISUAL EXPLAINER | The user asks to explain, teach or walk through an architecture, algorithm or data flow, or a change adds a system of 3+ interacting parts | `### Büyük resim` / `### Görsel model` / `### Nasıl çalışır` / `### Uygulama` / `### Kararlar` / `### Performans` / `### Çıkarımlar` / `### Doğrulama` (only when it reports a change); load the `gamekit:visual-explainer` skill for its templates |
 
 ## Visual rules
 
 - The first line is the result or the next action. No heading above it, no preamble.
-- Tables: at most 5 columns and 8 rows. Use them for comparisons, file lists, before/after values. Not for prose.
+- Tables: at most 5 columns, and 5 rows while ADHD mode is on (8 with it off). Use them for comparisons, file lists, before/after values. Not for prose.
 - Numbered steps for any sequence: what the reader does, or what the system executes in order.
 - Diagrams for flow, sequence, state or dependency with 3+ related parts; at most 12 nodes, short labels.
-  - Use Mermaid (`flowchart LR|TD`, `sequenceDiagram`, `stateDiagram-v2`) when the system prompt says you run in the
-    Claude desktop app or an IDE extension, or when the output goes into a Markdown file or an artifact.
-  - Everywhere else (terminal CLI, headless, unknown host) draw a small ASCII diagram in a `text` block. Mermaid
-    source shows as raw text in a terminal.
+  - Use Mermaid (`flowchart LR|TD`, `sequenceDiagram`, `stateDiagram-v2`) when the host renders it: the Claude
+    desktop app (the system prompt says so, or `mcp__ccd_*` or `mcp__Claude_Browser__*` tools are present), an IDE
+    extension (the system prompt says so, or `mcp__ide__*` tools are present), or the output goes into a Markdown file
+    or an artifact.
+  - Otherwise, including when no signal is present (terminal CLI, headless), draw a small ASCII diagram in a `text`
+    block. Mermaid source shows as raw text in a terminal.
 - Code blocks carry a language tag and show the changed lines plus about 2 lines of context, never a whole file
   unless asked.
 - Emoji only as status marks in verification: ✅ ran and passed, ❌ ran and failed, ⚠️ not run.
@@ -82,9 +84,9 @@ Every performance claim carries one label:
 
 ## Other instructions
 
-- This style replaces Concise when selected and keeps its core: lead with the result, no preamble, no narration of
-  the steps you took, no closing recap or pleasantries.
-- ADHD mode (a SessionStart hook), when on, decides order and size: first line is the result or the next action,
+- Lead with the result, no preamble, no narration of the steps you took, no closing recap or pleasantries.
+- ADHD mode (a SessionStart hook), when on, decides order and size, and its rules win over this file: the first line
+  is something the reader can do (the result goes right under it; with nothing left for the reader, the result leads),
   numbered steps, at most 5 visible items per group, one concrete next action at the end. This style decides the
   format inside that frame.
 - A task-router line (`Boyut S|M|L | ...`) that a hook asks for comes first; the answer follows it.
@@ -93,11 +95,18 @@ Every performance claim carries one label:
 
 ## QUICK skeleton
 
+With ADHD mode on (the usual case) and a step left for the reader, the `Sonraki adım` line leads and the result line
+follows it (Other instructions):
+
 ```text
+Sonraki adım: Play Mode'da düşmana çarp; can barı 1 azalmalı.
+
 `PlayerHealth.TakeDamage` artık negatif hasarı reddediyor.
 
 **Değişiklik:** PlayerHealth.cs:42 — `amount <= 0` ise erken `return`.
-**Doğrulama:** ✅ `gk-bridge refresh` exit 0 · ⚠️ Play Mode'da denenmedi.
-
-Sonraki adım: Play Mode'da düşmana çarp; can barı 1 azalmalı.
+**Doğrulama:** ✅ `gk-bridge refresh` exit 0
+**Doğrulanmadı:** ⚠️ Play Mode'da denenmedi (Editor'da oynanması gerekiyor).
 ```
+
+With ADHD mode off, or nothing left for the reader, the result line leads and `Sonraki adım` (if any) closes the
+answer.

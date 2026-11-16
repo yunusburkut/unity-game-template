@@ -1,6 +1,6 @@
 ---
 name: refactor-pass
-description: Use when asked to refactor, tidy, clean up, simplify, optimise ("refactor et", "toparla"), "go over what we added lately", or with no argument. Keeps behaviour: Core/Game SOLID, no hot-path allocations. Review only: unity-code-review.
+description: Use when asked to refactor, tidy, clean up, simplify ("refactor et", "toparla"), "go over what we added lately", or with no argument; replaces /simplify in a game. Keeps behaviour. Slow or stutter: unity-performance. Review only: unity-code-review.
 ---
 
 # Refactor pass
@@ -12,7 +12,10 @@ fix, a tuning change, a new seam nobody needs yet — is a separate conversation
 
 Read this file, then pull in the reference that matches what you find. Do not re-derive
 `unity-architecture`, `unity-performance` or `unity-code-review`; they are the base rules, this
-skill is the procedure that applies them repeatedly to fresh code.
+skill is the procedure that applies them repeatedly to fresh code. In a game it replaces the
+built-in `/simplify` (which knows neither the Core/Game split nor the hot-path rules). A request to
+make the game faster ("optimise", "kasıyor", frame drops) is `unity-performance` or the
+`perf-auditor` agent: they measure first; this pass removes allocations by construction only.
 
 | Reference | Read it when |
 |---|---|
@@ -32,7 +35,7 @@ ledger the script falls back to the last 15 commits.
 bash "${CLAUDE_SKILL_DIR}/scripts/survey.sh"            # since last pass
 bash "${CLAUDE_SKILL_DIR}/scripts/survey.sh" HEAD~8     # explicit ref
 bash "${CLAUDE_SKILL_DIR}/scripts/survey.sh" --all      # whole tree
-bash "${CLAUDE_SKILL_DIR}/scripts/survey.sh" --editor   # also smell-grep Editor (any mode)
+bash "${CLAUDE_SKILL_DIR}/scripts/survey.sh" --editor   # also smell-grep Editor (any mode; obsolete API always is)
 ```
 
 It prints the commits and `.cs` files in scope (committed, uncommitted and untracked), the
@@ -50,12 +53,15 @@ scope for readability only — it never ships, so it gets no performance work.
 
 ### 0. Separate the user's work from the pass
 
-Run `git status --porcelain -- Assets/<Game>`. The survey counts uncommitted and untracked files on
+Run `git status --porcelain -- Assets/<Game> PLAN.md docs/refactor-pass-log.md` (step 6 edits and
+commits the last two). The survey counts uncommitted and untracked files on
 purpose, but the pass commits per item, and a commit stamped "refactor" must hold only the pass's
-own edits. If anything is listed, ask once: commit it first (the user's message, or a `wip:`
-commit they approve), or keep those files out of the pass. Never edit a file that was already dirty
-when the pass started, and stage by path (`git add <file>`), never `git add -A` or `-p`. Note the
-first line of `compile.log` now, so step 5 can compare warning counts.
+own edits. If anything is listed, ask once: commit it first (the user's message, or an
+`<area>: wip <summary>` commit they approve, area from the game's CLAUDE.md list), or keep those
+files out of the pass. Never edit a file that was already dirty when the pass started, and stage by
+path (`git add <file>`), never `git add -A` or `-p`. Then run `gk-bridge refresh` and keep the
+`warning CS` lines of `Logs/agent/compile.log`, per file, as the baseline for step 4's warning check
+(on exit 2 there is no baseline; say so in the report).
 
 ### 1. Read everything in scope, plus its other half
 
@@ -90,8 +96,8 @@ Write the plan as a numbered list, each item tagged with its risk from the catal
 - **amber** — touches a serialized field, a lifecycle method, an event subscription, a public
   member another type reads. Do it with its safety step (`[FormerlySerializedAs]`, a paired
   `OnDisable`, a grep of the callers) and say so in the report.
-- **red** — solver arithmetic, execution order values, the `SimulationStep.Max` clamp, enum
-  ordinals, tuning defaults, anything the EditMode suite pins. Do not do it. List it with the
+- **red** — solver arithmetic, execution order values, which loop a simulation steps in (`Update` vs
+  `FixedUpdate`), the `SimulationStep.Max` clamp, enum ordinals, tuning defaults, anything the EditMode suite pins. Do not do it. List it with the
   reason and let the user pick.
 
 Keep a pass to about six changes. A pass that rewrites twenty things cannot be verified by reading
@@ -99,18 +105,29 @@ its diff, and reading the diff is the primary verification here.
 
 ### 4. Apply one item at a time
 
-Edit, then gate the item on `gk-bridge refresh` (not on PATH: `bash "${CLAUDE_PLUGIN_ROOT}/bin/gk-bridge" refresh`;
-it compiles without window focus). Exit 0 is a pass, 1 a fail, 2 unknown (no Editor, Play Mode,
-busy, timeout, stale compile). A change that does not compile is undone, not patched forward. On 2,
-stop after the current item: commit nothing as verified, and report "compile unverified" with the
-reason gk-bridge printed. Keep unrelated items out of the same edit so each one can be reverted
-alone.
+Edit, then gate the item on `gk-bridge refresh` in Bash (if not found:
+`bash "${CLAUDE_PLUGIN_ROOT}/bin/gk-bridge" refresh`; it compiles without window focus). Exit 0 is
+a pass, 1 a fail, 2 unknown (no Editor, Play Mode, busy, timeout, stale compile). A change that
+does not compile is undone, not patched forward. On 2, commit the current item as below but with
+`Verified: compile unverified (<reason gk-bridge printed>); diff checklist read; Play Mode pending`,
+then stop the pass: start no further item, and put the compile check under PLAN.md
+`## Pending Play Mode checks` with step 5's Play Mode lines. Keep unrelated items out of the same
+edit so each one can be reverted alone.
+
+On exit 0, check `Logs/agent/compile.log` before the commit, with the rule `pipeline` and `builder`
+use: compare per file by message (the text after `CSxxxx:`), never by line and column, which any
+edit above the call shifts, and never by total count (AgentBridge lists only the latest compile's
+messages, for the assemblies that recompiled). A `warning CS` whose message is not in that file's
+step-0 baseline, in a file this item touched, is the item's to fix before it is committed, like a
+compile failure (CS0618 means it used an obsolete API). Any warning already in the baseline is
+reported, not fixed in the pass: swapping an obsolete API can change behaviour. CS warnings live in
+`compile.log`; `console.log` is only for runtime warnings.
 
 Before each commit, read that item's own diff (`git diff -- <files>`) against the catalog's diff
 checklist (section 6); an item that fails it is fixed or undone before it reaches history. Then
 commit on main, staging only that item's files: `<area>: refactor <summary>` (area from the game's
 CLAUDE.md list: core, game, ui, ...), a body that says why, ending with
-`Verified: gk-bridge refresh PASS <time>; diff checklist read; Play Mode pending`. "No behaviour
+`Verified: gk-bridge refresh PASS <time>, no new CS warning; diff checklist read; Play Mode pending`. "No behaviour
 change" is a claim the Play Mode check in step 5 makes, not the compile gate; the ledger records
 that result.
 
@@ -120,9 +137,9 @@ that result.
    across items: flags still cleared at the top of every step, no early `return` skipping a reset,
    every renamed serialized field carrying its old name, no `in` parameter whose struct gained a
    non-`readonly` member.
-2. `compile.log` first line: `OK`, or a warning count no higher than the one noted in step 0, and
-   no `warning CS` line that was not there before (a new CS0618 means the pass used an obsolete
-   API). CS warnings live in `compile.log`; `console.log` is only for runtime warnings.
+2. Warnings were gated per item in step 4. List in the report the baseline warnings in files the
+   pass touched (reported, not fixed), and any item committed on exit 2, whose warnings went
+   unchecked.
 3. If Core was touched, ask once — one sentence — whether to run the EditMode suite this pass. A
    solver refactor is the case `unity-testing` allows; do not run it unasked.
 4. Hand the user the Play Mode list from `implementation-verification`: concrete actions and what
@@ -143,6 +160,14 @@ Then update `docs/refactor-pass-log.md` (create it on the first pass) in the one
 catalog's section 7 gives: move `last-pass` to `HEAD`, add a dated section, and append anything the
 user explicitly accepted as a trade-off to the single top-level *Accepted trade-offs* list so the
 next pass stays quiet about it.
+
+PLAN.md is the tracker; the ledger is the history. Write each Play Mode line under PLAN.md
+`## Pending Play Mode checks` (as `implementation-verification` requires), and each bug the user
+wants tracked under `## Known issues` with its severity tag from the game's CLAUDE.md; the ledger's
+*Play Mode check* and *Bugs seen* record the same lines for the pass, and when the two disagree
+PLAN.md wins. Commit the ledger and PLAN.md together, staged by path, as
+`tools: refactor-pass log <date>` with a body that says what the pass changed and
+`Verified: <the gates the pass ran>; Play Mode pending`.
 
 ## Guardrails
 

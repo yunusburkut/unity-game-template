@@ -21,7 +21,7 @@ when it is not an allocation.
 | `GetComponent<T>()`, `GetComponentInParent`, `GetComponentsInChildren` | Native call; the parent/children forms walk the hierarchy; the plural form allocates an array | Field | `Awake` |
 | `transform` | Native call per access | `Transform _transform` | `Awake` |
 | `Camera.main` | Tag search (cached internally since 2020, still a call) | `[SerializeField] Camera` | Inspector |
-| Animator parameter names | String hash per call | `static readonly int XHash = Animator.StringToHash("X")` | Static — immutable, so no reset needed |
+| Animator parameter names | String hash per call | `static readonly int XHash = Animator.StringToHash("X")` | Static — a readonly `int` is immutable, so no reset needed |
 | Shader property names | String hash per call | `static readonly int XId = Shader.PropertyToID("_X")` | Static |
 | Config → tuning | Struct copy | Field, rebuilt every frame only under `#if UNITY_EDITOR` (so Inspector tweaks are felt live) | `Awake` + editor `Update` |
 | Physics query results | Array allocation | Preallocated `Collider[]` / `RaycastHit[]` with the `NonAlloc` overload | Field initialiser |
@@ -54,7 +54,7 @@ that is not.
 | `.tag ==` | Allocates the tag string | `CompareTag` |
 | `.material` | Instantiates a material | `sharedMaterial` or `MaterialPropertyBlock` |
 | Lambda / `=>` with captured locals in a per-frame method | Display-class allocation | Method group or a cached delegate |
-| `static` field, not `readonly`/`const` | Survives Play sessions | `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]` reset |
+| `static` field, not `readonly`/`const`; or a `static readonly` collection, array or object (`readonly` fixes the reference, not its contents) | Survives Play sessions: a registry list keeps destroyed entries into the next Play | `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]` reset |
 | `Mouse.current` / `Touchscreen.current` / `UnityEngine.Input` | Works on one target only | Not a perf item: a platform bug. `<Pointer>` actions (`platform-targets`) |
 | `#if UNITY_ANDROID` / `UNITY_IOS` | Platform branch | Fine for a real platform API in one small Game file; a gameplay rule behind it is a bug |
 

@@ -2,7 +2,8 @@
 // Read-only: it changes no importer. Writes the table to <project>/Temp/asset-audit.txt (outside Assets/,
 // so no import) and returns the same text. Judge each row against unity-performance SKILL.md "Asset audit".
 // Ceiling: it lists every texture and clip under Folder in one pass; on a very large project set Folder to
-// one art folder (Assets/<Game>/Art) per run to stay inside the timeout.
+// one art folder (Assets/<Game>/Art) per run to stay inside the timeout. Vendored trees are skipped: their import
+// settings are the vendor's and an unreferenced file there never ships; add a folder to Vendored when a pack adds one.
 using System.IO;
 using System.Text;
 using UnityEditor;
@@ -12,6 +13,10 @@ public static class AssetAudit
 {
     const string Folder = "Assets";
     static readonly string[] Platforms = { "Standalone", "Android", "iPhone", "WebGL" };
+    static readonly string[] Vendored = { "Assets/Feel/", "Assets/Plugins/", "Assets/TextMesh Pro/" };
+
+    static bool IsVendored(string path) =>
+        System.Array.Exists(Vendored, v => path.StartsWith(v, System.StringComparison.Ordinal));
 
     public static string Run()
     {
@@ -23,6 +28,7 @@ public static class AssetAudit
         foreach (var guid in AssetDatabase.FindAssets("t:Texture", new[] { Folder }))
         {
             var path = AssetDatabase.GUIDToAssetPath(guid);
+            if (IsVendored(path)) continue;
             if (!(AssetImporter.GetAtPath(path) is TextureImporter ti)) continue;
             ti.GetSourceTextureWidthAndHeight(out var w, out var h);
             var def = ti.GetDefaultPlatformTextureSettings();
@@ -44,6 +50,7 @@ public static class AssetAudit
         foreach (var guid in AssetDatabase.FindAssets("t:AudioClip", new[] { Folder }))
         {
             var path = AssetDatabase.GUIDToAssetPath(guid);
+            if (IsVendored(path)) continue;
             if (!(AssetImporter.GetAtPath(path) is AudioImporter ai)) continue;
             var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(path);
             var d = ai.defaultSampleSettings;

@@ -63,7 +63,7 @@ the sources).
 
 ## Later
 
-- Several characters, each with its own cards.
+- Several characters, each with its own cards. [slay-7]
 - Written events with choices.
 - Harder levels opened by a win.
 - Card upgrades at rests.

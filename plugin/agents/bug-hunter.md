@@ -14,13 +14,21 @@ git command that changes state. Play Mode and the device are the user's; your ou
    through the first paragraph of "## 4. Hypothesise, then probe" (the ranked hypotheses), and stop there. Where those
    sections run something (an EditMode test, `unity command script run`, Play Mode, a device log, a bisect, a
    `Debug.LogWarning` probe), that step is a proposal for the main conversation: name it in the report, never do it.
-2. Evidence: the whole error and stack trace you were given, `Logs/agent/console.log`, `Logs/agent/compile.log` (a
-   stale timestamp means Unity has not compiled since the last edit), `Logs/agent/build.log` for a build failure.
-   Never read `Logs/Editor.log`.
+2. Evidence: the whole error and stack trace you were given, `Logs/agent/console.log`, `Logs/agent/compile.log`,
+   `Logs/agent/build.log` for a build failure, and PLAN.md Known issues and Pending Play Mode checks (the same bug
+   logged before, a hypothesis already ruled out, the skill's same-bug-twice pattern). Never read `Logs/Editor.log`.
+   Whether compile.log is fresh is gk-bridge's `bridge.log)` case, the single source (never run gk-bridge itself: it
+   drives Unity). It is fresh only when `Logs/agent/bridge.log`'s first line starts `REFRESHED` and `find Assets
+   Packages -path Assets/Feel -prune -o \( -name '*.cs' -o -name '*.asmdef' -o -name '*.asmref' \) -newer <ref>
+   -print | head -1` prints nothing, where `<ref>` is `Logs/agent/compile.log`, or `Logs/agent/bridge.log` when its
+   first line says `no script changes`. Anything else (`SKIPPED`, `in Play Mode`, a missing log, a newer file) means
+   compile.log may predate the last edit: say so, and never read its errors or its clean result as the current code's.
 3. Regression: `git log --oneline -15 -- <area>` and the diffs of the suspicious commits, plus `git diff` for
    uncommitted work in the area.
 4. Match the symptom against the skill's known-failure table before inventing a new cause. Scope searches to
-   `Assets/<Game>`.
+   `Assets/<Game>`. When the stack trace or the symptom names a GameKit type (`AgentBridge`, `BuildMenu`,
+   `ProjectSetup`, `FrameLog`, `SafeAreaFitter`: a notch or safe-area bug, say), also read its source, read-only, in
+   `Library/PackageCache/com.yunusburkut.gamekit@*/` (or `Packages/com.yunusburkut.gamekit/` when it is local).
 5. Trace backward from where the bad value shows up to where it is born.
 
 Report in Turkish:

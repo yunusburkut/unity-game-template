@@ -7,15 +7,19 @@ description: Feels floaty or slow ("his yok", "tok değil", "juice ekle"), addin
 
 The genre sets the band before any number is picked. Name it from `DESIGN.md`:
 
-- **Precision games** (platformer, puzzle, rhythm): forgiveness windows at the generous end, shake and hit stop at the
-  quiet end, nothing steals control to play an animation.
+- **Precision games** (platformer, real-time or timing puzzle, rhythm): forgiveness windows at the generous end, shake
+  and hit stop at the quiet end, nothing steals control to play an animation.
 - **Impact games** (brawler, action, shooter): hit stop, shake and flash carry the weight; still capped (below).
-- **Tap games** (mobile casual, puzzle, idle): the press itself is the verb. UI pop, sound and a light haptic on the
-  press frame matter more than any camera effect.
+- **Tap games** (mobile casual, turn-based or tap puzzle, idle): the press itself is the verb. UI pop, sound and a
+  light haptic on the press frame matter more than any camera effect.
 
-A brawler's numbers are wrong in a puzzle game even when they are correct numbers.
+A puzzle game is Precision when a clock or a moving hazard can beat the player, and Tap when nothing moves until the
+player acts (match-3, sliding, sorting, most mobile puzzles). A brawler's numbers are wrong in a puzzle game even when
+they are correct numbers.
 
-All the concrete values live in `references/numbers.md`: read it before picking any duration or magnitude. Sources
+All the concrete values live in `references/numbers.md`: before picking a duration or magnitude, read the section for
+the event, not the whole file (Contents at its top; the table below names the section per event, and starting
+profiles for platformer, tap puzzle, dodge roll, rhythm and impact games are in `references/numbers.md` §10). Sources
 and confidence levels are in `references/sources.md`; the layers, patterns and anti-patterns are in
 `references/feedback-stack.md`. Never invent a number that sounds plausible: take it from the reference, from the
 game's tuning ScriptableObject, or say it is a starting guess to tune in Play Mode.
@@ -63,6 +67,9 @@ rescues a weak mechanic: if it is not satisfying with placeholder feedback, the 
   Routine verbs may use shake, freeze or bloom at small magnitude; the rare events (the win, the big save, the final
   failure) get the largest. A silent win is a bigger bug than a loud jump.
 - **One event, one peak.** Audio, particles, camera, haptics and UI agree on timing and on one light/heavy threshold.
+  This skill picks what each sound must do; where the sound file comes from is the game CLAUDE.md `## Art` rule (ask
+  the user: own files, a licensed or CC0 pack, an approved generator; never a synthesised placeholder as final; a
+  `docs/asset-sources.md` row for anything not ours).
 - **Name what each effect communicates** and what breaks if it is removed. Remove anything that fails that question
   first.
 
@@ -86,23 +93,24 @@ rescues a weak mechanic: if it is not satisfying with placeholder feedback, the 
 
 ## Durations and magnitudes, at a glance
 
-Full tables with sources in `references/numbers.md`; these are the bands to stay inside.
+Full tables with sources in `references/numbers.md`; these are the bands to stay inside. Every value here is a copy
+of the `numbers.md` section in the § column, which owns it: retune there first, then here.
 
-| Event | Reach for | Notes |
-|---|---|---|
-| Jump launch stretch | Y 1.15–1.3, 60–120 ms | Volume preserving: X and Z by 1/sqrt(Y) |
-| Landing squash | Y 0.7–0.85, 80–150 ms | Scale by impact speed; a spring settles better than a tween |
-| Button / tap press | scale 0.92, 80–120 ms | On the press frame, EaseOutBack on release |
-| Dash start | freeze 0–3 frames, FOV +2–10° | Input stays live through the freeze |
-| Hit stop, light | 0.05 s (3 frames) | Anything the player initiated |
-| Hit stop, heavy | 0.10 s (6 frames) | Rare, meaningful events |
-| White flash | 50–100 ms | Counts toward the 3 flashes per second limit |
-| Screen shake | 0.1–0.3 s | ≤ 30 ms is unreadable, ≥ 150 ms on an ordinary hit blurs; rotation-dominant with a perspective camera, see below |
-| UI tween | 0.10–0.25 s in play, up to 0.3 s in menus | EaseOut by default |
-| Value / damage text | 1–2 s rise and fade | EaseOutQuad |
-| Coyote time | 0.08–0.15 s | Precision games lean generous |
-| Jump / action buffer | 0.08–0.20 s | Over 0.25 s causes unwanted actions |
-| Haptic on a tap | the lightest preset | One per meaningful press, never per frame (§8 of numbers) |
+| Event | Reach for | § | Notes |
+|---|---|---|---|
+| Jump launch stretch | Y 1.15–1.3, 60–120 ms | 4.1 | Volume preserving: X and Z by 1/sqrt(Y) |
+| Landing squash | Y 0.7–0.85, 80–150 ms | 4.1 | Scale by impact speed; a spring settles better than a tween |
+| Button / tap press | scale 0.92, 80–120 ms | 4.1 | On the press frame, EaseOutBack on release |
+| Dash start | freeze 0–3 frames, FOV +2–10° | 3.1, 5.1 | Input stays live through the freeze |
+| Hit stop, light | 0.05 s (3 frames) | 3.1 | Anything the player initiated |
+| Hit stop, heavy | 0.10 s (6 frames) | 3.1 | Rare, meaningful events |
+| White flash | 50–100 ms | 3.3 | Counts toward the 3 flashes per second limit |
+| Screen shake | ordinary hit 0.1–0.15 s, notable 0.15–0.25 s, rare up to 0.3 s | 3.2 | ≤ 30 ms is unreadable, over 150 ms on an ordinary hit blurs; rotation-dominant with a perspective camera, see below |
+| UI tween | 0.10–0.25 s in play, up to 0.3 s in menus | 4.4 | EaseOut by default |
+| Value / damage text | 1–2 s rise and fade | 3.3 | EaseOutQuad |
+| Coyote time | 0.08–0.15 s | 2.2 | Precision games lean generous |
+| Jump / action buffer | 0.08–0.20 s | 2.2 | Over 0.25 s causes unwanted actions |
+| Haptic on a tap | the lightest preset | 8 | One per meaningful press, never per frame |
 
 ## Screen shake: prefer the trauma model
 
@@ -148,12 +156,17 @@ The full list, with what each looks like, is `references/feedback-stack.md` §6 
 
 - No more than 3 flashes in any one second, and no saturated-red flashing.
 - Sliders, not toggles, for screen shake and full-screen effects (0–100 %, 100 default), plus a haptics switch.
-- The slider value multiplies intensity: set `MMF_Player.FeedbacksIntensity` or pass it into
-  `PlayFeedbacks(position, intensity)`, multiplied by the Mobile-tier shake factor, so one path serves both
-  (`feel-authoring`, `references/feel-api.md`).
-- Every Feel feedback class also has a static `FeedbackTypeAuthorized`: `MMF_CameraShake.FeedbackTypeAuthorized =
-  false` disables every camera shake at once. Use it for the 0 % end of the slider (and reset it in a
-  `SubsystemRegistration` method, since Play Mode domain reload is off).
+- The slider scales the shake path only: multiply it with the Mobile-tier shake factor into
+  `MMF_CameraShake.CameraShakeProperties.Amplitude`, the way `feel-authoring` scales shake per tier ("Shake less on a
+  phone"). Never route it through `PlayFeedbacks(position, intensity)` or `MMF_Player.FeedbacksIntensity`: that
+  intensity scales every feedback on the player (sound, dust, squash, haptics), carries the simulation's impact
+  magnitude, and gates `UseIntensityInterval` windows, so a 50 % slider would quieten the landing and drop heavy
+  shakes below their interval. `FeedbacksIntensity` is safe only on a player that holds nothing but screen effects.
+- Each Feel feedback class has its own static `FeedbackTypeAuthorized`: `MMF_CameraShake.FeedbackTypeAuthorized =
+  false` disables that one class, not every screen effect. For the 0 % end of the slider switch off together every
+  screen-motion class the game uses (`MMF_CameraShake`, `MMF_CinemachineImpulse`, `MMF_CameraZoom`,
+  `MMF_CameraFieldOfView`, `MMF_CameraOrthographicSize`, and `MMF_Flash` under the full-screen-effects slider), and
+  reset them in a `SubsystemRegistration` method, since Play Mode domain reload is off.
 
 ## Curves: which system for which job
 

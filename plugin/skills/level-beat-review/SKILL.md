@@ -1,6 +1,6 @@
 ---
 name: level-beat-review
-description: Level layout and critique ("bölümü yorumla", "level eleştir", "zorluk eğrisi", "sıkıcı mı"): rhythm, checkpoints, failure cost, teaching arc, replay. Use before building a level or hazard, or when playtesters quit. Full audit: design-critic.
+description: Laying out a level, pack or order ("bölüm tasarla", "zorluk eğrisi", "seviye sırası"): rhythm, checkpoints, failure cost, teaching arc, replay. Use before building a level, a hazard or level geometry. Critiquing one: design-critic agent.
 ---
 
 # Reviewing a game level before it exists
@@ -38,7 +38,7 @@ is allowed as rest between beats; it must be deliberate and short.
 | Level-based puzzle level | 30 s–3 min *(start)* | Mobile sessions are short; one level must fit in a bus stop. The 90 s segment cap does not apply: restart must be instant (or an undo), so a loss costs the replay to the failed move, not the level length |
 | Beats per segment | 3–5 *(start)* | Under 3 is filler; over 5 nothing lands |
 | A memorable moment | one per 60–90 s *(start)* | The level's real score |
-| Recoverable failure | next decision within **3–8 s** | Undo, a catch, a short fall: fixed in place |
+| Recoverable failure | next decision within 8 s *(start)*: 3–8 s for an in-world recovery, instant for an undo | A catch, a short fall: fixed in place. Owned here; the stakes scale (T1) and Verify point to this row. `game-feel` `references/numbers.md` §11 uses the same 3–8 s for multiplayer social timing |
 | Consequence beat | 2–3 s of quiet *(start)* | After a rescue or a cleared beat: the reaction is the content |
 | Filler | ≤ ~15 s *(start)* | Longer is dead air |
 | Reaction floor for any window | **240 ms** (sourced: `game-feel` `references/numbers.md`, which owns it) | Human perceive-decide-act loop |
@@ -64,7 +64,7 @@ One new idea per segment. The arc runs at two scales:
 
 Inside one segment (the tooth, DR03):
 
-1. **Safe teach**: the mechanic alone, nothing that can fail you (DR05).
+1. **Safe teach**: the mechanic alone, nothing worse than a tier-1 recovery (C ≤ 2, T ≤ 1: DR05).
 2. **Develop**: a harder form of it.
 3. **Twist**: a known mechanic used in a way the teach did not show (the peak), then the lap and the checkpoint.
 
@@ -78,9 +78,9 @@ Across later segments, the act and the world:
 
 ## Beat construction
 
-1. **Setup (2–4 s)**: the problem and the player in the same frame. A hazard first discovered by failing is an ambush.
+1. **Setup (2–4 s *(start)*)**: the problem and the player in the same frame. A hazard first discovered by failing is an ambush.
 2. **Commitment**: where backing out stops being free.
-3. **Resolution (1–3 s)**: loud: the fall, the catch, the near miss, the solve.
+3. **Resolution (1–3 s *(start)*)**: loud: the fall, the catch, the near miss, the solve.
 4. **Consequence**: the tier-1 recovery or the tier-2 return, then the exhale.
 
 Write every beat as a row of this table before building it:
@@ -104,7 +104,7 @@ controls it (picks a harder route) or not, and which of its numbers are Config k
 - **Death spiral**: a loss in one system makes the next harder (fewer resources, harder fight, fewer resources). Add
   a floor or a catch-up.
 - **First failure and first competence** are designed beats, both within the first hour (the first 5 minutes on
-  mobile). Early on, at most one new mechanic (a new verb or rule, not a segment's develop or twist step) per 5
+  mobile) *(start)*. Early on, at most one new mechanic (a new verb or rule, not a segment's develop or twist step) per 5
   minutes of play *(start)*.
 
 ## Difficulty is a dial, not a level rewrite
@@ -140,10 +140,10 @@ opening.
 
 | Ask | Rule |
 |---|---|
-| What comes after a peak? | A valley that asks a *different* question (DR04); the checkpoint is the first safe ground after it, and nothing after the peak can cost the peak (DR08); replay to the peak ≤ 60 s *(start)* (DR09) |
+| What comes after a peak? | A valley that asks a *different* question (DR04); the checkpoint is the first safe ground after it, and nothing after the peak can cost the peak (DR08); replay to the peak ≤ 60 s *(start)*, so a segment over 60 s puts its twist by then and the lap fills the rest (DR09) |
 | Where does a new mechanic go? | At a valley, alone; never under pressure or inside a combination; combine only what was met alone; retire a mechanic before it wears out (DR05–DR07) |
-| How hard may it get? | Critical-path ceiling C4 (DR11); peak steps ≤ +1 and a smooth start (DR12); showpieces rare, no two peaks in a row asking the same question (DR13) |
-| Acts and worlds | A valley segment between act peaks (DR14); a world opens with a hook below the last finale (DR15); set pieces fixed, taught moves only, low threat after (DR17); the finale (DR18); the game ratchets (DR19) |
+| How hard may it get? | Critical-path ceiling C4 (DR11); peak steps ≤ +1 and a smooth start (DR12); showpieces rare, no two peaks in a row asking the same question (DR13); the critical path never needs an optional skill (DR20) |
+| Acts and worlds | A valley segment between act peaks (DR14); a world opens with a hook below the last finale (DR15); no tier 2 in a world's opening ~30 s *(start)* (DR16); set pieces fixed, taught moves only, low threat after (DR17); the finale (DR18); the game ratchets (DR19) |
 | Trolls | Visible, cheap, identical on retry (DR22); a troll is a rationed twist (DR21); at most one per two segments, none in the first two or the finale (DR23) |
 | Multiplayer | A talk window before every peak (DR24); pace for the most stressed player, every role wins a beat (DR25); blame stays a joke (DR26); partner sabotage windows (DR27); rate at the minimum and maximum player count (DR28) |
 
@@ -156,8 +156,9 @@ A full critique of an existing level, pack or order goes to the read-only `desig
 runs these steps and §C in its own context. Inline in the main session, while laying a level out, use the beat table,
 the numbers and the anti-patterns; run the steps below yourself only when no agent can be spawned.
 
-1. **Gather**: the `## Levels` notes in `DESIGN.md`, moment sentences, clean times, and parameters read from the scene or
-   level data through `unity-editor-cli` (read-only). Say which values are documented (D), estimated (E) or measured
+1. **Gather**: the `## Levels` notes in `DESIGN.md`, moment sentences, clean times, and parameters read from scene,
+   prefab or level-data files as text (or through `unity-editor-cli`, read-only, when the Editor is open and you are in
+   the main session). Say which values are documented (D), estimated (E) or measured
    (M).
 2. **Map**: one row per beat: role, question, challenge C1–C5, stakes T0–T3, pressure, novelty, window, visible,
    relief, checkpoint. Never invent a number; an unmeasured C comes from the proxy rule, tagged E.
@@ -173,7 +174,7 @@ the numbers and the anti-patterns; run the steps below yourself only when no age
 |---|---|
 | Ambush beat | A hazard first seen by failing to it |
 | Segment loss for a slip | A tier-1 mistake sends the player back |
-| Two loss engines at once | A timer and a second loss engine load-bearing in the same beat |
+| Two loss engines at once | Two loss engines (timer, chase, fall, limited moves) load-bearing in the same beat |
 | Required item losable | Something the level needs can leave play for good |
 | Filler over ~15 s | Travel or waiting with nothing authored in it |
 | Segment over 90 s | Action checkpoint-to-checkpoint segment: players stop retrying. A puzzle level uses its own 30 s–3 min row |
@@ -192,14 +193,17 @@ the numbers and the anti-patterns; run the steps below yourself only when no age
 | Stall without a counter | One player can hold the group indefinitely |
 | Idle partner | One player waits > ~10 s with nothing to do *(start)* |
 | Works at 2, breaks at 4 | A beat whose rule needs exactly two players |
-| Unattributable failure | A stranger cannot name the cause within 1 s |
+| Unattributable failure | A stranger cannot name the cause within 1 s *(start)* |
 | Frame-tight online window | A window two machines must agree on under 1 s |
 
 ## Verify in Play Mode
 
 1. Record someone who has never played; count audible reactions per minute against one per 60–90 s.
-2. Time mistake → next decision; tier-1 must land in 3–8 s.
+2. Time mistake → next decision against the Recoverable failure row of The numbers.
 3. Count tier-1 recoveries against tier-2 failures per segment: a segment with no recoveries has no tier 1.
 4. Fail the same segment four times on purpose: do they still want to go again? Did a safe routine appear by the third
    try?
 5. Watch it muted, and on a phone at the narrowest aspect: what was lost and why, every time?
+6. A shipped or soft-launched mobile build with level analytics: read the per-level funnel (attempts to win, win rate,
+   quit rate). A jump between consecutive levels is M evidence for DR12 and the Mobile wall. Whether a game gets
+   analytics at all is the user's **Karar**.

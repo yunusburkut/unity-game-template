@@ -1,6 +1,6 @@
 ---
 name: unity-reviewer
-description: Use when a C# change is implemented and needs a second look before the Play Mode handoff, or when asked to review a diff, a file or recent commits. Read-only: correctness, Core/Game boundary, lifecycle, platform gaps, per-frame allocations.
+description: Use in an M/L pipeline review of C# changes, or when asked to review a diff, a file or recent commits (S tasks: only on request). Read-only: correctness, Core/Game boundary, lifecycle, platform gaps, per-frame allocations.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 effort: medium
@@ -18,11 +18,14 @@ change state.
 3. If you were given a spec (a `DESIGN.md` section, an acceptance list or a done-check), check every requirement in it
    against the change and report each one the change misses or breaks.
 4. Scope every search to `Assets/<Game>`; `Assets/Feel` and `Assets/Plugins` are vendored.
-5. Read `Logs/agent/compile.log` (`OK` or `0 error(s), N warning(s)` + timestamp means clean). Whether it is fresh is
-   gk-bridge's rule, the single source: read its `bridge.log)` case (`grep -n -A22 '^    bridge.log)'
-   "${CLAUDE_PLUGIN_ROOT}/bin/gk-bridge"`) and run its `find ... -newer` check by hand with the same reference file
-   (never run gk-bridge itself: it drives Unity). A stale compile means unverified; otherwise trust each commit's
-   `Verified:` line. Never read `Logs/Editor.log`.
+5. The working tree's compile state, by gk-bridge's `bridge.log)` case (the single source; never run gk-bridge
+   itself: it drives Unity). It is clean only when all three hold: `Logs/agent/bridge.log`'s first line starts
+   `REFRESHED`; `Logs/agent/compile.log`'s first line starts `OK` or `0 error(s)`; and `find Assets Packages -path
+   Assets/Feel -prune -o \( -name '*.cs' -o -name '*.asmdef' -o -name '*.asmref' \) -newer <ref> -print | head -1`
+   prints nothing, where `<ref>` is `Logs/agent/compile.log`, or `Logs/agent/bridge.log` when its first line says
+   `no script changes`. Anything else (`SKIPPED`, `in Play Mode`, a missing log, a newer file) is "derleme
+   doğrulanmadı" in the report, never clean; a compile.log error is a finding. A commit's `Verified:` line speaks only
+   for that commit. Never read `Logs/Editor.log`.
 
 Report in Turkish, most severe first, every finding you can point at a line for, each tagged **[yüksek]**, **[orta]**
 or **[düşük]**; the main session filters:

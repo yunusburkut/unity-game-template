@@ -3,11 +3,15 @@
 # pipeline gate is one command instead of a hand-written poll loop.
 #
 #   gk-bridge refresh                  import + compile; pass = compile.log clean AND newer than every .cs/.asmdef
-#   gk-bridge compile android|ios      type-check the #if UNITY_ANDROID / UNITY_IOS code (compile-player.log)
+#   gk-bridge fresh                    read-only: refresh's verdict on the last refresh, nothing sent to Unity
+#                                      (is compile.log the current code's? reviewers run this; no Editor needed)
+#   gk-bridge compile android|ios|webgl  type-check the #if UNITY_ANDROID / UNITY_IOS / UNITY_WEBGL code
+#                                      (compile-player.log; webgl needs GameKit 0.1.3+, older ones answer unknown)
 #   gk-bridge play-capture [seconds]   enter Play Mode, 3 screenshots + errors, leave (capture.log)
 #   gk-bridge run-tests [playmode]     refresh gate, then the whole EditMode / PlayMode suite  - ask first, background
 #   gk-bridge build <target> [dev]     windows|android|aab|ios|webgl (build.log)               - ask first, background
 #   -t <seconds>                       deadline: default 110 (fits the Bash tool's 120 s), run-tests 600, build 1200
+#                                      (run-tests: its refresh gate gets its own -t first, then the tests get theirs)
 #
 # Prints "gk-bridge: PASS|FAIL|UNKNOWN <request> (<n>s)" and the log head.
 # Exit 0 = pass, 1 = fail (the log says why), 2 = unknown (no Editor, Play Mode, busy, timeout, stale compile, a
@@ -15,12 +19,13 @@
 # Environment (tests and the run-tests self-call only, never set by hand): GK_BRIDGE_ROOT replaces the git top level
 # as the project root; GK_BRIDGE_EDITOR_OK=1 skips the Editor lock probe (one PowerShell start), because the caller
 # already ran it or a fixture stands in for the Editor.
-# Ceiling: compile freshness compares file times only, and a compile that starts after AgentBridge's settle time reads
-# as "no script changes"; the Editor is detected through Temp/UnityLockfile, so an Editor stuck behind a modal dialog
-# shows up as a request never taken.
+# Ceiling: compile freshness compares file times only, and a script saved before the request whose compile starts
+# after AgentBridge's settle time (2 s, plus 8 s once when a script is newer than compile.log) reads as "no script
+# changes" (one saved after the request reads as unknown); the Editor is detected through Temp/UnityLockfile, so an
+# Editor stuck behind a modal dialog shows up as a request never taken.
 set -u
 
-usage() { sed -n '5,10p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { grep -e '^#   gk-bridge ' -e '^#   -t ' -e '^#                                      (' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 timeout=''
 if [ "${1:-}" = '-t' ]; then
     [ $# -ge 2 ] || usage
@@ -28,9 +33,11 @@ if [ "${1:-}" = '-t' ]; then
     case "$timeout" in ''|*[!0-9]*) usage ;; esac
 fi
 req="$*"
+ro=""
 case "$req" in
     refresh)                         log=bridge.log ;;
-    'compile android'|'compile ios') log=compile-player.log ;;
+    fresh)                           log=bridge.log; ro=1 ;;
+    'compile android'|'compile ios'|'compile webgl') log=compile-player.log ;;
     run-tests|'run-tests playmode')  log=tests.log; : "${timeout:=600}" ;;
     *)  if [[ $req =~ ^play-capture(\ [0-9]+)?$ ]]; then log=capture.log
         elif [[ $req =~ ^build\ [a-z]+(\ dev)?$ ]]; then log=build.log; : "${timeout:=1200}"   # AgentBridge checks the target (BuildMenu.TargetNames)
@@ -61,7 +68,7 @@ editor_open() {
     powershell.exe -NoProfile -NonInteractive -Command \
         "try { [IO.File]::Open('$w','Open','Read','None').Dispose(); exit 1 } catch { exit 0 }" >/dev/null 2>&1
 }
-[ "${GK_BRIDGE_EDITOR_OK:-}" = 1 ] || editor_open || unknown "Unity Editor is not running on this project: open it (compile state cannot be checked)"
+[ -n "$ro" ] || [ "${GK_BRIDGE_EDITOR_OK:-}" = 1 ] || editor_open || unknown "Unity Editor is not running on this project: open it (compile state cannot be checked)"
 
 mtime() { stat -c %Y "$1" 2>/dev/null || echo 0; }
 first() { head -1 "$1" 2>/dev/null | tr -d '\r'; }
@@ -79,16 +86,23 @@ if [ "$log" = tests.log ]; then
     if [ -f "$d/bridge.log" ] || gamekit; then GK_BRIDGE_ROOT="$root" GK_BRIDGE_EDITOR_OK=1 "$0" -t "$timeout" refresh || exit $?
     else gate=' (no refresh gate: no GameKit and no bridge.log, so this AgentBridge copy may not know refresh and the compile was not checked first)'; fi
 fi
-started=$(date +%s)   # the pickup window below starts after the gate; deadline still bounds both
+started=$(date +%s)   # the pickup window and the deadline start after the gate: a long import there costs the tests nothing
+deadline=$((started + timeout))
+
+# fresh sends nothing: the last refresh's answer is judged as it stands, bridge.log's time standing in for its
+# request's (the block up to "fi # request" is the request path, left unindented)
+if [ -n "$ro" ]; then t0=$(mtime "$d/bridge.log"); else
 
 # one request at a time: a build in progress keeps request.txt unread until it ends
 case "$(first "$d/build.log")" in PENDING*) unknown "a build is running (build.log PENDING); wait for it (PENDING for over 20 min: a build that never started, restarting Unity closes it)" ;; esac
-case "$(first "$d/capture.log")" in PENDING*) unknown "a play-capture is running (capture.log PENDING); wait for it (restarting Unity closes one that never ends)" ;; esac
+case "$(first "$d/capture.log")" in PENDING*) unknown "a play-capture is running (capture.log PENDING); wait for it (one whose Play Mode never starts ends FAILED after 30 s; restarting Unity closes one that never ends)" ;; esac
 # a refresh or capture under a running test job would test a mix of old and new code; AgentBridge also holds requests
-# then. A RUNNING line older than the run-tests deadline is a run that never reported: not a reason to wait.
+# then. A RUNNING line not written for $hold s is a run that never reported: not a reason to wait. The hold is
+# AgentBridge.TestRunOpen's AddMinutes(-10) (packages/com.yunusburkut.gamekit/Editor/AgentBridge.cs); change both together.
+hold=600
 case "$(first "$d/tests.log")" in RUNNING*)
-    [ $(( $(date +%s) - $(mtime "$d/tests.log") )) -lt 600 ] &&
-        unknown "a test run is in progress (tests.log RUNNING); wait for its result (a run cancelled in Unity's Test Runner window holds this up to 10 min; restarting Unity clears it)" ;;
+    [ $(( $(date +%s) - $(mtime "$d/tests.log") )) -lt $hold ] &&
+        unknown "a test run is in progress (tests.log RUNNING); wait for its result (a run cancelled in Unity's Test Runner window holds this up to $((hold / 60)) min; restarting Unity clears it)" ;;
 esac
 joined=0
 while [ -e "$d/request.txt" ]; do
@@ -135,6 +149,7 @@ while :; do
     [ "$(date +%s)" -lt "$deadline" ] || unknown "no answer in $timeout s; $log says: $(first "$d/$log")"
     sleep 1
 done
+fi # request
 
 secs=$(( $(date +%s) - started ))
 status=$(first "$d/$log")
@@ -142,12 +157,14 @@ out=$log
 verdict=PASS
 case "$log" in
     bridge.log)
-        ref="$d/compile.log"
+        newer=(-newer "$d/compile.log"); since="compile.log ($(first "$d/compile.log")) is older than"
         case "$status" in
             *'in Play Mode'*|SKIPPED*) verdict=UNKNOWN ;;
             REFRESHED*)
-                # "no script changes": the import saw every edit and none needed a compile, so the refresh is fresh
-                case "$status" in *'no script changes'*) ref="$d/bridge.log" ;; esac
+                # "no script changes": the import saw every edit saved before the request and none needed a compile;
+                # one saved after it (during the settle wait, before bridge.log) was not in that import
+                case "$status" in *'no script changes'*)
+                    newer=(-newermt "@$t0"); since="the refresh saw no script changes, but this was saved after its request:" ;; esac
                 out=compile.log; status=$(first "$d/compile.log")
                 case "$status" in
                     OK*|'0 error(s)'*) ;;
@@ -157,10 +174,10 @@ case "$log" in
         esac
         if [ "$verdict" = PASS ]; then
             stale=$(find "$root/Assets" "$root/Packages" -path "$root/Assets/Feel" -prune -o \
-                \( -name '*.cs' -o -name '*.asmdef' -o -name '*.asmref' \) -newer "$ref" -print 2>/dev/null | head -1)
+                \( -name '*.cs' -o -name '*.asmdef' -o -name '*.asmref' \) "${newer[@]}" -print 2>/dev/null | head -1)
             if [ -n "$stale" ]; then
                 verdict=UNKNOWN
-                status="compile.log ($status) is older than ${stale#"$root/"}: that edit has not been compiled"
+                status="$since ${stale#"$root/"}: that edit has not been compiled"
             fi
         fi ;;
     # the platform must match: another caller's compile of the other platform can answer in the same log

@@ -17,7 +17,7 @@ Understand existing Unity uGUI, make targeted edits, and generate new Canvas-bas
 <!-- END HOUSE -->
 
 When working with ScrollRect/ScrollView, read the reference file:
-- `references/scrollview-setup.md` — Required hierarchy, setup rules, and common failures
+- [references/scrollview-setup.md](references/scrollview-setup.md) — Required hierarchy, setup rules, and common failures
 
 ## Scope
 
@@ -51,7 +51,7 @@ Determine what the user is asking for:
 - Other namespaces in the project can cause ambiguous type errors
 
 **Verify before modifying:**
-- Always check what currently exists before making changes
+- Always check what exists before making changes
 - Confirm parent objects exist before adding children
 - Verify components are present before modifying properties
 - Never assume hierarchy state — query it first
@@ -83,10 +83,12 @@ Determine what the user is asking for:
 
 **Follow project patterns first.** Search existing files before applying defaults.
 
+<!-- BEGIN HOUSE -->
 | Type | Convention | Good | Bad |
 |------|------------|------|-----|
 | GameObject names | PascalCase | `SubmitButton` | `submit-button` |
-| Prefab paths | Feature folders | `Assets/UI/Inventory/` | `Assets/Prefabs/UI/` |
+| Prefab paths | Feature folders inside the game folder | `Assets/<Game>/UI/Inventory/` | `Assets/Prefabs/UI/`, `Assets/UI/` |
+<!-- END HOUSE -->
 
 ## Workflow
 
@@ -111,7 +113,7 @@ Canvas (Screen Space - Overlay or Camera)
 **CanvasScaler settings:**
 - Default to UI Scale Mode "Scale With Screen Size" unless the project has a specific reason for "Constant Pixel Size" (e.g., pixel-art, fixed-resolution targets)
 <!-- BEGIN HOUSE -->
-- Reference Resolution: in the game's main orientation from CLAUDE.md (1080x1920 portrait, 1920x1080 landscape); match an existing Canvas in the project first
+- Reference Resolution: in the game's main orientation from CLAUDE.md (1080x1920 portrait, 1920x1080 landscape); match an existing Canvas in the project first. Orientation still TODO and no Canvas yet: 1920x1080 (the default landscape window, `platform-targets`), and tell the user the orientation is open, since locking portrait later means 1080x1920
 - Screen Space - Camera: assign the camera that renders the UI (`Canvas.worldCamera`); the reference resolution still comes from the Canvas Scaler, not the camera
 - Match Width Or Height: 0.5 (balanced)
 - Interactive content goes under a full-stretch child with `SafeAreaFitter` (GameKit); backgrounds stay outside it, full-bleed. Letterboxing, orientation and touch sizes: `platform-targets`
@@ -200,7 +202,9 @@ When the user describes a position (e.g., "top right", "bottom bar", "left side"
 
 - Use TextMeshPro for all text (not legacy Text)
 - WorldSpace UI that have text should also use Text Mesh Pro, be sure to review the project and import the TMP essentials if they are not present in the project
-- If the TextMeshPro Essentials were imported be sure to close the TMP Importer Windows and the Import Unity Package Window once the assets are imported
+<!-- BEGIN HOUSE -->
+- Import the TMP Essentials only through the non-interactive `ImportResources` call below; it opens no TMP Importer or Import Unity Package window, so there is nothing to close (an interactive import opened by the user still needs both closed before the Editor accepts commands)
+<!-- END HOUSE -->
 - Organize hierarchy logically (Header, Content, Footer)
 - Use Layout Groups instead of manual positioning where possible
 - Set Raycast Target = false on non-interactive images
@@ -216,7 +220,9 @@ When the user describes a position (e.g., "top right", "bottom bar", "left side"
 
 **Never use** `EditorApplication.ExecuteMenuItem("Window/TextMeshPro/Import TMP Essential Resources")`, unless the user asks for an interactive TMP Essentials installation. It opens a modal dialog that blocks whatever invoked it until a human dismisses it.
 
-**Do not use** `AssetDatabase.ImportPackage()` for TMP resources, instead `TMP_PackageResourceImporter.ImportResources()` is the canonical non-interactive API.
+<!-- BEGIN HOUSE -->
+**Do not use** `AssetDatabase.ImportPackage()` for TMP resources, instead `TMPro.TMP_PackageResourceImporter.ImportResources(importEssentials: true, importExamples: false, interactive: false)` is the canonical non-interactive API (Editor only; run it once through `script run` when `Assets/TextMesh Pro` is missing, then let the import finish before creating TMP text).
+<!-- END HOUSE -->
 
 ## Interaction Readiness
 
@@ -241,8 +247,15 @@ what Back does. Empty = one image from the game's art, one line, one action.
 - Esc, the Android back button and the close button do the same thing (`platform-targets`). With one menu, Back
   closes it; a screen stack (Push, Pop) waits for nested screens. At the root, Back asks to quit on PC and Android;
   iOS and WebGL have no quit.
-- Opening a screen selects its one primary button (`EventSystem.current.SetSelectedGameObject`), so the keyboard
-  works at once. PC can be driven keyboard-only.
+- Selection on open (this skill owns it, with or without a gamepad, since PC can be driven keyboard-only): opening a
+  screen selects its one primary button (`EventSystem.current.SetSelectedGameObject`) when the last input was
+  keyboard or gamepad, so the keyboard works at once; after touch or mouse input leave nothing selected (a touch build
+  would show a stuck Selected tint). So leave the `EventSystem`'s First Selected empty, since it selects
+  unconditionally. Track the last input in one place: `InputSystem.onActionChange`, on
+  `InputActionChange.ActionPerformed`, sets `lastWasPointer = ((InputAction)obj).activeControl?.device is Pointer`
+  (`Pointer` covers mouse, touch and pen; keyboard and gamepad are not). When a navigate or submit input arrives while
+  nothing is selected, select the screen's primary button (the re-selection after a switch back from the pointer).
+  Gamepad bindings and glyphs: `platform-targets`.
 - Closing a sub-screen or a modal returns the selection to the button that opened it.
 - A modal blocks input behind it with a full-screen raycast blocker image. The only modal confirms a destructive
   action: focus on Cancel, never used as a hint (`player-clarity` §F).
@@ -253,7 +266,9 @@ what Back does. Empty = one image from the game's art, one line, one action.
 - No loading indicator for a load under 2 s; above that, show one. Never a blank black screen.
 - Error text never blames the player and never says "invalid": it says what to do.
 - Labels leave room for 40 % longer text (`player-clarity` CL28).
-- Mouse targets at least 32 px; touch targets per `platform-targets`. A swipe never starts in a system gesture edge.
+- Mouse targets at least 32 screen px at the smallest supported window, so 32 / (that window's CanvasScaler scale)
+  reference px: 64 px at the 1080 reference when a 960x540 WebGL canvas is supported, 32 px when 1920x1080 is the
+  smallest; touch targets per `platform-targets`. A swipe never starts in a system gesture edge.
 <!-- END HOUSE -->
 
 ## Understanding

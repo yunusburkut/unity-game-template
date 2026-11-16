@@ -5,7 +5,8 @@
 #   survey.sh <git-ref>       scope = commits since <git-ref>
 #   survey.sh --all           scope = every .cs under the game folder (Editor and Tests included,
 #                             Prototypes never: throwaway code the prototype skill owns)
-#   survey.sh ... --editor    include the game's Editor folder in the smell grep (readability only)
+#   survey.sh ... --editor    include the game's Editor folder in the smell grep (readability only);
+#                             the obsolete-API grep always covers Editor code (unity-code-review item 11)
 #
 # The game folder is the one under Assets/ that holds the *.Core.asmdef (Assets/<Game>), found at
 # run time so the script needs no renaming. Prints, in order: the scope (commits + files), the
@@ -83,9 +84,10 @@ printf '%s\n' "$FILES" | while read -r f; do
 done
 
 # Runtime scope for the smell grep: drop Tests always, Editor unless asked, deleted files always.
-RUNTIME="$(printf '%s\n' "$FILES" | grep -v "$ROOT/Tests/" || true)"
+# WITH_EDITOR keeps Editor code for the obsolete-API grep only: an obsolete call there is still item 11.
+WITH_EDITOR="$(printf '%s\n' "$FILES" | grep -v "$ROOT/Tests/" | while read -r f; do [ -f "$f" ] && printf '%s\n' "$f"; done)"
+RUNTIME="$WITH_EDITOR"
 if [ "$EDITOR" -eq 0 ]; then RUNTIME="$(printf '%s\n' "$RUNTIME" | grep -v "$ROOT/Editor/" || true)"; fi
-RUNTIME="$(printf '%s\n' "$RUNTIME" | while read -r f; do [ -f "$f" ] && printf '%s\n' "$f"; done)"
 
 echo
 echo "================ EXECUTION ORDER (whole Game assembly)"
@@ -104,17 +106,18 @@ if [ -d "$ROOT/Game" ]; then
 fi
 echo "  (unlisted MonoBehaviours run at 0)"
 
-if [ -z "$RUNTIME" ]; then
+if [ -z "$WITH_EDITOR" ]; then
   echo
-  echo "No runtime files in scope; smell grep skipped."
+  echo "No runtime or Editor files in scope; smell grep skipped."
   exit 0
 fi
 
-# grep helper: pattern, label, [exclude pattern]. Strips comment-only lines so doc comments do
-# not trigger; the optional third argument drops known-benign shapes for that smell.
+# grep helper: pattern, label, [exclude pattern], [file list, default RUNTIME]. Strips comment-only
+# lines so doc comments do not trigger; the optional third argument drops known-benign shapes.
 smell() {
-  local pattern="$1" label="$2" exclude="${3:-}" hits
-  hits="$(printf '%s\n' "$RUNTIME" | tr '\n' '\0' | xargs -0 grep -nH -E "$pattern" 2>/dev/null \
+  local pattern="$1" label="$2" exclude="${3:-}" files="${4-$RUNTIME}" hits
+  [ -n "$files" ] || return 0
+  hits="$(printf '%s\n' "$files" | tr '\n' '\0' | xargs -0 grep -nH -E "$pattern" 2>/dev/null \
           | grep -vE '^[^:]+:[0-9]+:[[:space:]]*(//|/\*|\*)' || true)"
   if [ -n "$exclude" ] && [ -n "$hits" ]; then
     hits="$(printf '%s\n' "$hits" | grep -vE "$exclude" || true)"
@@ -127,15 +130,21 @@ smell() {
 }
 
 echo
-echo "================ MUTABLE STATICS (need a SubsystemRegistration reset unless readonly/const)"
-printf '%s\n' "$RUNTIME" | tr '\n' '\0' | xargs -0 grep -nH -E '^\s*(public|private|protected|internal)?\s*static\s+[][A-Za-z_<>, ]+\s+[A-Za-z_][A-Za-z0-9_]*\s*(=([^>=]|$)|;|\{)' 2>/dev/null \
-  | grep -vE 'readonly|const|static\s+(void|class|bool|int|float|string|[A-Za-z<>]+)\s+[A-Za-z_]+\s*\(' \
-  | sed 's/^/  /' || true
+echo "================ MUTABLE STATICS (need a SubsystemRegistration reset; const and readonly scalars dropped)"
+# readonly fixes the reference, not what it points at: a `static readonly List<T>` registry keeps
+# destroyed entries into the next Play session (domain reload off), so only readonly value types
+# with no mutable contents are dropped. Any other readonly line is listed with a label.
+if [ -n "$RUNTIME" ]; then
+  printf '%s\n' "$RUNTIME" | tr '\n' '\0' | xargs -0 grep -nH -E '^\s*((public|private|protected|internal|new|unsafe|volatile)\s+)*(readonly\s+)?static\s+[][A-Za-z0-9_<>,.? ]+\s+[A-Za-z_][A-Za-z0-9_]*\s*(=([^>=]|$)|;|\{)' 2>/dev/null \
+    | grep -vE '\bconst\b|static\s+(void|class|bool|int|float|string|[A-Za-z<>]+)\s+[A-Za-z_]+\s*\(' \
+    | grep -vE '\breadonly\s+(static\s+)?(bool|byte|sbyte|char|short|ushort|int|uint|long|ulong|float|double|decimal|string|Vector[234](Int)?|Quaternion|Color(32)?|LayerMask|PropertyName)\??\s+[A-Za-z_]' \
+    | sed -E '/\breadonly\b/s/$/   <- readonly reference, mutable contents/; s/^/  /' || true
+fi
 
 echo
 echo "================ PLATFORM (works on one target only — see platform-targets)"
 smell 'Mouse\.current|Touchscreen\.current|Keyboard\.current'          'Device reads — gameplay binds <Pointer> actions; Keyboard only as a PC extra or the Android back key'
-smell 'UnityEngine\.Input\.|\bInput\.(GetKey|GetMouse|GetAxis|GetButton|GetTouch|touches|touchCount|mousePosition)' 'Old Input manager — switched off, throws at runtime'
+smell 'UnityEngine\.Input\.|\bInput\.[A-Za-z]+' 'Old Input manager — switched off, throws at runtime'
 smell '#if\s+.*UNITY_(ANDROID|IOS|STANDALONE|WEBGL)'                   'Platform branches — a real platform API only, never a rule'
 smell 'OnApplicationQuit'                                                'OnApplicationQuit — phones rarely call it; save in OnApplicationPause(true)'
 smell 'Application\.Quit\('                                              'Application.Quit — never on iOS'
@@ -145,7 +154,7 @@ echo "================ SMELL HITS (read the enclosing method before acting)"
 smell 'GetComponent(s)?(InChildren|InParent)?<'                         'GetComponent family — fine in Awake, cache elsewhere'
 smell 'FindFirstObjectByType|FindAnyObjectByType|FindObjectsByType|GameObject\.Find|FindWithTag|Camera\.main' 'Scene scans / Camera.main — Inspector reference instead'
 smell '\.tag\s*(==|!=)'                                                  'tag compare — CompareTag'
-smell '\.material\b'                                                     'renderer.material — instantiates; use sharedMaterial / MaterialPropertyBlock'
+smell '\.materials?\b'                                                   'renderer.material(s) — instantiates; use sharedMaterial / MaterialPropertyBlock'
 smell '\$"|string\.Format\(|string\.Concat\(|\+\s*"|"\s*\+'              'String building — allocation if per frame (attribute text and const literals already dropped)' \
       '\[(Tooltip|Header|CreateAssetMenu|MenuItem)\(|const\s+string|^[^:]+:[0-9]+:[[:space:]]*"'
 smell 'new (List|Dictionary|HashSet|Queue|Stack)<|new [A-Z][A-Za-z0-9_]*\[[^]]*\]' 'Collection / array construction — hoist to a field if per frame'
@@ -161,7 +170,8 @@ smell 'Time\.deltaTime'                                                  'deltaT
 smell '\bin\s+[A-Z][A-Za-z]*Tuning\b'                                    'in-tuning parameters — every computed member on the struct must be readonly'
 # Mirrors the rename list in unity-code-review SKILL.md item 11, which is the source: add a rename
 # there first, then here. scripts/test-survey.sh checks that every name it lists is matched.
-smell '\.(velocity|drag|angularDrag)\b|\bPhysicMaterial\b|FindObjectsOfType|FindObjectOfType|FindFirstObjectByType|FindObjectsSortMode|GetInstanceID|InstanceIDToObject|CinemachineVirtualCamera|Cinemachine(Transposer|FramingTransposer|Composer|FreeLook)\b|OnCameraSetup|Execute\(ScriptableRenderContext|cameraColorTargetHandle|\bWWW\b|Application\.LoadLevel' 'obsolete API, pre-Unity-6 or obsoleted by 6000.6 (.velocity/.drag only on Rigidbody/Rigidbody2D; CharacterController/NavMeshAgent .velocity are fine) — see unity-code-review item 11'
+smell '\.(velocity|drag|angularDrag)\b|\bPhysicMaterial(Combine)?\b|FindObjectsOfType|FindObjectOfType|FindFirstObjectByType|FindObjectsSortMode|GetInstanceID|InstanceIDToObject|CinemachineVirtualCamera|Cinemachine(Transposer|FramingTransposer|Composer|FreeLook)\b|^\s*using Cinemachine;|Cinemachine(OrbitalTransposer|POV|TrackedDolly|Collider)\b|\.m_(Follow|LookAt|Lens)\b|OnCameraSetup|Execute\(ScriptableRenderContext|cameraColorTargetHandle|\bWWW\b|Application\.LoadLevel' 'obsolete API, pre-Unity-6 or obsoleted by 6000.6 (.velocity/.drag only on Rigidbody/Rigidbody2D; CharacterController/NavMeshAgent .velocity are fine; Editor code included) — see unity-code-review item 11' \
+      '' "$WITH_EDITOR"
 
 echo
 echo "================ DONE"

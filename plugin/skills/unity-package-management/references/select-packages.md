@@ -1,7 +1,7 @@
 # Selecting packages
 
 Turn a game concept — genre, look, target platforms, monetization — into a concrete package
-list, then install it via the C# PackageManager Client API (see the main `SKILL.md`).
+list, then install it through the `package` commands or the C# PackageManager Client API (see the main `SKILL.md`).
 
 **Check `packs/` in unity-game-template first.** A pack's `packages.json` is the source for its dependencies (pinned
 versions, scoped registries); `new-game.ps1 -Packs <name>` merges it into a new game's manifest. For an existing game,
@@ -25,11 +25,12 @@ installing — see [Discovering and verifying packages](#discovering-and-verifyi
 
 Two ways to search, depending on whether the Editor is involved:
 
-**In-Editor — the PackageManager Client API (preferred).** `Client.SearchAll()` returns every
+**In-Editor (preferred).** With the Editor open, `unity command package search --query <id>` (or no query for
+all) asks the same registries through the Pipeline package (see the main `SKILL.md`). Headless, `Client.SearchAll()` returns every
 package available in the project's configured registries (the Unity registry plus any scoped
 registries), each with all its versions and metadata — this is what the Package Manager
 window's search filters over. `Client.Search("<id>")` inspects a single package. Use the
-ready-to-run `PackageSearch` script in the main `SKILL.md` to discover candidates and verify
+ready-to-run `PackageSearch` script in [headless.md](headless.md#discovering--verifying-packages) to discover candidates and verify
 ids/versions before building the install list.
 
 **Terminal — query the npm-compatible registry directly** (no Editor needed) to confirm a
@@ -61,7 +62,7 @@ HTTP (the npm `-/v1/search` endpoint is not available — it 404s). For keyword 
 | Need | Package | Notes |
 |---|---|---|
 | Modern input | `com.unity.inputsystem` | Preferred over the legacy Input Manager. |
-| Text / UI | `com.unity.ugui` | uGUI + TextMeshPro (bundled). UI Toolkit ships with the Editor. |
+| Text / UI | `com.unity.ugui` | uGUI + TextMeshPro (bundled). UI Toolkit ships with the Editor. Use one of these for HUDs and menus, never `OnGUI`. |
 | Camera framing | `com.unity.cinemachine` | Great for almost any 3D and many 2D games. Unity 6 uses Cinemachine 3.x (`Unity.Cinemachine` namespace); 2.x samples do not apply. |
 | Testing | `com.unity.test-framework` | Enables `unity test`; usually already present. |
 | Large/streamed assets | `com.unity.addressables` | Add when the game has many assets or needs content updates. Rules below. |
@@ -73,13 +74,19 @@ by loading context (menu, level N, shared, always loaded), not by asset type. LZ
 downloads. Load scenes with `Addressables.LoadSceneAsync` and release them on unload. Test in both the "Use Asset
 Database" and "Use Existing Build" play modes: only the second matches the device.
 
-## Render pipeline (pick one; usually set by the template)
+## Render pipeline (set by the template; do not add or swap it here)
 
-| Choice | Package | Use when |
+Every game made from unity-game-template is URP (the skeleton manifest pins URP; GameKit ProjectSetup creates
+and assigns its pipeline assets).
+Installing `com.unity.render-pipelines.universal` into a Built-in project does **not** switch pipelines: no URP asset
+gets assigned, and materials render pink. Changing the pipeline of an existing project is a migration, not a package
+add: ask the user first. The rows below are for reading a `manifest.json`, not for adding packages:
+
+| Choice | Package | Notes |
 |---|---|---|
-| **URP** (Universal) | `com.unity.render-pipelines.universal` | Default for most 2D/3D, mobile, and WebGL. Broadest platform reach. |
+| **URP** (Universal) | `com.unity.render-pipelines.universal` | The template's pipeline, for 2D/3D, mobile, and WebGL. |
 | **HDRP** (High-Definition) | `com.unity.render-pipelines.high-definition` | High-fidelity PC/console only. Not for mobile/WebGL. |
-| **Built-in** | (none) | Simplest/legacy; fine for tiny prototypes. |
+| **Built-in** | (none) | Legacy; not used by the template. |
 
 ## By dimension & look
 
@@ -95,12 +102,12 @@ Database" and "Use Existing Build" play modes: only the second matches the devic
 
 | Genre | Typical additions |
 |---|---|
-| Platformer / action | URP, Input System, Cinemachine, 2D packages (if 2D), AI Navigation (if 3D) |
-| Puzzle / match / card | URP or 2D packages, Input System, uGUI/TextMeshPro, Timeline (juice) |
-| Top-down / twin-stick | URP, Input System, Cinemachine, AI Navigation |
-| RPG / adventure | URP, Input System, Cinemachine, AI Navigation, Addressables, Timeline |
-| Racing / physics | URP, Input System, Cinemachine; Physics is built in |
-| Idle / hyper-casual | 2D packages or URP, Input System, uGUI/TextMeshPro (keep it lean) |
+| Platformer / action | Input System, Cinemachine, 2D packages (if 2D), AI Navigation (if 3D) |
+| Puzzle / match / card | Input System, uGUI/TextMeshPro, 2D packages (if 2D), Timeline (juice) |
+| Top-down / twin-stick | Input System, Cinemachine, 2D packages (if 2D), AI Navigation (if 3D) |
+| RPG / adventure | Input System, Cinemachine, AI Navigation, Addressables, Timeline |
+| Racing / physics | Input System, Cinemachine; Physics is built in |
+| Idle / hyper-casual | Input System, uGUI/TextMeshPro, 2D packages (if 2D); keep it lean |
 | Multiplayer (any) | The `coop-multiplayer` pack (FishNet + Unity Relay through Multiplayer Services). `com.unity.netcode.gameobjects` is Unity's own stack and **not** the template default: never add it next to FishNet. |
 
 ## By target platform
@@ -110,9 +117,9 @@ the **`unity-cli`** skill), not packages. Package-wise:
 
 | Platform | Consider |
 |---|---|
-| Mobile (iOS/Android) | Keep dependencies lean; URP over HDRP; Addressables for download size; the `mobile-store` pack; monetization below |
-| WebGL | URP (not HDRP); small footprint; avoid heavy packages |
-| Desktop / Console | URP or HDRP depending on fidelity target; the `steam` pack for Steam |
+| Mobile (iOS/Android) | Keep dependencies lean; URP, never HDRP; Addressables for download size; the `mobile-store` pack; monetization below |
+| WebGL | URP (never HDRP); small footprint; avoid heavy packages |
+| Desktop / Console | URP (HDRP only in a project made outside the template for a high-fidelity target); the `steam` pack for Steam |
 
 ## By monetization
 
@@ -134,26 +141,34 @@ them against the docs for the installed version, keeping these guardrails:
   after consent, and give a way to withdraw it.
 - Digital goods go through the store's billing; grant purchases from the purchase callback only, and validate
   receipts (the package's validator or a server) before granting anything of value.
+- Non-consumables and subscriptions (ad removal included) need a visible Restore Purchases button on iOS, wired to
+  Unity IAP's restore call: App Review rejects a build without one. On Android a reinstall gets them back from the
+  store's purchase query at initialization, so no button is needed there. Check the restore API name in the docs
+  for the installed IAP version.
 - Ads: no ad on the first launch, rewarded ads only on the player's choice, and the platform's consent and
-  child-audience rules (see **`gamekit:launch-review`**).
+  child-audience rules (see **`gamekit:launch-review`**). Players in the EEA, UK and Switzerland get a consent form
+  from a Google-certified CMP (Google UMP, or the mediation SDK's own consent flow) before the first ad request and
+  before personalised ads or analytics start; pass the result to the ad SDK and gate
+  `AnalyticsService.Instance.StartDataCollection()` on it. Verify the current CMP and SDK terms before shipping.
 - Record in the handoff every API detail you could not confirm in the docs; never fill it from memory.
 
 ## Checked extras, with pinned install lines
 
 These lines were checked on 2026-11-09 against each project's releases and license; they are the template's single
 source for them (`packs/reference-docs/packages.md` points here). The base manifest stays small: add one when a game
-needs it, with the line below, and ask first. These carry a pinned version because that version was checked; before
+needs it and ask first: a registry id or git URL goes through `package add` (main `SKILL.md`), a scoped-registry or
+DLL line is manifest or file work as written. These carry a pinned version because that version was checked; before
 installing, confirm a newer release with the registry query above and re-check its notes. A pack in `packs/` already
 wires Steam (`steam`), the store rating prompt and notifications (`mobile-store`) and CI (`ci-github`).
 
 ### Add when needed
 
-| Need | Package | Install line (`Packages/manifest.json`) | Notes |
+| Need | Package | Install id / line | Notes |
 |---|---|---|---|
 | Tweens without Feel | PrimeTween 1.5.2 | scoped registry `{"name":"npm","url":"https://registry.npmjs.org","scopes":["com.kyrylokuzyk"]}` + `"com.kyrylokuzyk.primetween": "1.5.2"` | Zero-allocation. License: free in commercial games, but a template or repo may only depend on it through npm, never vendor its source. The OpenUPM mirror is stale (1.3.3). Try Feel's `MMTween` first. |
-| Translations | Unity Localization 1.5.14 | `"com.unity.localization": "1.5.14"` | 2.0 needs Unity 6.7. String tables + Smart Strings; TR/EN player text. |
-| In-app purchases | Unity IAP 5.5.0 | `"com.unity.purchasing": "5.5.0"` | Play Billing and StoreKit 2. Initializes Unity Gaming Services first. Guardrails: [By monetization](#by-monetization). |
-| On-device log console | In-game Debug Console 1.9.1 (yasirkula, MIT) | `"com.yasirkula.ingamedebugconsole": "https://github.com/yasirkula/UnityIngameDebugConsole.git#v1.9.1"` | Shows errors on a phone with no cable. Keep it out of release builds (spawn it only when `Debug.isDebugBuild`). Feel's `MMDebugMenu` may already be enough. |
+| Translations | Unity Localization 1.5.14 | `package add --name com.unity.localization@1.5.14` | 2.0 needs Unity 6.7. String tables + Smart Strings; TR/EN player text. |
+| In-app purchases | Unity IAP 5.5.0 | `package add --name com.unity.purchasing@5.5.0` | Play Billing and StoreKit 2. Initializes Unity Gaming Services first. Guardrails: [By monetization](#by-monetization). |
+| On-device log console | In-game Debug Console 1.9.1 (yasirkula, MIT) | `package add --name https://github.com/yasirkula/UnityIngameDebugConsole.git#v1.9.1` | Shows errors on a phone with no cable. Keep it out of release builds (spawn it only when `Debug.isDebugBuild`). Feel's `MMDebugMenu` may already be enough. |
 | Unity-aware code analysis | Microsoft.Unity.Analyzers 1.28.0 (MIT) | NuGet package DLL into `Assets/__GAME__/Analyzers/` with the `RoslynAnalyzer` label and every platform unticked | Flags Unity-specific mistakes (`?.` on UnityEngine.Object, empty Unity messages). Visual Studio Tools for Unity and the VS Code Unity extension already run it in the IDE; vendor it only to see the warnings in Unity's Console too. |
 
 ### Release automation, when a game ships

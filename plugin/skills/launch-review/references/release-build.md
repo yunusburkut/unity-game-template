@@ -32,17 +32,16 @@ Marks: `[x]` with the evidence on the line, `[ ]` work remains, `[?]` could not 
   orientation lock on screens 600 dp and wider; a portrait game is checked on a tablet emulator (rule 4).
 - iOS: built with Xcode 26 and the iOS 26 SDK, deployment target iOS 13 or higher (shipping-2026.md, App Store rule 1).
   The Xcode project in `Builds/iOS` is signed for distribution on a Mac. With no Mac (this Windows machine), the
-  route is a cloud Mac: Unity Build Automation, or a GitHub Actions `macos-latest` job that archives the Xcode
-  project, signs it and uploads it to TestFlight (fastlane `pilot`/`upload_to_testflight`, or an upload-testflight
-  action) with an App Store Connect API key kept in the CI secrets, never in the repo *(verify the runner image ships
-  Xcode 26)*. Either way the build reaches TestFlight before review.
-- iOS privacy manifest: Unity declares its own required-reason APIs (file timestamps, `PlayerPrefs` user defaults,
-  boot time, disk space), and every third-party SDK on Apple's listed-SDK list ships its own manifest. Search
-  `Assets/<Game>` for `File.GetLastWriteTime`, `FileInfo.LastWriteTime`, `CreationTime` and `LastAccessTime`: when
-  the game's own C# calls one (a save system that compares file dates) or adds native code,
-  `Assets/Plugins/PrivacyInfo.xcprivacy` exists and gives a reason for each (App Store rule 2 of shipping-2026.md).
-- App Store Connect: the age-rating questions are answered (required since 31 Jan 2026), and App Tracking
-  Transparency is present only when an ads or attribution SDK tracks the player (App Store rules 3 and 4).
+  route is a cloud Mac: with the `ci-github` pack, uncomment its `ios` job and the iOS matrix entry in `ci.yml`
+  (archive, cloud-managed signing and TestFlight upload with an App Store Connect API key; the secrets are listed in
+  the pack README's table and live in CI, never in the repo; *verify the runner image ships Xcode 26*); without the
+  pack, Unity Build Automation. Either way the build reaches TestFlight before review.
+- iOS privacy manifest (what Unity and SDKs already declare: App Store rule 2 of shipping-2026.md): search
+  `Assets/<Game>` for `File.GetLastWriteTime`, `FileInfo.LastWriteTime`, `CreationTime` and `LastAccessTime`; when
+  the game's own C# calls one or adds native code, `Assets/Plugins/PrivacyInfo.xcprivacy` exists and gives a reason
+  for each.
+- App Store Connect: the age-rating questions are answered, and App Tracking Transparency is present only when an ads
+  or attribution SDK tracks the player (App Store rules 3 and 4 of shipping-2026.md, with their dates).
 - Note the `size` line. WebGL for itch.io: see the itch.io row below.
 
 ## Code and content scan
@@ -111,9 +110,11 @@ every item is `[?]`. A failure becomes a Known issues line with its repro.
   trailer, description, system requirements.
 - **Steam, with the steam pack:** `SteamBootstrap.AppId` and `steam_appid.txt` hold the game's App ID, not `480`
   (Valve's Spacewar test app; with 480 the restart-through-Steam check is skipped). The depot does not ship
-  `steam_appid.txt` *(verify Steamworks' current guidance)*.
-- **itch.io Windows, with the steam pack:** that build was made with `DISABLESTEAMWORKS` in the Windows Scripting
-  Define Symbols (`packs/steam` README), and the define was removed again before the next Steam build.
+  `steam_appid.txt` *(verify Steamworks' current guidance)*. Player Settings > Windows > Scripting Backend is IL2CPP
+  (`SteamSetup` sets it on its first run).
+- **itch.io Windows, with the steam pack:** that build came from GameKit > Build > Windows (no Steam, itch.io)
+  (`packs/steam` README), which adds `DISABLESTEAMWORKS` for that build only; the Standalone Scripting Define Symbols
+  do not hold `DISABLESTEAMWORKS`.
 - **Google Play:** the AAB from the Build rows; the first release goes to a closed or open testing track first, and
   updates go out as a staged rollout.
 - **App Store:** the build number is higher; the first version reaches everyone at once, so turn phased release on
@@ -122,8 +123,9 @@ every item is `[?]`. A failure becomes a Known issues line with its repro.
   500 MB unpacked, 200 MB for one file, and `index.html` at the top of the upload. `Builds/WebGL/Build/*.data.br` hits
   the per-file cap first: check its size on disk before `butler push`; if it is over, cut texture sizes or move content
   to Addressables. Cover, screenshots, description and tags are filled; age and content tags are honest. One butler
-  channel per platform (`windows`, `android`, `webgl`), the web upload set to play in the browser, and each build
-  tested from the itch.io page.
+  channel per platform (`html5` is the one the `ci-github` pack pushes; `windows` and `android` are the convention
+  for manual pushes), the
+  `html5` upload set to play in the browser, and each build tested from the itch.io page.
 
 ## Release day
 
@@ -135,7 +137,8 @@ every item is `[?]`. A failure becomes a Known issues line with its repro.
 
 ## Patch notes
 
-Source: `git log --format="%h %s" v<prev>..v<this>`. No previous tag: ask for the start ref, never use the whole log.
+Source: `git log --format="%h %s" <prevTag>..v<this>`, where `<prevTag>` is `git describe --tags --abbrev=0 v<this>^`
+exactly as printed (describing `HEAD` on the tagged build returns `v<this>` itself and an empty range). No previous tag: ask for the start ref, never use the whole log.
 
 - Keep `game`, `ui`, `input` and `art` commits, and `core` or `build` commits whose subject changes what the player
   sees. Drop `tools`, `design`, refactors and template syncs. Say "N/M commit kullanıldı"; zero kept: say so, never
@@ -164,7 +167,7 @@ Source: `git log --format="%h %s" v<prev>..v<this>`. No previous tag: ask for th
 - Verify like any bug: the user plays the repro on the new build, then runs the smoke list above.
 - Name the rollback before upload *(verify each)*:
   - Steam: set the previous build live on the default branch in Steamworks.
-  - itch.io: `butler push` the previous build again to the same channel.
+  - itch.io: `butler push` the previous build again to the same channel (`html5` for WebGL).
   - Google Play: a versionCode cannot roll back; for an update, halt the staged rollout and ship a higher versionCode built from the
     previous tag.
   - App Store: no rollback; for an update, pause the phased release and submit a fixed build.

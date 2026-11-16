@@ -171,5 +171,7 @@ The `last-pass:` header line is what `scripts/survey.sh` reads. *Accepted trade-
 cumulative list directly under the header, never copied into dated sections: append to it, dated,
 and remove an entry only when the user reverses the decision. Dated sections are newest first and
 carry the report's headings plus *Noted between passes*; *Play Mode check* records the result, so a
-"pending" one is the first thing the next pass asks about. A ledger written in the older shape (the
+"pending" one is the first thing the next pass asks about. The live tracker for those checks and
+for tracked bugs is PLAN.md (`## Pending Play Mode checks`, `## Known issues`); the ledger keeps
+the history, and when the two disagree PLAN.md wins (SKILL.md step 6). A ledger written in the older shape (the
 list inside each dated section) is converted on the next pass: move the newest list to the top.

@@ -2,7 +2,7 @@
     "hooks":  {
                   "PreToolUse":  [
                                      {
-                                         "matcher":  "mcp__Blender__.*",
+                                         "matcher":  "mcp__Blender__(?!.*_docs$).*",
                                          "hooks":  [
                                                        {
                                                            "type":  "command",
@@ -15,7 +15,7 @@
                                                                         "-File",
                                                                         "${CLAUDE_PLUGIN_ROOT}/hooks/ensure-blender.ps1"
                                                                     ],
-                                                           "timeout":  100
+                                                           "timeout":  120
                                                        }
                                                    ]
                                      },
@@ -24,7 +24,7 @@
                                          "hooks":  [
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Edit(*.unity)",
+                                                           "if":  "Edit(//**/*.unity)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -38,7 +38,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Edit(*.prefab)",
+                                                           "if":  "Edit(//**/*.prefab)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -52,7 +52,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Edit(*.asset)",
+                                                           "if":  "Edit(//**/*.asset)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -66,7 +66,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Edit(*.mat)",
+                                                           "if":  "Edit(//**/*.mat)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -80,7 +80,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Edit(*.controller)",
+                                                           "if":  "Edit(//**/*.controller)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -94,7 +94,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Edit(*.mask)",
+                                                           "if":  "Edit(//**/*.overrideController)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -108,7 +108,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Edit(*.anim)",
+                                                           "if":  "Edit(//**/*.anim)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -122,7 +122,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Edit(*.overrideController)",
+                                                           "if":  "Edit(//**/*.mask)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -136,7 +136,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Edit(*.mixer)",
+                                                           "if":  "Edit(//**/*.mixer)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -150,7 +150,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Edit(*.playable)",
+                                                           "if":  "Edit(//**/*.playable)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -164,7 +164,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Edit(*.signal)",
+                                                           "if":  "Edit(//**/*.signal)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -178,7 +178,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Edit(*.lighting)",
+                                                           "if":  "Edit(//**/*.lighting)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -192,7 +192,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Edit(*.preset)",
+                                                           "if":  "Edit(//**/*.preset)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -206,7 +206,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Edit(*.terrainlayer)",
+                                                           "if":  "Edit(//**/*.terrainlayer)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -220,7 +220,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Edit(*.renderTexture)",
+                                                           "if":  "Edit(//**/*.renderTexture)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -234,7 +234,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Edit(*.spriteatlasv2)",
+                                                           "if":  "Edit(//**/*.spriteatlasv2)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -248,7 +248,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Edit(*.physicMaterial)",
+                                                           "if":  "Edit(//**/*.physicMaterial)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -262,7 +262,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Edit(*.physicsMaterial)",
+                                                           "if":  "Edit(//**/*.physicsMaterial)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -276,7 +276,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Edit(*.physicsMaterial2D)",
+                                                           "if":  "Edit(//**/*.physicsMaterial2D)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -290,7 +290,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Write(*.unity)",
+                                                           "if":  "Write(//**/*.unity)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -304,7 +304,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Write(*.prefab)",
+                                                           "if":  "Write(//**/*.prefab)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -318,7 +318,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Write(*.asset)",
+                                                           "if":  "Write(//**/*.asset)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -332,7 +332,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Write(*.mat)",
+                                                           "if":  "Write(//**/*.mat)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -346,7 +346,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Write(*.controller)",
+                                                           "if":  "Write(//**/*.controller)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -360,7 +360,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Write(*.mask)",
+                                                           "if":  "Write(//**/*.overrideController)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -374,7 +374,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Write(*.anim)",
+                                                           "if":  "Write(//**/*.anim)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -388,7 +388,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Write(*.overrideController)",
+                                                           "if":  "Write(//**/*.mask)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -402,7 +402,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Write(*.mixer)",
+                                                           "if":  "Write(//**/*.mixer)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -416,7 +416,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Write(*.playable)",
+                                                           "if":  "Write(//**/*.playable)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -430,7 +430,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Write(*.signal)",
+                                                           "if":  "Write(//**/*.signal)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -444,7 +444,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Write(*.lighting)",
+                                                           "if":  "Write(//**/*.lighting)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -458,7 +458,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Write(*.preset)",
+                                                           "if":  "Write(//**/*.preset)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -472,7 +472,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Write(*.terrainlayer)",
+                                                           "if":  "Write(//**/*.terrainlayer)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -486,7 +486,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Write(*.renderTexture)",
+                                                           "if":  "Write(//**/*.renderTexture)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -500,7 +500,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Write(*.spriteatlasv2)",
+                                                           "if":  "Write(//**/*.spriteatlasv2)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -514,7 +514,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Write(*.physicMaterial)",
+                                                           "if":  "Write(//**/*.physicMaterial)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -528,7 +528,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Write(*.physicsMaterial)",
+                                                           "if":  "Write(//**/*.physicsMaterial)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -542,7 +542,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Write(*.physicsMaterial2D)",
+                                                           "if":  "Write(//**/*.physicsMaterial2D)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -626,7 +626,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Bash(*.mask*)",
+                                                           "if":  "Bash(*.overrideController*)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -654,7 +654,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "Bash(*.overrideController*)",
+                                                           "if":  "Bash(*.mask*)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -892,7 +892,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "PowerShell(*.mask*)",
+                                                           "if":  "PowerShell(*.overrideController*)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -920,7 +920,7 @@
                                                        },
                                                        {
                                                            "type":  "command",
-                                                           "if":  "PowerShell(*.overrideController*)",
+                                                           "if":  "PowerShell(*.mask*)",
                                                            "command":  "powershell.exe",
                                                            "args":  [
                                                                         "-NoProfile",
@@ -1087,6 +1087,53 @@
                                                            "timeout":  15
                                                        }
                                                    ]
+                                     },
+                                     {
+                                         "matcher":  "Bash",
+                                         "hooks":  [
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Bash(*git *)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-readonly-agent.ps1"
+                                                                    ],
+                                                           "timeout":  10
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Bash(*>*)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-readonly-agent.ps1"
+                                                                    ],
+                                                           "timeout":  10
+                                                       },
+                                                       {
+                                                           "type":  "command",
+                                                           "if":  "Bash(*tee *)",
+                                                           "command":  "powershell.exe",
+                                                           "args":  [
+                                                                        "-NoProfile",
+                                                                        "-NonInteractive",
+                                                                        "-ExecutionPolicy",
+                                                                        "Bypass",
+                                                                        "-File",
+                                                                        "${CLAUDE_PLUGIN_ROOT}/hooks/guard-readonly-agent.ps1"
+                                                                    ],
+                                                           "timeout":  10
+                                                       }
+                                                   ]
                                      }
                                  ],
                   "PostToolUse":  [
@@ -1151,7 +1198,7 @@
                                                         },
                                                         {
                                                             "type":  "command",
-                                                            "if":  "Edit(*.json)",
+                                                            "if":  "Edit(//**/*.json)",
                                                             "command":  "powershell.exe",
                                                             "args":  [
                                                                          "-NoProfile",
@@ -1165,7 +1212,7 @@
                                                         },
                                                         {
                                                             "type":  "command",
-                                                            "if":  "Write(*.json)",
+                                                            "if":  "Write(//**/*.json)",
                                                             "command":  "powershell.exe",
                                                             "args":  [
                                                                          "-NoProfile",
@@ -1179,7 +1226,7 @@
                                                         },
                                                         {
                                                             "type":  "command",
-                                                            "if":  "Edit(*.asmdef)",
+                                                            "if":  "Edit(//**/*.asmdef)",
                                                             "command":  "powershell.exe",
                                                             "args":  [
                                                                          "-NoProfile",
@@ -1193,7 +1240,7 @@
                                                         },
                                                         {
                                                             "type":  "command",
-                                                            "if":  "Write(*.asmdef)",
+                                                            "if":  "Write(//**/*.asmdef)",
                                                             "command":  "powershell.exe",
                                                             "args":  [
                                                                          "-NoProfile",
@@ -1207,7 +1254,7 @@
                                                         },
                                                         {
                                                             "type":  "command",
-                                                            "if":  "Edit(*.asmref)",
+                                                            "if":  "Edit(//**/*.asmref)",
                                                             "command":  "powershell.exe",
                                                             "args":  [
                                                                          "-NoProfile",
@@ -1221,7 +1268,91 @@
                                                         },
                                                         {
                                                             "type":  "command",
-                                                            "if":  "Write(*.asmref)",
+                                                            "if":  "Write(//**/*.asmref)",
+                                                            "command":  "powershell.exe",
+                                                            "args":  [
+                                                                         "-NoProfile",
+                                                                         "-NonInteractive",
+                                                                         "-ExecutionPolicy",
+                                                                         "Bypass",
+                                                                         "-File",
+                                                                         "${CLAUDE_PLUGIN_ROOT}/hooks/check-json.ps1"
+                                                                     ],
+                                                            "timeout":  10
+                                                        },
+                                                        {
+                                                            "type":  "command",
+                                                            "if":  "Bash(*.json*)",
+                                                            "command":  "powershell.exe",
+                                                            "args":  [
+                                                                         "-NoProfile",
+                                                                         "-NonInteractive",
+                                                                         "-ExecutionPolicy",
+                                                                         "Bypass",
+                                                                         "-File",
+                                                                         "${CLAUDE_PLUGIN_ROOT}/hooks/check-json.ps1"
+                                                                     ],
+                                                            "timeout":  10
+                                                        },
+                                                        {
+                                                            "type":  "command",
+                                                            "if":  "PowerShell(*.json*)",
+                                                            "command":  "powershell.exe",
+                                                            "args":  [
+                                                                         "-NoProfile",
+                                                                         "-NonInteractive",
+                                                                         "-ExecutionPolicy",
+                                                                         "Bypass",
+                                                                         "-File",
+                                                                         "${CLAUDE_PLUGIN_ROOT}/hooks/check-json.ps1"
+                                                                     ],
+                                                            "timeout":  10
+                                                        },
+                                                        {
+                                                            "type":  "command",
+                                                            "if":  "Bash(*.asmdef*)",
+                                                            "command":  "powershell.exe",
+                                                            "args":  [
+                                                                         "-NoProfile",
+                                                                         "-NonInteractive",
+                                                                         "-ExecutionPolicy",
+                                                                         "Bypass",
+                                                                         "-File",
+                                                                         "${CLAUDE_PLUGIN_ROOT}/hooks/check-json.ps1"
+                                                                     ],
+                                                            "timeout":  10
+                                                        },
+                                                        {
+                                                            "type":  "command",
+                                                            "if":  "PowerShell(*.asmdef*)",
+                                                            "command":  "powershell.exe",
+                                                            "args":  [
+                                                                         "-NoProfile",
+                                                                         "-NonInteractive",
+                                                                         "-ExecutionPolicy",
+                                                                         "Bypass",
+                                                                         "-File",
+                                                                         "${CLAUDE_PLUGIN_ROOT}/hooks/check-json.ps1"
+                                                                     ],
+                                                            "timeout":  10
+                                                        },
+                                                        {
+                                                            "type":  "command",
+                                                            "if":  "Bash(*.asmref*)",
+                                                            "command":  "powershell.exe",
+                                                            "args":  [
+                                                                         "-NoProfile",
+                                                                         "-NonInteractive",
+                                                                         "-ExecutionPolicy",
+                                                                         "Bypass",
+                                                                         "-File",
+                                                                         "${CLAUDE_PLUGIN_ROOT}/hooks/check-json.ps1"
+                                                                     ],
+                                                            "timeout":  10
+                                                        },
+                                                        {
+                                                            "type":  "command",
+                                                            "if":  "PowerShell(*.asmref*)",
                                                             "command":  "powershell.exe",
                                                             "args":  [
                                                                          "-NoProfile",

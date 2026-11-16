@@ -7,11 +7,14 @@
 - `clamp` (MinFloatParameter, default 65472, min 0) — clamps pixel intensity to prevent artifacts.
 - `tint` (ColorParameter, default white) — color tint applied to bloom.
 - `highQualityFiltering` (BoolParameter, default false) — uses bicubic upsampling for smoother bloom.
+- `filter` (BloomFilterMode: `Gaussian`, `Dual`, `Kawase`; default `Gaussian`) — blur algorithm. `Gaussian` is the best quality; `Dual` is faster with somewhat lower quality (the balanced choice for phones and WebGL); `Kawase` is the lowest quality and fastest at low resolutions.
 - `downscale` (BloomDownscaleMode: `Half`, `Quarter`) — resolution for bloom computation.
 - `maxIterations` (ClampedIntParameter, default 6, 2–8) — number of blur passes.
+- `dirtTexture` (TextureParameter, default null), `dirtIntensity` (MinFloatParameter, default 0, min 0) — lens dirt: smudges lit by the bloom. Both must be set in a profile asset for the dirt variant to survive stripping (SKILL.md Key Facts).
 
 **Tonemapping** (`Tonemapping`) — Maps HDR to display range. Requires HDR.
 - `mode` (TonemappingMode: `None`, `Neutral`, `ACES`) — `ACES` for cinematic, `Neutral` for minimal color shift.
+- HDR display output only (Player Settings HDR output on and an HDR display; ignored otherwise): `neutralHDRRangeReductionMode` (NeutralRangeReductionMode: `Reinhard`, `BT2390`; default `BT2390`) for `Neutral`; `acesPreset` (HDRACESPreset: `ACES1000Nits`, `ACES2000Nits`, `ACES4000Nits`; default `ACES1000Nits`) for `ACES`; `hueShiftAmount` (ClampedFloatParameter, default 0, 0–1); `detectPaperWhite` (BoolParameter, default false) with `paperWhite` (ClampedFloatParameter, default 300, 0–400 nits); `detectBrightnessLimits` (BoolParameter, default true) with `minNits` (ClampedFloatParameter, default 0.005, 0–50) and `maxNits` (ClampedFloatParameter, default 1000, 0–5000).
 
 **Color Adjustments** (`ColorAdjustments`) — **WARNING: Class is `ColorAdjustments`, NOT `ColorGrading`.**
 - `postExposure` (FloatParameter, default 0) — exposure adjustment in EV units. Unbounded.
@@ -51,6 +54,14 @@
 - `shadows` (ColorParameter, default grey).
 - `highlights` (ColorParameter, default grey).
 - `balance` (ClampedFloatParameter, default 0, -100–100).
+
+**Screen Space Lens Flare** (`ScreenSpaceLensFlare`) — Flares and streaks built from the bloom mip chain (the bloom pass runs even when Bloom itself is off). Needs Screen Space Lens Flare enabled on the URP asset (`supportScreenSpaceLensFlare`, on by default). The pass is skipped while `intensity` is 0.
+- `intensity` (MinFloatParameter, default 0, min 0); `tintColor` (ColorParameter, default white).
+- `bloomMip` (ClampedIntParameter, default 1, 0–5) — bloom mip used as the source; higher is blurrier.
+- `firstFlareIntensity`, `secondaryFlareIntensity`, `warpedFlareIntensity` (MinFloatParameter, default 1, min 0); `warpedFlareScale` (Vector2Parameter, default (1, 1)).
+- `samples` (ClampedIntParameter, default 1, 1–3); `sampleDimmer` (ClampedFloatParameter, default 0.5, 0.1–1); `vignetteEffect` (ClampedFloatParameter, default 1, 0–1); `startingPosition` (ClampedFloatParameter, default 1.25, 1–3); `scale` (ClampedFloatParameter, default 1.5, 1–4).
+- Streaks: `streaksIntensity` (MinFloatParameter, default 0, min 0), `streaksLength` (ClampedFloatParameter, default 0.5, 0–1), `streaksOrientation` (FloatParameter, default 0, degrees), `streaksThreshold` (ClampedFloatParameter, default 0.25, 0–1).
+- `resolution` (ScreenSpaceLensFlareResolution: `Half`, `Quarter`, `Eighth`; default `Quarter`); `chromaticAbberationIntensity` (ClampedFloatParameter, default 0.5, 0–1; the field name is misspelled in URP).
 
 **Lens Distortion** (`LensDistortion`)
 - `intensity` (ClampedFloatParameter, default 0, -1–1). Negative = barrel, positive = pincushion.

@@ -23,8 +23,7 @@ feel-troubleshooting summarise it and point here.
 
 `MOREMOUNTAINS_NICEVIBRATIONS_INSTALLED` is a **scripting define**, not a version define: Feel's
 `NiceVibrationsDefineSymbols` adds it on Editor load, but only for the build target that is
-active at that moment. See *Haptics* below — on a PC + mobile project it must exist for Android
-and iOS too.
+active at that moment. GameKit's ProjectSetup adds it for every target; see *Haptics* below.
 
 Source folders: `F/` = `Assets/Feel/MMFeedbacks/MMFeedbacks/Feedbacks/`, `S/` =
 `.../MMFeedbacks/Springs/Feedbacks/`, `3P/<Vendor>` =
@@ -128,9 +127,12 @@ the `MMF_Player` on a surviving object.
 Gated by `MOREMOUNTAINS_NICEVIBRATIONS_INSTALLED`. Feel writes it only for the build target active
 when the Editor loads, so a project that opened on Standalone has it for Standalone alone: the
 `MMF_NV*` types then do not exist on Android or iOS, and an `MMF_Player` holding them **loses those
-entries when it is serialized from the mobile target**. Before authoring the first haptic feedback,
-check *Player Settings > Other Settings > Scripting Define Symbols* for Android and iOS and add the
-symbol where it is missing (ask the user; it is a project setting).
+entries when it is serialized from the mobile target**. GameKit's ProjectSetup (the single source)
+adds the symbol for Standalone, Android, iOS and WebGL whenever `Assets/Feel/NiceVibrations` exists,
+so a game made by `new-game.ps1` already has it. Before authoring the first haptic feedback, check
+*Player Settings > Other Settings > Scripting Define Symbols* on those four targets; if one lacks it
+(an older game, or Feel added later), run *GameKit > Set Up Project* after the user's yes (it
+rewrites project settings) rather than editing the define by hand.
 
 On PC, Nice Vibrations drives gamepad rumble only; with no gamepad in scope the feedbacks do
 nothing there, which is fine — no `#if` needed. Code-driven haptics (`HapticPatterns`) compile
@@ -213,10 +215,9 @@ UI uses `UnityEngine.UI.Text`, use the uGUI text feedbacks under UI instead, and
 
 `MMF_FreezeFrame` · `MMF_TimescaleModifier`
 
-Both require an `MMTimeManager` in the scene and do nothing without one. Read input in `Update`
-(`FixedUpdate` does not run at time scale 0) and count input buffer and coyote timers on the simulation's scaled step
-so they pause with the freeze; an unscaled buffer drains during it and loses the press (`game-feel`
-references/numbers.md section 3.1).
+Both require an `MMTimeManager` in the scene and do nothing without one. How input and buffer/coyote
+timers survive a freeze (read in `Update`, count on the simulation's scaled step) is `game-feel`
+references/numbers.md section 3.1, the single source.
 
 ## Transform — OK (16, F/)
 
@@ -243,7 +244,7 @@ F/: `MMF_Image` · `MMF_ImageMaterial` · `MMF_ImageRaycastTarget` · `MMF_Image
 needs an `MMFloatingTextSpawner` in the scene.
 
 UI feedbacks almost always want `TimescaleMode = Unscaled` so they keep running during a freeze
-frame or a paused game.
+frame or a paused game (feel-api.md, `MMFeedbackTiming`).
 
 ## UI Toolkit — OK but off-stack (17, 3P/UIToolkit)
 

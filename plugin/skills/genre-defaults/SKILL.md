@@ -1,6 +1,6 @@
 ---
 name: genre-defaults
-description: Use when shaping a new game idea or the user names a genre ("tür", "genre", "X gibi bir oyun", "like Celeste") - one sheet per genre of the defaults its best games share. Feel numbers are game-feel; level rhythm is level-beat-review.
+description: Use when shaping a new game idea, the user names a genre ("tür", "genre", "X gibi bir oyun", "like Celeste") or before picking defaults for a genre's core system - one sheet per genre. Feel numbers are game-feel; level rhythm is level-beat-review.
 ---
 
 # Genre defaults
@@ -91,13 +91,20 @@ that game's genre. No sheet fits: take the nearest one and say which in the Assu
 - **Camera** sets the first scene's camera. A Cinemachine camera first adds `com.unity.cinemachine`, which the template
   does not install (`gamekit:unity-package-management`). **Variety**, where a sheet has it, is the floor of enemy kinds in the first
   slice (a hypothesis; never fewer than the user names).
-- **Platforms** feeds the DESIGN.md Platforms table (input, orientation, session length on PC and phone).
+- **Platforms** feeds the DESIGN.md Platforms table (input, orientation, session length on PC and phone). A sheet's
+  "save on `OnApplicationPause`" is the phone hook; WebGL save timing (`OnApplicationFocus(false)`, checkpoints,
+  `PlayerPrefs.Save()`) follows `gamekit:platform-targets`.
 - **Variants:** the user's words pick one (else the first, as an Assumption); it tunes the Feel lines.
 - **In a mashup:** read it with `references/mashups.md`.
 - **Later** items are candidates, never in the first slice. One enters PLAN.md Next only when it is among the riskiest
   systems (`gamekit:new-game`'s rule; Next holds at most 5); the rest stay out of PLAN.md.
-- **Online:** the idea asks for play over a network: read `references/online.md` and record its level.
+- **Online and other devices:** the idea asks for network play, a leaderboard, VR or a console: read
+  `references/online.md` and record its level or its device warning in DESIGN.md Platforms.
 - **Look:** the user said nothing about the look: read `references/art-directions.md` and mark the pick *guessed*.
+- **In a game that already has a DESIGN.md** (a card on one core system, such as the jump or the idle economy): read
+  only the sheet's Defaults, Feel and Variants lines for that system. DESIGN.md Decisions win; a line they do not
+  decide goes on the card as an Assumption in the form above. Leave the pitch choices, the opening paragraph, the Look
+  and the camera alone.
 
 ## Not covered
 
