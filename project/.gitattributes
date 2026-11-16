@@ -14,6 +14,16 @@
 *.physicMaterial merge=unityyamlmerge eol=lf linguist-language=yaml
 *.mixer merge=unityyamlmerge eol=lf linguist-language=yaml
 *.meta merge=unityyamlmerge eol=lf linguist-language=yaml
+*.spriteatlas merge=unityyamlmerge eol=lf linguist-language=yaml
+*.spriteatlasv2 merge=unityyamlmerge eol=lf linguist-language=yaml
+*.physicsMaterial2D merge=unityyamlmerge eol=lf linguist-language=yaml
+*.playable merge=unityyamlmerge eol=lf linguist-language=yaml
+*.signal merge=unityyamlmerge eol=lf linguist-language=yaml
+*.lighting merge=unityyamlmerge eol=lf linguist-language=yaml
+*.terrainlayer merge=unityyamlmerge eol=lf linguist-language=yaml
+*.preset merge=unityyamlmerge eol=lf linguist-language=yaml
+*.renderTexture merge=unityyamlmerge eol=lf linguist-language=yaml
+*.shadervariants merge=unityyamlmerge eol=lf linguist-language=yaml
 # baked lighting data is binary despite its extension
 LightingData.asset binary
 

@@ -14,7 +14,7 @@ code, stop at the first rung that holds:
 5. Only then: the minimum that works.
 
 - No abstraction, config switch or boilerplate nobody asked for; a seam waits for its second real
-  case (`unity-architecture`, `refactor-pass`).
+  case (`gamekit:unity-architecture`, `gamekit:refactor-pass`).
 - Deletion over addition, fewest files, the shortest diff in the right place. The smallest change in
   the wrong place is a second bug.
 - A bug fix goes to the shared root, not only to the caller the report named.

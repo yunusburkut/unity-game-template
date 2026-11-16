@@ -11,7 +11,7 @@ TODO: at most 5 items (a `[karar]` line stays, past 5 if it must).
 TODO: - [ ] PC: ...  - [ ] Phone: ...
 
 ## Known issues
-<!-- One line each, [yüksek] first (it blocks a playtest or release build), then [orta], [düşük] (CLAUDE.md):
+<!-- One line each, [yüksek] first, then [orta], [düşük] (CLAUDE.md):
 `- [orta] <what> - <where: scene, dosya:satır> - steps: <1, 2, 3> - expected <x>, actual <y> - <device>`
 Pipeline review findings keep their `review <Base>: ` format and place, with the review rubric's tag, not the player
 impact above; "[yüksek] first" orders the other lines (gamekit:pipeline). -->

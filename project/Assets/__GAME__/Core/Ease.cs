@@ -3,8 +3,9 @@ namespace __GAME__.Core
     /// <summary>
     /// Shaping curve for a normalised 0→1 progress value. Serialized as an int and evaluated
     /// arithmetically rather than through an <c>AnimationCurve</c>, so the simulation stays a plain
-    /// value type: no managed reference in the tuning, no allocation,
-    /// and the same result on every machine.
+    /// value type: no managed reference in the tuning, no allocation, and reproducible on one build
+    /// (not bit-identical across platforms: Mathf.Pow/Sin/Cos go through each platform's math library,
+    /// see unity-architecture).
     /// Every member has an explicit number because assets store that number: a new curve takes the next
     /// free number (even when it sits next to its family below), and no existing number ever changes.
     /// <c>EasingTests.SerializedValues_NeverChange</c> fails if one does.

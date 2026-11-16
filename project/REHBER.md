@@ -14,7 +14,7 @@
 | Yarım işi sürdür | `devam` |
 | Boyut yanlış (Claude'un ilk satırında yazar) | `bu S` · `bu M` · `bu L` |
 | Hata | Hata mesajını yapıştır ya da ne olduğunu anlat |
-| İkinci göz (puanlar, 9'a kadar düzeltir) | `review et` · `puanla` |
+| İkinci göz (kodu puanlar, 9'a kadar düzeltir; bölüm, metin ya da mağaza sayfasında sadece yorumlar) | `review et` · `puanla` |
 | Uzman bakışı (sadece okur) | `telefonda 60 fps tutar mı` · `bölümü yorumla` · `metinleri gözden geçir` · `mağaza sayfasını incele` |
 | Build ya da test | `webgl build al` (itch.io) · `android build al` · `testleri çalıştır` (Claude onay ister) |
 | Review 3 turda 9 olmadı | `devam` (bir tur daha) · `kabul` (açık bulgular Known issues'a, iş teslim) |

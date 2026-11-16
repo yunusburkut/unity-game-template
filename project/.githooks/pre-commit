@@ -4,7 +4,11 @@
 # makes Unity mint a new GUID on the next machine and breaks every reference to the asset).
 # new-game.ps1 enables it with: git config core.hooksPath .githooks
 #
-# From https://github.com/doitian/unity-git-hooks (scripts/pre-commit), unchanged below this header.
+# From https://github.com/doitian/unity-git-hooks (scripts/pre-commit). One local change below this header: the
+# index is read once into an associative array (in_index) instead of one `git ls-files` per path and directory
+# level, so committing a vendored pack (Assets/Feel, thousands of files) takes seconds, not thousands of process
+# spawns. Unlike a git pathspec, in_index matches names literally ([ and * are not globs). Ceiling: macOS's
+# /bin/bash 3.2 has no associative arrays, so there it falls back to the upstream per-path git call.
 #
 # MIT License
 #
@@ -41,13 +45,30 @@ fi
 # Redirect output to stderr.
 exec 1>&2
 
+# in_index PATH: PATH is a file in the index, or a directory holding one (what `git ls-files -- PATH` reported).
+if [ "${BASH_VERSINFO[0]}" -ge 4 ]; then
+	declare -A indexed
+	while IFS= read -r -d $'\0' path; do
+		indexed["$path"]=1
+		d="$path"
+		while [ "${d%/*}" != "$d" ]; do
+			d="${d%/*}"
+			[ -n "${indexed["$d"]}" ] && break
+			indexed["$d"]=1
+		done
+	done < <(git ls-files --cached -z -- "$ASSETS_DIR")
+	in_index() { [ -n "${indexed["$1"]}" ]; }
+else
+	in_index() { [ "$(git ls-files --cached -- "$1" | wc -l)" != 0 ]; }
+fi
+
 git -c diff.renames=false diff --cached --name-only --diff-filter=A -z $against -- "$ASSETS_DIR" | while read -d $'\0' f; do
 	ext="${f##*.}"
 	base="${f%.*}"
 	filename="$(basename "$f")"
 
 	if [ "$ext" = "meta" ]; then
-		if [ $(git ls-files --cached -- "$base" | wc -l) = 0 ]; then
+		if ! in_index "$base"; then
 			cat <<EOF
 Error: Redudant meta file. Meta file '$f' is added, but '$base' is not in the git index.
 Please add '$base' to git as well.
@@ -57,7 +78,7 @@ EOF
 	elif [ "${filename##.*}" != '' ]; then
 		p="$f"
 		while [ "$p" != "$ASSETS_DIR" ]; do
-			if [ $(git ls-files --cached -- "$p.meta" | wc -l) = 0 ]; then
+			if ! in_index "$p.meta"; then
 				cat <<EOF
 Error: Missing meta file. Asset '$f' is added, but '$p.meta' is not in the git index.
 Please add '$p.meta' to git as well by typing the following:
@@ -80,7 +101,7 @@ git -c diff.renames=false diff --cached --name-only --diff-filter=D -z $against 
 	base="${f%.*}"
 
 	if [ "$ext" = "meta" ]; then
-		if [ $(git ls-files --cached -- "$base" | wc -l) != 0 ]; then
+		if in_index "$base"; then
 			cat <<EOF
 Error: Missing meta file. Meta file '$f' is removed, but '$base' is still in the git index.
 Please revert the meta file or remove the asset file.
@@ -90,7 +111,7 @@ EOF
 	else
 		p="$f"
 		while [ "$p" != "$ASSETS_DIR" ]; do
-			if [ $(git ls-files --cached -- "$p" | wc -l) = 0 ] && [ $(git ls-files --cached -- "$p.meta" | wc -l) != 0 ]; then
+			if ! in_index "$p" && in_index "$p.meta"; then
 				cat <<EOF
 Error: Redudant meta file. Asset '$f' is removed, but '$p.meta' is still in the git index.
 Please remove '$p.meta' from git as well by typing the following: 

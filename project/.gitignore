@@ -118,6 +118,7 @@ InitTestScene*.unity*
 # Blender script outputs
 /Tools/Blender/**/__pycache__/
 /Tools/Blender/**/checks/
+/Tools/Blender/**/review/
 
 # iOS archives
 *.ipa

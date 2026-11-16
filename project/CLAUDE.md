@@ -29,13 +29,11 @@ pinned to a `gamekit-vX.Y.Z` tag): `AgentBridge`, `BuildMenu`, `ProjectSetup` (`
 
 `Ease` / `Easing` in Core and `EasingTests` are the worked example of a Core type and its test. `CoreBoundaryTests` (EditMode) fails
 when Core declares a component, links a physics/input/Editor assembly, or its source uses `MonoBehaviour`,
-`GameObject`, `SceneManager`, `Time`, `Input` or `Physics`. `SimulationStep.Delta`
+`GameObject`, `SceneManager`, `Time`, `Input`, `Physics`, `UnityEngine.Random`, `Screen`, `Camera`, `Application`,
+`PlayerPrefs`, `Resources` or `Instantiate` / `Destroy`, and when a `Prototypes/<Name>` assembly references Game, or
+when Core or Game references a prototype. `SimulationStep.Delta`
 (Game) is the clamped `dt` every Update-driven simulation uses. `FrameLog` (GameKit) writes a frame-time CSV in every
-Development Build (`unity-performance`). To fetch it (in Git Bash prefix adb with `MSYS_NO_PATHCONV=1`, or the
-device path is rewritten to a Windows one): Android `adb pull /sdcard/Android/data/<bundle id>/files/` (or
-`adb exec-out run-as <bundle id> cat /sdcard/Android/data/<bundle id>/files/<name>.csv` where that is blocked; the
-exact path is in logcat as `FrameLog: ...`), Windows
-`%USERPROFILE%\AppData\LocalLow\<Company>\<Product>\`, iOS Xcode > Devices > Download Container (Documents).
+Development Build; where to fetch it per platform (adb, LocalLow, Xcode) is in `unity-performance`.
 
 ## Conventions
 
@@ -45,8 +43,10 @@ exact path is in logcat as `FrameLog: ...`), Windows
   managed reference.
 - Dependencies wired in the Inspector are guaranteed; guard untrusted input only.
 - Every input path works on both targets: pointer (mouse and touch through the Input System's `Pointer`) for anything
-  you tap, keys only as a PC extra. Never read `UnityEngine.Input` (the old manager is off). `platform-targets` has
-  the rules for input, UI scaling, the safe area and the quality tiers; the performance budgets are in
+  you tap, keys only as a PC extra. Never read `UnityEngine.Input` (the old manager is off). Input actions live in
+  one asset, `Assets/__GAME__/Settings/__GAME__Controls.inputactions`, created by the first input feature and assigned
+  as the project-wide actions (until then `InputSystem.actions` is unset).
+  `platform-targets` has the rules for input, UI scaling, the safe area and the quality tiers; the performance budgets are in
   `unity-performance`.
 - The package manifest is deliberately small. Ask before adding a package or a framework (DI container, event bus,
   pooling, save system, Addressables).
@@ -61,17 +61,22 @@ exact path is in logcat as `FrameLog: ...`), Windows
   `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]` reset, or it survives into the
   next Play session and only breaks on the second run.
 - `Assets/Feel` is a vendored paid package (committed, so the repo stays private) that dwarfs our code: never edit
-  it, and scope searches to `Assets/__GAME__`.
+  it, and scope searches to `Assets/__GAME__`. If `Assets/Feel` is missing (new-game found no local copy and warned),
+  ask me to import Feel from the Asset Store before any Feel work.
   Feel's feedbacks compile into `MoreMountains.Tools`; reference that from `__GAME__.Game` the first time a feedback
   is used (`feel-authoring`); `__GAME__.Game` already references `GameKit` (`SafeAreaFitter`, `FrameLog`).
 - Frame rate, the quality tiers (tune their URP assets, never per-object platform branches) and the Android back
   gesture: `platform-targets`. Android builds target API 36.
-- The Editor compiles only when its window regains focus or on `gk-bridge refresh` (Agent bridge below).
-- Never hand-edit `.unity`, `.prefab` or `.asset` YAML while the Editor is running (a PreToolUse hook enforces it);
+- The Editor compiles when its window regains focus, when the gamekit hook queues a refresh after a `.cs` / `.asmdef`
+  edit or a `git rm` / `git mv`, and on `gk-bridge refresh`, which is still the gate that reports it (Agent bridge
+  below).
+- Never hand-edit `.unity`, `.prefab` or `.asset` YAML, or the other Editor-serialized types (`.mat`, `.anim`,
+  `.controller` ...; the full list is `$yaml` in the gamekit hook `guard-unity-yaml.ps1`), while the Editor is
+  running (a PreToolUse hook enforces it);
   drive the Editor instead (`unity-editor-cli`). Commit before Editor-driven scene or prefab changes: `/rewind` cannot
   undo what the Editor wrote, and after a rewind run `gk-bridge refresh`.
-- One checkout writes code. A worktree or parallel session has no Library or Feel and its compile results come from
-  this checkout's `Logs/agent`, so parallel agents only read.
+- One checkout writes code. A worktree has no Library and no Editor, so `gk-bridge` answers UNKNOWN there; parallel
+  agents only read.
 
 ## Agent bridge
 
@@ -109,14 +114,17 @@ method in `__GAME__.Editor` (its asmdef already references `Unity.Pipeline.Attri
 
 ## Working agreement
 
-The task router sizes each task S, M or L. S: inspect the affected code, implement it, `gk-bridge refresh`, commit,
-then say what to verify in Play Mode, on PC and, when input, UI or performance changed, on a phone. M and L run the
-`gamekit:pipeline` skill: the prompt becomes a spec card in PLAN.md Now, then plan, build with a gate per unit, verify,
-a scored review until every reviewer gives 9/10, and the handoff. A design question ("does X feel good?") goes to
-`gamekit:prototype` instead: one PLAN.md Now line with its question, no spec card. `/gamekit:feature` runs it unattended, only when I
-ask. `review et` or `puanla` runs only its review loop (score, fix, re-score until 9); `devam` continues the card in PLAN.md Now; `kabul` hands
-off a reviewed card that stayed below 9 (or whose handoff stopped), its open findings under Known issues; `kartı
-Next'e taşı` parks the card. Gameplay
+The task router sizes each task S, M or L. S: inspect the affected code, implement it, `gk-bridge refresh`, write
+the Play Mode checks (PC and, when input, UI or performance changed, the phone; `implementation-verification`) under
+PLAN.md Pending, commit, then tell me those checks. A change to a rule or a tuned value also updates its DESIGN.md
+Rules (as built) line, worked example included, in the same commit. M and L run the `gamekit:pipeline` skill: the
+prompt becomes a spec card in PLAN.md Now, then plan, build with a gate per unit, verify, a scored review until every
+reviewer gives 9/10, and the handoff. `/gamekit:feature` runs the pipeline unattended, only when I ask. `review et` or
+`puanla` on code or commits runs only the pipeline's review loop (score, fix, re-score until 9); on a level, text or
+store page the matching read-only agent critiques it instead; `devam` continues the card in PLAN.md
+Now; `kabul` hands off a reviewed card that stayed below 9 (or whose handoff stopped), its open findings under Known
+issues; `kartı Next'e taşı` parks the card. A design question ("does X feel good?") goes to `gamekit:prototype`
+instead: one PLAN.md Now line with its question, no spec card. Gameplay
 verification is mine. Do not run the test suite, batch-mode Unity or a build as a routine completion
 step, and do not write tests for every small change; ask first (`unity-testing`).
 
@@ -143,5 +151,13 @@ and every Unity delivery follows `unity-export`); the user never models by hand.
 user asks to see one: only the `*_for_cli` and docs tools keep Blender closed, and any other Blender MCP tool starts a
 Blender window (gamekit `ensure-blender` hook), so call one only then.
 Scripts that generate art live in `Tools/Blender/`; their outputs are rebuilt, never hand-edited.
+Sprites, UI images and audio are not Blender work (Blender only pre-renders sprites for a deliberately 3D-rendered
+look): ask me where each comes from (my own files, a licensed or CC0 pack such as Kenney, a generator I approve) and
+never ship a placeholder (sfxr-style beeps, WAVs synthesised in code, flat shapes) as final art or sound.
+Route per class: 2D sprites and icons come from those sources, or from orthographic Blender renders
+(`blender-director`) when the look is 3D-rendered; UI is uGUI built from those sprites (9-sliced panels, vector-sourced
+icons), never code-drawn shapes as final; Unity AI Generators is one such generator, used only after my yes; store
+screenshots come from `gk-bridge play-capture` at the store sizes (`launch-review`). This route wins over the
+`unity-cli` advice to reach for AI Generators first.
 Every asset that is not ours or that an AI made (you included: Blender scripts, generated textures, sounds) gets a
 `docs/asset-sources.md` row in the same commit; `launch-review` reads it before a store submit.

@@ -42,15 +42,29 @@ namespace __GAME__.Tests.EditMode
         public void SerializedValues_NeverChange()
         {
             // Scenes, prefabs and ScriptableObjects store the number, not the name. A renumbered member
-            // silently swaps the curve in every saved tuning, so these anchors pin the whole range.
-            Assert.AreEqual(0, (int)Ease.Linear);
-            Assert.AreEqual(1, (int)Ease.SineIn);
-            Assert.AreEqual(10, (int)Ease.QuartIn);
-            Assert.AreEqual(12, (int)Ease.QuintIn);
-            Assert.AreEqual(17, (int)Ease.CircIn);
-            Assert.AreEqual(19, (int)Ease.BackIn);
-            Assert.AreEqual(21, (int)Ease.ElasticOut);
-            Assert.AreEqual(22, (int)Ease.BounceOut);
+            // silently swaps the curve in every saved tuning, so this table pins every member. A new curve adds
+            // one row with its new number; an existing row never changes.
+            var pinned = new (string name, int value)[]
+            {
+                ("Linear", 0),
+                ("SineIn", 1), ("SineOut", 2), ("SineInOut", 3),
+                ("QuadIn", 4), ("QuadOut", 5), ("QuadInOut", 6),
+                ("CubicIn", 7), ("CubicOut", 8), ("CubicInOut", 9),
+                ("QuartIn", 10), ("QuartOut", 11),
+                ("QuintIn", 12), ("QuintOut", 13),
+                ("ExpoIn", 14), ("ExpoOut", 15), ("ExpoInOut", 16),
+                ("CircIn", 17), ("CircOut", 18),
+                ("BackIn", 19), ("BackOut", 20),
+                ("ElasticOut", 21), ("BounceOut", 22),
+            };
+
+            Assert.AreEqual(pinned.Length, Enum.GetNames(typeof(Ease)).Length,
+                            "Ease üyesi eklendi ya da silindi: tabloya yeni sayısıyla bir satır ekle");
+            foreach (var (name, value) in pinned)
+            {
+                Assert.IsTrue(Enum.IsDefined(typeof(Ease), name), name + " Ease'ten silinmiş ya da adı değişmiş");
+                Assert.AreEqual(value, (int)Enum.Parse(typeof(Ease), name), name + " sayısı değişmiş");
+            }
         }
 
         [Test]
@@ -71,7 +85,7 @@ namespace __GAME__.Tests.EditMode
             for (int i = 0; i <= 10; i++)
             {
                 float t = i / 10f;
-                Assert.AreEqual(t, Easing.Evaluate(Ease.Linear, t), 1e-6f);
+                Assert.AreEqual(t, Easing.Evaluate(Ease.Linear, t), 1e-6f, "Linear " + t + " girdisini değiştirmemeli");
             }
         }
 

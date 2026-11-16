@@ -61,12 +61,14 @@ TODO
 
 ## Platforms
 
-| | PC | Mobile |
-|---|---|---|
-| Input | TODO (keyboard + mouse) | TODO (tap, swipe, drag) |
-| Orientation / window | TODO | TODO |
-| Session length | TODO | TODO |
-| Frame target | vSync | 60 fps |
+| | PC | Mobile | WebGL (itch.io playtests) |
+|---|---|---|---|
+| Input | TODO (keyboard + mouse) | TODO (tap, swipe, drag) | TODO (mouse; touch too if phone browsers are in scope) |
+| Orientation / window | TODO | TODO | TODO (canvas size, fullscreen button) |
+| Session length | TODO | TODO | TODO (a short playtest) |
+| Monetisation | TODO (premium / free with ads / free with IAP) | TODO (premium / free with ads / free with IAP) | none (free playtest builds) |
+| Frame target | vSync | 60 fps | browser refresh (requestAnimationFrame) |
+| Languages | TODO (Turkish / English) | TODO (Turkish / English) | TODO (as PC) |
 
 ## Architecture
 

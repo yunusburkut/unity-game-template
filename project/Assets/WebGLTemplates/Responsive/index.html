@@ -12,7 +12,7 @@
         transform: translate(-50%, -50%); border-radius: 4px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
       #unity-progress { width: 0; height: 100%; border-radius: 4px; background: #ffffff; }
       #unity-warning { position: absolute; left: 50%; top: 5%; transform: translateX(-50%); display: none;
-        font: 14px sans-serif; color: #000000; }
+        font: 14px sans-serif; color: #ffffff; }
     </style>
   </head>
   <body>
@@ -32,7 +32,7 @@
         warningBanner.appendChild(div);
         if (type == 'error') div.style = 'background: red; color: white; padding: 10px;';
         else {
-          if (type == 'warning') div.style = 'background: yellow; padding: 10px;';
+          if (type == 'warning') div.style = 'background: yellow; color: black; padding: 10px;';
           setTimeout(function() {
             warningBanner.removeChild(div);
             updateBannerVisibility();
@@ -63,6 +63,9 @@
         productName: {{{ JSON.stringify(PRODUCT_NAME) }}},
         productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
         showBanner: unityShowBanner,
+        // persist every write under Application.persistentDataPath (saves, FrameLog) to IndexedDB; off by default,
+        // and without it a reload of the tab loses them
+        autoSyncPersistentDataPath: true,
         // phones report a pixel ratio of 3 and more; 2 keeps the image sharp at a lighter fill cost
         devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
       };
