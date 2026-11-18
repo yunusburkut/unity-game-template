@@ -34,8 +34,10 @@ can say out loud in five seconds.
 5. **Run the four tests (CL01–CL04):** speakable, muted clip, paste, budget. A muted-clip or paste failure (CL02,
    CL03) goes back to step 3, not to the wording. A line that fails speakable or the budget (CL01, CL04) may be cut
    once; if it still fails, back to step 3.
-6. **Show the user two to four options as an interactive prototype** (`show_widget`), the recommended one first. They
-   pick. Do not build the first idea straight away. Where `show_widget` is not available (a terminal session), show
+6. **Show the user two to four options on a decision page**
+   (`${CLAUDE_PLUGIN_ROOT}/skills/pipeline/references/decision-page.md`), the recommended one first. They pick. Do not
+   build the first idea straight away. Where no page can be made (that file's fallback), use `show_widget`; without
+   that either (a terminal session), show
    each option as a short mock: the exact on-screen words, where they sit, what carries them, and when they retire.
 7. **Build it (below), then hand over a Play Mode checklist** (`implementation-verification`), on PC and on a phone.
    Write the decision into `DESIGN.md`.

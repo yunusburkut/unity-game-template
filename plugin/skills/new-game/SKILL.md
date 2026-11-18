@@ -172,7 +172,10 @@ The first session in a new game, once. It fills the TODOs in `CLAUDE.md`, `DESIG
    player-facing strings (Turkish / English), the voice (`player-clarity` §E defaults as the recommendation), the kill
    condition. A fact from the repo is yours to look up, not a question. If the idea is thin, offer three starts: the
    core verb, a mashup of two known games, or the feeling worked backward. Once the pillars are set, "what else could
-   it have?" is `gamekit:game-ideas`: its cards feed step 3's feature list.
+   it have?" is `gamekit:game-ideas`: its cards feed step 3's feature list. Not in the grill-me copy: a round with a
+   seen or felt question (camera, orientation, the look, the core loop's feel) goes on a decision page instead of
+   `AskUserQuestion` (`${CLAUDE_PLUGIN_ROOT}/skills/pipeline/references/decision-page.md`); its picks are that
+   round's answers.
 3. Push back past 7 features and propose cuts. List the systems each feature implies (combat: damage, health, hit
    detection, AI, death and respawn; inventory: item data, slots, UI, save).
 4. When the frontier is empty, summarise the decisions and wait for the user's yes. Then fill every TODO in

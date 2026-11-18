@@ -22,7 +22,9 @@ the event, not the whole file (Contents at its top; the table below names the se
 profiles for platformer, tap puzzle, dodge roll, rhythm and impact games are in `references/numbers.md` §10). Sources
 and confidence levels are in `references/sources.md`; the layers, patterns and anti-patterns are in
 `references/feedback-stack.md`. Never invent a number that sounds plausible: take it from the reference, from the
-game's tuning ScriptableObject, or say it is a starting guess to tune in Play Mode.
+game's tuning ScriptableObject, or say it is a starting guess to tune in Play Mode. When the band leaves 2+ real
+profiles for a new action (a quiet or a punchy hit, two easings), the user picks on a decision page that plays each
+one side by side, before it is wired (`${CLAUDE_PLUGIN_ROOT}/skills/pipeline/references/decision-page.md`).
 
 ## The one budget that outranks everything
 

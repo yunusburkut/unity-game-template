@@ -99,6 +99,11 @@ Determine what the user is asking for:
 5. **Create or edit** — Build structure with proper anchoring, or make targeted edits.
 6. **Confirm result** — Verify the change worked before moving on.
 
+<!-- BEGIN HOUSE -->
+A new screen, popup or HUD with 2+ real layouts: before step 5, the user picks one on a decision page with an SVG
+mock-up of each, at phone and PC aspect (`${CLAUDE_PLUGIN_ROOT}/skills/pipeline/references/decision-page.md`).
+<!-- END HOUSE -->
+
 ## Canvas Setup
 
 Every UI needs a Canvas:

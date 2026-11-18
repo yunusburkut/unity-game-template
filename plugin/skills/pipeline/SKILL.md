@@ -88,11 +88,14 @@ Review: <after each round: r1 unity-reviewer 8, clarity-reviewer 9 (its findings
   <Base>..HEAD`: other work in that span (an S task between sessions, another card while this one was parked) is not
   this card's. A repaired Base reads `Base: <sha> (önce: <x>)` (Longer than one session): the key is the sha, and the
   range adds `--grep='^Card: <x>'` for the commits made before the repair.
+- A player-visible choice with 2+ real options (look, layout, feel, a rule), on M or L: the user picks it on a
+  decision page before phase 2 (`references/decision-page.md`: when, what it shows, how the picks come back).
 - M: write the smallest reasonable reading under Assumptions and go on; the handoff names them and moves them to
   DESIGN.md Decisions, so the user can correct them. Own calls made while building go there too: every choice a player
   could notice that the card does not state (a speed, duration, colour, string, an edge case it never names), one
   line each with `dosya:satır`.
-- L: show the card, ask the open questions (AskUserQuestion, recommendation first), and wait. With the answers (or
+- L: show the card, ask the open questions (a decision page; AskUserQuestion, recommendation first, where that file
+  says no page), and wait. With the answers (or
   none to ask), write them into the card (`Open questions: none`), put each design choice in DESIGN.md Decisions,
   commit both, and end the turn with one line: "`devam` = burada yaparım · `/gamekit:feature` = gözetimsiz yapar".
 
@@ -118,8 +121,8 @@ Then load the skills the card needs, and only those:
 
 Climb the lean ladder before each unit: does it need to exist, does Core or Game already have it, does Unity or an
 installed package do it. Then order the units so each one compiles alone and is one commit (about 1-3 files). Write
-them into the card's Plan. A real design choice with two viable options: M picks the reversible one and writes it under
-Assumptions; L asks.
+them into the card's Plan. A real design choice with two viable options: a player-visible one goes on a decision page
+(phase 1); otherwise M picks the reversible one and writes it under Assumptions, and L asks.
 
 ## 4 Build
 

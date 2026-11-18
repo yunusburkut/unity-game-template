@@ -78,7 +78,9 @@ Close with one line: the top pick and why, then the drops (`Elenenler: <ad> (kap
 
 ## 5 Hand off
 
-The user picks. Each pick goes to exactly one place:
+The user picks on a decision page: one option card per idea card, its mock-up showing the player doing it
+(`${CLAUDE_PLUGIN_ROOT}/skills/pipeline/references/decision-page.md`; several picks are allowed here). Each pick goes
+to exactly one place:
 
 | The pick | Goes to |
 |---|---|
