@@ -124,7 +124,9 @@ reviewer gives 9/10, and the handoff. `/gamekit:feature` runs the pipeline unatt
 store page the matching read-only agent critiques it instead; `devam` continues the card in PLAN.md
 Now; `kabul` hands off a reviewed card that stayed below 9 (or whose handoff stopped), its open findings under Known
 issues; `kartı Next'e taşı` parks the card. A design question ("does X feel good?") goes to `gamekit:prototype`
-instead: one PLAN.md Now line with its question, no spec card. Gameplay
+instead: one PLAN.md Now line with its question, no spec card. A choice I will see or feel with 2+ real options (on
+M and L, not S) I pick on an HTML decision page first; the picks go into the card or DESIGN.md before the build
+(`gamekit:pipeline`). Gameplay
 verification is mine. Do not run the test suite, batch-mode Unity or a build as a routine completion
 step, and do not write tests for every small change; ask first (`unity-testing`).
 
