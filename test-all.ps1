@@ -372,9 +372,9 @@ $houseBad = @(
     $uc = [IO.File]::ReadAllText((Resolve-Path -LiteralPath 'plugin/skills/unity-cli/SKILL.md'))
     foreach ($s in '> **In a gamekit game these project rules override', 'never run `unity mcp configure`', 'never the bootstrap recipe below',
         'into the game''s `.claude/skills/`, so do not run it', '**A gamekit game starts with `gamekit:new-game` instead.**',
-        '<!-- exit-codes:begin', '<!-- exit-codes:end -->', '> House edits a merge from upstream must reapply',
+        '> House edits a merge from upstream must reapply',
         '**Tests and builds:**', '**Updating the CLI is the user''s call:**', '**No agent setup on your own:**',
-        'Editor and module installs are the user''s call', '[catalog-plugins.md](references/catalog-plugins.md)') {
+        'Editor and module installs are the user''s call', '[common-workflows.md](references/common-workflows.md)') {
         if (-not $uc.Contains($s)) { "unity-cli SKILL.md lost: $s" }
     }
     # a merge that drops a whole HOUSE block, markers included, still pairs up: one line from each block that carries a
@@ -393,7 +393,9 @@ $houseBad = @(
     }
     $ucFront = [regex]::Match($uc, '(?s)\A---\r?\n(.*?)\r?\n---').Groups[1].Value
     if ($ucFront -notmatch 'allowed-tools:' -or $ucFront -match '(?m)^\s*-\s*(Bash|PowerShell)\s*$|(?m)^allowed-tools:.*\b(Bash|PowerShell)\b(?!\()') { 'unity-cli allowed-tools is not narrowed to read-only unity forms' }
-    foreach ($r in 'build-run-test', 'playmode-verification-loop', 'workflows', 'catalog-plugins') {
+    $ec = [IO.File]::ReadAllText((Resolve-Path -LiteralPath 'plugin/skills/unity-cli/references/exit-codes.md'))
+    foreach ($s in '<!-- exit-codes:begin', '<!-- exit-codes:end -->') { if (-not $ec.Contains($s)) { "unity-cli exit-codes.md lost: $s" } }
+    foreach ($r in 'build-run-test', 'playmode-verification-loop', 'common-workflows') {
         $top = ([IO.File]::ReadAllLines((Resolve-Path -LiteralPath "plugin/skills/unity-cli/references/$r.md")) | Select-Object -First 15) -join "`n"
         if ($top -notmatch '(?i)> \*\*(In a )?gamekit') { "unity-cli references/$r.md lost its gamekit note at the top" }
     }
@@ -832,7 +834,8 @@ if (Get-Command unity -ErrorAction SilentlyContinue) {
         # 1.0.0-beta.14 sorts below 1.0.0: release stage 0 for a pre-release, 1 for a release
         if ($v -match '(\d+)\.(\d+)\.(\d+)(?:-[a-z]+\.(\d+))?') { '{0:D4}{1:D4}{2:D4}{3}{4:D4}' -f [int]$Matches[1], [int]$Matches[2], [int]$Matches[3], [int](-not $Matches[4]), [int]$Matches[4] }
     }
-    $cliVer = (cmd /c "unity --version 2>nul" | Select-Object -First 1)
+    # 1.0.1 prints a key/value header row when piped (tsv), so take the first version-shaped token, not the first line
+    $cliVer = [regex]::Match(((cmd /c "unity --version 2>nul") -join "`n"), '\d+\.\d+\.\d+(?:-[a-z]+\.\d+)?').Value
     $stamp = [regex]::Match([IO.File]::ReadAllText((Resolve-Path -LiteralPath 'plugin/skills/unity-editor-cli/SKILL.md')), 'checked on \*\*CLI ([\w.-]+)\*\*').Groups[1].Value
     $logged = [regex]::Match([IO.File]::ReadAllText((Resolve-Path -LiteralPath 'plugin/skills/unity-cli/CHANGELOG.md')), '(?m)^## CLI `([\w.-]+)`').Groups[1].Value
     foreach ($ref in @(@('unity-editor-cli stamp', $stamp), @('unity-cli CHANGELOG', $logged))) {
