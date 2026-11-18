@@ -12,10 +12,10 @@ Unity's skill: its top gamekit blockquote and this file win over its generic rec
 template maintainers only: `references/refreshing-copies.md`).
 
 The CLI-specific claims in this file (command names, `script run` and its 60 s default, the 30 s `script eval`
-default, `capture game_view` parameters) were checked on **CLI 1.0.0-beta.14** with `com.unity.pipeline` as the
-template pins it (`0.10.0-exp.1`); the CLI 1.0 changes below come from its release notes.
+default, `capture game_view` parameters, the exit codes below) were checked on **CLI 1.0.1** with
+`com.unity.pipeline` as the template pins it (`0.10.0-exp.1`).
 When `unity --version` reports a newer CLI, recheck them; on an older one, see the fallbacks below. `unity-cli`
-documents a newer CLI (`1.0.1`) than may be installed: confirm an unfamiliar flag with `unity <cmd> --help`
+may document a newer CLI than is installed: confirm an unfamiliar flag with `unity <cmd> --help`
 before relying on it, and read a flag it rejects as an older CLI, not a project problem.
 
 Since CLI 1.0.0 `unity command` exits `6` (`COMMAND_FAILED`) when the command's result reports `success: false` or a
@@ -115,8 +115,8 @@ is the fallback when the project registers it (see `unity-cli`'s integration-adv
 rules and timeout.
 
 Pipeline command parameters are kebab-case (`--output-path`, `--max-resolution`, `--dry-run`); the snake_case
-spellings older Pipeline packages and older docs use (`--save_path`, `--max_resolution`, `--dry_run`) are refused
-with `INVALID_COMMAND_ARGS` (upstream `unity-cli` CHANGELOG).
+spellings older Pipeline packages and older docs use (`--save_path`, `--max_resolution`, `--dry_run`) are refused:
+CLI 1.0.1 exits `2` with "has no parameter --dry_run. Did you mean --dry-run?".
 
 ## Game View capture
 
