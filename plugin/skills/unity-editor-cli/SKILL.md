@@ -11,11 +11,17 @@ cover; load `unity-cli` only when a CLI command, flag or output shape is unclear
 Unity's skill: its top gamekit blockquote and this file win over its generic recipes (how the copies are refreshed, for
 template maintainers only: `references/refreshing-copies.md`).
 
-The CLI-specific claims in this file (command names, `script run` and its 60 s default, the 5 s `script eval` budget,
-`capture game_view` paths) were checked on **CLI 1.0.0-beta.14** with `com.unity.pipeline` as the template pins it.
+The CLI-specific claims in this file (command names, `script run` and its 60 s default, the 30 s `script eval`
+default, `capture game_view` parameters) were checked on **CLI 1.0.0-beta.14** with `com.unity.pipeline` as the
+template pins it (`0.10.0-exp.1`); the CLI 1.0 changes below come from its release notes.
 When `unity --version` reports a newer CLI, recheck them; on an older one, see the fallbacks below. `unity-cli`
-documents a newer CLI (`1.0.0-beta.16`) than may be installed: confirm an unfamiliar flag with `unity <cmd> --help`
+documents a newer CLI (`1.0.1`) than may be installed: confirm an unfamiliar flag with `unity <cmd> --help`
 before relying on it, and read a flag it rejects as an older CLI, not a project problem.
+
+Since CLI 1.0.0 `unity command` exits `6` (`COMMAND_FAILED`) when the command's result reports `success: false` or a
+failed status, so a `script run` whose method throws fails the call; an older CLI exits `0` there, so read the
+result's `success` too. `unity command <name> --help` (1.0.0+) prints that command's parameters from the Editor; on
+an older CLI read them from `unity command --detail full --json`.
 
 Never hand-edit Unity YAML (`.unity`, `.prefab`, `.asset`, `.mat`, `.controller`, `.overrideController`, `.anim`,
 `.mask`, `.mixer`, `.playable`, `.signal`, `.lighting`, `.preset`, `.terrainlayer`, `.renderTexture`, `.spriteatlasv2`,
@@ -45,11 +51,10 @@ unity command script run --file <absolute .cs path> --timeout <seconds>
 ```
 
 It compiles a real C# file into an ephemeral assembly and runs its single public static method (`--entry Type.Method`
-picks another, `--args` passes a JSON array, `--dry_run` only compiles), so `using` directives, helper methods and a
-normal class all work. `script eval` wraps the code in a *method body* (every type fully qualified) and has a 5 s
-main-thread budget; `script run` has 60 s by default. `CreateAsset` + `SaveAssets` + `SaveOpenScenes` in one
-`script eval` will blow through it. Anything opening a modal dialog blocks the main thread; `SaveOpenScenes()` on an untitled scene is the
-usual culprit.
+picks another, `--args` passes a JSON array, `--dry-run true` only compiles), so `using` directives, helper methods
+and a normal class all work. `script eval` evaluates a snippet in Roslyn's script mode with a 30 s default
+`--timeout`; `script run` has 60 s by default. Anything opening a modal dialog blocks the main thread until the
+timeout; `SaveOpenScenes()` on an untitled scene is the usual culprit.
 
 Keep the script **outside** `Assets/` (the scratchpad directory) so writing it triggers no asset import.
 
@@ -107,14 +112,18 @@ resolve), and `unity command --obsolete-command-names` maps them.
 The space form needs CLI 1.0.0-beta.14 or newer (`unity self-update` after the user's yes; `upgrade` is its older alias); older ones accept only the dotted form
 (`script.run`). Where `script run` is missing (an older CLI or Pipeline package), `unity command script eval_file <file>`
 is the fallback when the project registers it (see `unity-cli`'s integration-advanced.md), with `script eval`'s
-method-body rules and budget.
+rules and timeout.
+
+Pipeline command parameters are kebab-case (`--output-path`, `--max-resolution`, `--dry-run`); the snake_case
+spellings older Pipeline packages and older docs use (`--save_path`, `--max_resolution`, `--dry_run`) are refused
+with `INVALID_COMMAND_ARGS` (upstream `unity-cli` CHANGELOG).
 
 ## Game View capture
 
-`capture game_view --save_path` is confined to the project root and silently resolves a bare `Temp/x.png` to
-**`Assets/Temp/x.png`**, importing it as an asset. No path outside `Assets/` is verified on beta.14, so either take
-the image inline (no `--save_path`; `--max_resolution 512` keeps it small) or save under `Assets/` and delete the PNG
-and its `.meta` afterwards. To look at the game, `play-capture` (below) is the default: it writes to
+`capture game_view --output-path <path>` writes the PNG to an absolute path or one relative to the project root; keep
+it outside `Assets/` (`Screenshots/x.png`) so no asset or `.meta` is made (the Pipeline's own parameter description;
+not test-run here). Without `--output-path` the image comes back inline (`--max-resolution 512` keeps it small);
+`--include-inline-image true` returns both. To look at the game, `play-capture` (below) is the default: it writes to
 `Logs/agent/capture/`, which is not an asset folder. `--source screen`
 needs Play Mode and an unlocked desktop (a locked Windows session returns a solid cyan image); `--source camera` works
 on a locked machine but misses Screen Space - Overlay UI, which no camera draws.

@@ -77,7 +77,7 @@ with the same states share the controller through an `AnimatorOverrideController
 controller.
 
 Run the builder from the agent with a `script run` file whose single method calls `PlayerAnimatorBuilder.Build()`
-(check with `--dry_run` first; if the ephemeral assembly cannot resolve the game's Editor types, give the builder a
+(check with `--dry-run true` first; if the ephemeral assembly cannot resolve the game's Editor types, give the builder a
 `[CliCommand]` instead, `unity-cli`'s integration-advanced.md). The user can run the same menu item. Commit the
 builder and the asset it writes together.
 

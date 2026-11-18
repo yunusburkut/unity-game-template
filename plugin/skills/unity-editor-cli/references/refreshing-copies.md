@@ -13,11 +13,13 @@ edit, and keep every file the copy added (never a mirror that deletes extra refe
 marked near the top of each copy; re-apply any that the merge touched: `unity-cli`'s top blockquote (the gamekit
 overrides: `gk-bridge` for tests and builds, no `unity mcp configure`, no `unity skill install` / `setup` without a yes,
 new games via `gamekit:new-game`, Play Mode verification through `play-capture`, `allowed-tools` narrowed to
-the read-only `unity` forms, the bootstrap and CI build workflows moved to `references/workflows.md`, and the gamekit
-notes atop `build-run-test.md`, `playmode-verification-loop.md` and `workflows.md`), `urp-postprocessing`'s top
+the read-only `unity` forms, upstream's `unity-cli.md` kept as `SKILL.md` with `CHANGELOG.md` at the skill root, and
+the gamekit notes atop `build-run-test.md`, `playmode-verification-loop.md` and `common-workflows.md`), `urp-postprocessing`'s top
 "House edits (gamekit)" blockquote, `unity-package-management`'s "Local
 gamekit adaptations" block and `ui-ugui`'s "House rules win" list. `unity-cli` is copied from
-`unity@claude-plugins-official` 0.1.9-beta (docs for CLI `1.0.0-beta.16`), as its blockquote says. Note the CLI version
+`unity@claude-plugins-official` 0.1.10-beta (docs for CLI `1.0.1`), as its blockquote says; upstream now keeps it at
+`skills/using-unity/references/unity-cli/` in `Unity-Technologies/unity-agent-plugin`, so diff the previous upstream
+version's files against the new ones and apply that diff here. Note the CLI version
 the merge was aligned to in that skill's `CHANGELOG.md` (`unity-cli`) or `LICENSE.md` (the others): `urp-postprocessing`'s records 0.1.6-beta merged up to 0.1.9-beta;
 `ui-ugui`'s and `unity-package-management`'s do not record theirs yet, so add it at their next merge.
 

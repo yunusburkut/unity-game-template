@@ -713,9 +713,10 @@ run 'bad usage is unknown' 2 frobnicate
         foreach ($w in $want) { if (-not $tt -or -not [regex]::IsMatch($tt, $w.P)) { "$($a.BaseName): $($w.R)" } } }
     Check "plugin: all $anchorN sections, anchors and items the agents quote exist in the files they name" ($anchorN -ge 15 -and -not $anchorMiss) ($anchorMiss -join ', ')
     # This machine has no Python: a fenced example that calls python3 cannot run (Blender's bpy runs inside Blender).
-    $py = foreach ($f in $allMd) { $in = $false; $n = 0
+    # A ```json fence is a payload (a container's command line), not something run here.
+    $py = foreach ($f in $allMd) { $in = $false; $data = $false; $n = 0
         foreach ($l in [IO.File]::ReadAllLines($f.FullName)) { $n++
-            if ($l -match '^\s*```') { $in = -not $in } elseif ($in -and $l -match '(?<![-\w])python3?\s+\S') { "$($f.Directory.Name)/$($f.Name):$n" } } }
+            if ($l -match '^\s*```(\w*)') { $in = -not $in; $data = $in -and $Matches[1] -like 'json*' } elseif ($in -and -not $data -and $l -match '(?<![-\w])python3?\s+\S') { "$($f.Directory.Name)/$($f.Name):$n" } } }
     Check 'plugin: no fenced example calls python' (-not $py) ($py -join ', ')
     # Backticked paths into the plugin, the user skills or a shipped docs/ folder must exist where the doc is read.
     # Ceiling: a top-level docs/<name>.md is mostly a file the game writes (gdd.md, go-to-market.md, a pass log), so only
