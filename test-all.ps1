@@ -30,7 +30,7 @@
     pick it), with a warning when its version has no MCP add-on; every tracked .py and every ~/.claude/skills/blender-*,
     unity-export .py compiles in it, a cube exports headless with unity-export's FBX call verbatim, toon-art's
     toon_prop.py exports a prop and a manifest whose collider signs hold for an off-centre copy too,
-    blender-image-to-3d's test_pack_mask.py passes, and its validate, export_delivery and roundtrip --manifest exit 0
+    blender-image-to-3d's test_pack_mask.py and genre-defaults' test_style_bible.py pass, and its validate, export_delivery and roundtrip --manifest exit 0
     on the local _asset-samples\PR_Anvil or, without it, a fixture with a packed mask built headless; every --background
     line in those user-level skills carries --factory-startup; the Blender MCP
     extension's copies keep their stdin=DEVNULL patch (README.md, Blender step 5) and the active copy's run_blender_cli
@@ -665,6 +665,12 @@ sys.exit(1 if bad else 0)
         Check 'blender-image-to-3d: bake_maps pack_mask channels (test_pack_mask.py)' ($LASTEXITCODE -eq 0 -and ($res -match 'PACK MASK PASS')) (($res | Select-Object -Last 3) -join ' ')
         if (Test-Path -LiteralPath $maskOut) { Remove-Item -LiteralPath $maskOut -Recurse -Force -ErrorAction SilentlyContinue }
     }
+    # the style-bible scripts (genre-defaults references/style-bible.md) on their fixture, about 10 s: extract_style
+    # finds the palette, style_gate passes a palette crate and fails four planted faults, contact_sheet renders a sheet
+    $styleOut = Join-Path $env:TEMP "gk-test-style-bible-$PID"
+    $res = cmd /c "`"$blender`" --background --factory-startup --python-exit-code 1 --python `"$PSScriptRoot\plugin\skills\genre-defaults\evals\test_style_bible.py`" -- --out `"$styleOut`" 2>&1"
+    Check 'style bible: extract_style, style_gate and contact_sheet on their fixture (test_style_bible.py)' ($LASTEXITCODE -eq 0 -and ($res -match 'STYLE BIBLE PASS')) (($res | Select-Object -Last 3) -join ' ')
+    if (Test-Path -LiteralPath $styleOut) { Remove-Item -LiteralPath $styleOut -Recurse -Force -ErrorAction SilentlyContinue }
     # the delivery half of the PR_Anvil gate runner (blender-image-to-3d SKILL.md), about 15 s: validate, export_delivery
     # --format FBX and roundtrip --manifest, written to %TEMP% so the source stays as it is. The source is the local,
     # untracked _asset-samples\PR_Anvil baked file when present; otherwise a fixture built headless here: a 0.8 m UV'd

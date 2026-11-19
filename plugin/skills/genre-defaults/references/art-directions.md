@@ -8,7 +8,8 @@ their own words on the Look lines. A look they name is built as named, even when
 - **Never an emoji or a font glyph as art** (figure, tile, icon or HUD), unless the user asks for emoji by name.
 - **Every enemy kind has its own silhouette** at play size: a different outline, not a recolour or a resize. The player
   reads apart from all of them.
-- **Not a copy.** A named game guides camera, proportions, palette mood and light. Its characters, logos and art are
+- **Not a copy.** A named game guides camera, proportions, palette mood and light; for 3D art its screenshots become
+  the game's numeric style bible (`style-bible.md`). Its characters, logos and art are
   not copied; write what to avoid on the Look References line.
 - **Colour:** risky colour pairs and "never colour alone" belong to `player-clarity`; the Look names the pairs only.
 

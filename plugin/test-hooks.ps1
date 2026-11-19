@@ -542,7 +542,7 @@ run 'bad usage is unknown' 2 frobnicate
     Check "genre-defaults: all $($listed.Count) indexed sheets exist" ($listed.Count -gt 0 -and -not $missing) ($missing -join ', ')
     $refs = Join-Path $gd 'references'
     # The other way too: SKILL.md matches genres only from its list, so an unlisted sheet is never used.
-    $support = 'art-directions', 'mashups', 'online', 'sources'
+    $support = 'art-directions', 'mashups', 'online', 'sources', 'style-bible'
     $sheets = Get-ChildItem -LiteralPath $refs -Filter *.md | ForEach-Object { $_.BaseName } | Where-Object { $_ -notin $support }
     $unlisted = $sheets | Where-Object { $_ -notin $listed }
     Check "genre-defaults: all $(@($sheets).Count) sheets are indexed" (-not $unlisted) ($unlisted -join ', ')
