@@ -52,6 +52,9 @@ Every call is `blender --background --factory-startup --python-exit-code 1 [<ass
    - `detail_floor_m`: 2 pixels at game size, 2 x `asset_m` / `asset_px`.
    - `flat_waste_max_share`: 0.1. It counts only triangles whose removal leaves the asset looking the same (shape,
      shading, outline, UV map), so the look never pays for it.
+   - `curve_waste_max_share`: 0.1 per class the game draws at about `asset_px` (`{"prop": 0.1, "kit": 0.1}`); a
+     class it shows larger (a close-up hero) gets no entry. It counts triangles on smooth curves cut finer than
+     0.25 px of chord error at game size.
 
    Show the swatches and 2 test assets (a crate and a rock) built two ways on a decision page; the user approves.
 6. Build the golden asset: one typical prop of the most common class, through section 2. After the user's yes, copy
@@ -79,6 +82,8 @@ Every call is `blender --background --factory-startup --python-exit-code 1 [<ass
    build module and write its bmesh back: it dissolves and triangulates only what the gate counted. A bare
    `dissolve_limit` is not that: it also takes the edge midpoints the outline leans on, warps a 9-slice UV and leaves
    n-gons for Unity to triangulate. Never Decimate to meet a budget: the look comes first, and Decimate removes shape.
+   A `curve` failure: give each round part `ceil(pi / acos(1 - 0.25 / r_px))` segments around, `r_px` = radius x
+   `asset_px` / `asset_m` (16 px radius: 18, 32 px: 26, 64 px: 36), and half that along a sphere's height.
 4. `contact_sheet.py -- --style ... --out Tools/Blender/<Asset>/review/<Asset>_sheet.png --crops
    Tools/Blender/Style/crops.json --class <class> --golden Tools/Blender/Style/golden.png` (`--refs <files>` adds
    whole images). Read the sheet: rows front, right, back, top, game camera, references (the class's object crops);
@@ -121,6 +126,7 @@ the kit lineup. One art-reviewer pass looks for drift (a colour, a bevel or a de
   "bevel_m": 0.02,
   "hard_edges_max_share": null,
   "flat_waste_max_share": 0.1,
+  "curve_waste_max_share": {"prop": 0.1, "kit": 0.1},
   "avoid": ["thin parts that vanish at asset_px", "a second outline width"]
 }
 ```
@@ -128,12 +134,13 @@ the kit lineup. One art-reviewer pass looks for drift (a colour, a bevel or a de
 | Field | Meaning | Checked by |
 |---|---|---|
 | `shading`, `outline` | `toon`, `flat`, `lit` or `painted`: the Unity shading model the look pass copies; the ink line (`true` = Toon.shader's 1.5 px at 1080p, tint `srgb`; `false` = none) | contact_sheet |
-| `camera` | the game camera; `asset_px` = a typical prop's height in pixels in a 1080p frame, `asset_m` = its height in metres (default 1) | contact_sheet |
+| `camera` | the game camera; `asset_px` = a typical prop's height in pixels in a 1080p frame, `asset_m` = its height in metres (default 1) | contact_sheet, style_gate (`curve`) |
 | `light` | sun direction; toon only: `band` = the N.L of the shadow edge, `shadow_srgb`, `shade_saturation` = the shade band (Toon.shader `_RampOffset`, `_ShadeColor`, `_ShadeSaturation`), `ambient` = the scene's SH level | contact_sheet |
 | `palette`, `accents`, `palette_de`, `accent_max_share` | the roles (sRGB 0-1), how far (CIELAB distance) a colour may sit from one, and how much of an asset's surface may be accent | style_gate, contact_sheet |
 | `value_range`, `look` | L* 0-100 the asset's colours stay in; the references' pooled look numbers, shown beside the asset's | style_gate, contact_sheet |
 | `triangles`, `detail_floor_m`, `texel_density`, `hard_edges_max_share` | budgets per class (per asset root); smallest loose part; px per metre or `"atlas"`; share of unbevelled hard edges (`null` = report only) | style_gate |
 | `flat_waste_max_share` | share of an asset's triangles that only split flat, flat-normal faces of one material and one affine UV map, away from the edges that shape the outline: removing them leaves the render the same (`null` = report only) | style_gate |
+| `curve_waste_max_share` | per class (a number: every class): share of an asset's triangles that refine smooth curves past 0.25 px of chord error at `asset_px`; fewer segments look the same at game size (a class without an entry = report only) | style_gate |
 
 `bevel_m` and `avoid` are for the build and the reviewers; no script measures them. A threshold (`palette_de`,
 `value_range`) is tuned on the golden asset, then frozen; a later change re-runs the gate on every approved asset.
@@ -153,7 +160,7 @@ and the tie-breaker when two rules collide (for example "readability at asset_px
 - Blender's look pass is a stand-in for the Unity shader (no gloss spot, rim or contact shade); the in-engine capture
   decides.
 - The `look` numbers compare a whole reference frame with one asset, so they guide the reviewers and gate nothing.
-- `waste` sees only flat waste. A curve cut finer than the game camera shows (a 64-sided cylinder at 64 px) looks
-  the same on the sheet, so only the `triangles` band bounds it. The build script picks a round part's segments for
-  under half a pixel of chord error at game size: `ceil(pi / acos(1 - 0.5 / r_px))`, `r_px` = radius x `asset_px` /
-  `asset_m` (16 px radius: 13, 64 px: 26).
+- `curve` estimates each smooth edge's radius from its two faces and counts half the triangles of faces whose
+  curved edges are all past the bound, so it errs low: it catches twice the segments a curve needs (a 64x32 ball,
+  a 64-sided cylinder at prop size), not a few too many. It reads asset_px as the size on screen, so a part the game
+  zooms in on needs its own class.

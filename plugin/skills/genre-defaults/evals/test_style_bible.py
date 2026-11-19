@@ -11,6 +11,8 @@
 # 3. contact_sheet draws the toon band where Toon.shader puts it (a sphere against N.L), and the crate's sheet with
 #    its outline, references, json and game tile; on-palette coverage is 0.85 or more. Dissolving the waste the gate
 #    counts leaves the game tile unchanged.
+# 4. curve_waste fails a 64x32 smooth ball and a 64-sided cylinder at prop size and passes 26 segments (the formula's
+#    count), also twisted and triangulated, and a faceted ball; the smooth crate's rounded corners count 0.
 # Prints STYLE BIBLE PASS; any failed assert exits 1.
 
 import json
@@ -21,6 +23,7 @@ import bmesh
 import bpy
 import numpy as np
 import OpenImageIO as oiio
+from mathutils import Matrix
 
 SCRIPTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'scripts')
 sys.dont_write_bytecode = True     # no __pycache__ beside the plugin's scripts
@@ -142,14 +145,24 @@ def panel(name, inner):
     return mesh
 
 
-def sphere(name, colour):
+def sphere(name, colour, u=64, v=32, smooth=True, twist=0.0, cylinder=False):
+    """A 0.3 m radius ball, or a capped cylinder with flat caps; twist turns each ring by twist x z / r and
+    triangulates, so no quad stays planar (an imported mesh)."""
     mesh = bpy.data.meshes.new(name)
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.scene.collection.objects.link(obj)
     bm = bmesh.new()
-    bmesh.ops.create_uvsphere(bm, u_segments=64, v_segments=32, radius=0.3)
+    if cylinder:
+        bmesh.ops.create_cone(bm, cap_ends=True, segments=u, radius1=0.3, radius2=0.3, depth=0.6)
+    else:
+        bmesh.ops.create_uvsphere(bm, u_segments=u, v_segments=v, radius=0.3)
+    if twist:
+        for vert in bm.verts:
+            vert.co.rotate(Matrix.Rotation(twist * vert.co.z / 0.3, 3, 'Z'))
+        bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    bm.normal_update()
     for f in bm.faces:
-        f.smooth = True
+        f.smooth = smooth and not (cylinder and abs(f.normal.z) > 0.99)
     bm.to_mesh(mesh)
     bm.free()
     mesh.materials.append(colour)
@@ -215,7 +228,7 @@ def main():
         'palette': {'Wood': {'srgb': list(WOOD), 'smoothness': 0.15}, 'Stone': {'srgb': list(STONE)}},
         'accents': [list(RED)], 'palette_de': 6, 'value_range': [20, 92], 'triangles': {'prop': [12, 800]},
         'detail_floor_m': 0.02, 'texture_off_palette_max': 0.1, 'accent_max_share': 0.3, 'hard_edges_max_share': 0.5,
-        'flat_waste_max_share': 0.1,
+        'flat_waste_max_share': 0.1, 'curve_waste_max_share': {'prop': 0.1},
     }
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -229,7 +242,7 @@ def main():
     shelf = bpy.data.objects.new('Props', None)                         # an Empty that only groups props
     bpy.context.scene.collection.objects.link(shelf)
     good.parent = split.parent = shelf
-    # smooth shading interpolates across the extra vertices, so they carry the look: not waste
+    # smooth shading interpolates across the cut's vertices, so they carry the look: not flat waste
     smooth = crate('SM_Smooth', ('Wood', WOOD), subdiv=1, smooth=True)
     # SM_Atlas reads only the bottom (wood) cell; SM_Cut's UVs span both: its magenta texels are transparent, so unseen
     passing = [good, trimmed, trim, split, smooth, atlas('SM_Atlas', 0.0), atlas('SM_Cut', 0.25, cutout=True)]
@@ -269,6 +282,17 @@ def main():
     assert waste(panel('Slice', 0.1)) == 0, 'a 9-slice UV counted as waste: dissolving it stretches the trim'
     # an unbevelled crate cut in four: each side loses its centre, keeps the edge midpoints the outline hull leans on
     assert waste(crate('SM_HardGrid', ('Wood', WOOD), bevel=False, subdiv=1).data) == 12, 'edge midpoints dissolved'
+    # a 0.3 m ball at 64 px per 0.6 m has a 32 px radius: 26 x 13 segments (the style-bible formula) are needed, also
+    # twisted and triangulated, 64 x 32 are not, nor a 64-sided cylinder; faceted, the 64 x 32 facets are a look
+    wood = bpy.data.materials['M_Wood']
+    balls = [sphere('SM_Fine', wood), sphere('SM_Lean', wood, 26, 13), sphere('SM_Facet', wood, smooth=False),
+             sphere('SM_Twist', wood, 26, 13, twist=1.0), sphere('SM_Tube', wood, cylinder=True),
+             sphere('SM_LeanTube', wood, 26, cylinder=True)]
+    curves, curve_facts = style_gate.gate(balls, style, 'prop')
+    assert {f['object'] for f in curves if f['rule'] == 'curve'} == {'SM_Fine', 'SM_Tube'}, 'curve rule: %s %s' % (
+        curves, {n: f.get('curve_waste_share') for n, f in curve_facts.items()})
+    for o in balls:
+        bpy.data.objects.remove(o)
     texel, _ = style_gate.gate([bpy.data.objects['SM_Atlas']], dict(style, texel_density=10000))
     assert [f['rule'] for f in texel] == ['texel'], 'style_gate missed the texel density: %s' % texel
 

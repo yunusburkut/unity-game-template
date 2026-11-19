@@ -30,6 +30,9 @@
 #   waste     with flat_waste_max_share set, the share of triangles that only split flat faces stays under it: those
 #             Limited Dissolve removes with nothing on screen changing (shape, shading, outline, material and UV map
 #             kept; see flat_waste)
+#   curve     with curve_waste_max_share[<class>] set, smooth curves cut finer than CHORD_PX (0.25 px) of chord
+#             error at asset_px stay under that share of the triangles (see curve_waste); a class the game draws
+#             larger than asset_px (a close-up hero) has no entry
 
 import argparse
 import json
@@ -52,6 +55,7 @@ TEXTURE_SIDE = 1024        # textures are sampled at most this size: an atlas ce
 TRI_SAMPLES = (4, 4096)     # samples per triangle: about one per texel it covers, within these bounds
 MAX_SAMPLES = 2_000_000     # per material; past it every triangle's count shrinks in proportion
 FLAT_DEG = 0.1              # faces and normals this close count as the same plane: float noise, not modelled shape
+CHORD_PX = 0.25             # chord error at asset_px that never shows: at 0.5 px a 32 px ball's top reads flat
 
 
 def is_default(rgb):
@@ -240,10 +244,69 @@ def check_mesh(name, mesh, matrix, style, fail, info):
     if limit is not None and share > limit:
         fail(name, 'edges', '%.0f%% of edges are unbevelled hard corners (max %.0f%%; bevel_m %s)'
              % (share * 100, limit * 100, style.get('bevel_m')))
+    cam = style.get('camera') or {}
+    curve = curve_waste(mesh, bm, cam['asset_px'] / cam.get('asset_m', 1.0)) if cam.get('asset_px') else 0
+    info(name, 'curve_waste', curve)
     removable = flat_waste(mesh, bm)
     info(name, 'flat_waste', removable)
     bm.free()
-    return {'triangles': int(len(mi)), 'area': float(area.sum()), 'accent_area': accent_area, 'removable': removable}
+    return {'triangles': int(len(mi)), 'area': float(area.sum()), 'accent_area': accent_area, 'removable': removable,
+            'curve': curve}
+
+
+def corner_normals(mesh):
+    """Per loop normals (n, 3) and each polygon's first loop, in Mesh order (bmesh from_mesh keeps it)."""
+    cn = np.empty(len(mesh.loops) * 3, np.float32)
+    mesh.corner_normals.foreach_get('vector', cn)
+    start = np.empty(len(mesh.polygons), np.int32)
+    mesh.polygons.foreach_get('loop_start', start)
+    return cn.reshape(-1, 3), start
+
+
+def curve_waste(mesh, bm, px_per_m):
+    """About how many triangles smooth curves spend past what the game camera shows. Across an edge the surface turns
+    by the faces' angle t over a segment as wide as the wider face (measured from the edge), so the curve's radius is
+    about width / t. The edge is over-fine when two such segments merged into one chord stay within CHORD_PX of
+    that curve at asset_px: r_px (1 - cos t) < CHORD_PX. A face counts only when every curved edge it has is
+    over-fine (a quad's diagonal turns little, its ring edge decides), and half its triangles go: merging every other
+    segment one way. That errs low (both ways saves 3 in 4, a cylinder's caps shrink too), as do the other choices
+    (coplanar pieces of one segment merged first, the wider face). Only smooth edges (both faces share each end's
+    normal): a faceted curve's facets are a look. The fix is fewer segments in the build."""
+    cn, start = corner_normals(mesh)
+
+    def normal(f, v):
+        return cn[start[f.index] + next(k for k, lp in enumerate(f.loops) if lp.vert == v)]
+
+    same = math.cos(math.radians(FLAT_DEG))
+    smooth = bm.edges.layers.int.new('style_gate_smooth')
+    for e in bm.edges:
+        e[smooth] = len(e.link_faces) == 2 and all(normal(e.link_faces[0], v) @ normal(e.link_faces[1], v) >= same
+                                                   for v in e.verts)
+    chords = bm.copy()
+    bm.edges.layers.int.remove(smooth)
+    smooth = chords.edges.layers.int['style_gate_smooth']
+    bmesh.ops.dissolve_limit(chords, angle_limit=math.radians(FLAT_DEG), use_dissolve_boundaries=False,
+                             verts=chords.verts[:], edges=chords.edges[:])
+
+    def width(f, e):
+        p, d = e.verts[0].co, (e.verts[1].co - e.verts[0].co).normalized()
+        return max(((v.co - p) - (v.co - p).dot(d) * d).length for v in f.verts)
+
+    fine = {}           # curved smooth edge -> over-fine
+    for e in chords.edges:
+        if not e[smooth] or len(e.link_faces) != 2:
+            continue
+        a, b = e.link_faces
+        t = a.normal.angle(b.normal, 0.0)
+        if math.radians(FLAT_DEG) < t < math.radians(80):
+            fine[e] = max(width(a, e), width(b, e)) / t * px_per_m * (1 - math.cos(t)) < CHORD_PX
+    over = 0
+    for f in chords.faces:
+        curved = [fine[e] for e in f.edges if e in fine]
+        if curved and all(curved):
+            over += len(f.verts) - 2
+    chords.free()
+    return over // 2
 
 
 def same_uv_map(faces, layers, tol=0.5 / TEXTURE_SIDE):
@@ -268,14 +331,12 @@ def flat_waste(mesh, bm):
     optimised mesh. Ceiling: a split hard edge (Edge Split) is a border whose vertices stay, so the count errs low."""
     if not len(mesh.polygons):
         return 0
-    cn = np.empty(len(mesh.loops) * 3, np.float32)
-    mesh.corner_normals.foreach_get('vector', cn)
+    cn, start = corner_normals(mesh)
     pn = np.empty(len(mesh.polygons) * 3, np.float32)
     mesh.polygon_normals.foreach_get('vector', pn)
-    start, total = (np.empty(len(mesh.polygons), np.int32) for _ in range(2))
-    mesh.polygons.foreach_get('loop_start', start)
+    total = np.empty(len(mesh.polygons), np.int32)
     mesh.polygons.foreach_get('loop_total', total)
-    same = (cn.reshape(-1, 3) * np.repeat(pn.reshape(-1, 3), total, axis=0)).sum(1) > math.cos(math.radians(FLAT_DEG))
+    same = (cn * np.repeat(pn.reshape(-1, 3), total, axis=0)).sum(1) > math.cos(math.radians(FLAT_DEG))
     flat = set(np.flatnonzero(np.minimum.reduceat(same.astype(np.int8), start)).tolist())   # bm keeps face order
     uvs = bm.loops.layers.uv.values()
     edges = [e for e in bm.edges if len(e.link_faces) == 2 and all(f.index in flat for f in e.link_faces)
@@ -384,9 +445,10 @@ def gate(objs, style, cls=None):
         got = check_object(obj, style, fail, info)
         info(obj.name, 'triangles', got['triangles'])
         root = root_of(obj)
-        a = assets.setdefault(root.name, {'cls': None, 'triangles': 0, 'area': 0.0, 'accent_area': 0.0, 'removable': 0})
+        a = assets.setdefault(root.name, {'cls': None, 'triangles': 0, 'area': 0.0, 'accent_area': 0.0, 'removable': 0,
+                                          'curve': 0})
         a['cls'] = a['cls'] or cls or root.get('style_class') or obj.get('style_class')
-        for k in ('triangles', 'area', 'accent_area', 'removable'):
+        for k in ('triangles', 'area', 'accent_area', 'removable', 'curve'):
             a[k] += got[k]
 
     bands = style.get('triangles') or {}
@@ -415,6 +477,14 @@ def gate(objs, style, cls=None):
             fail(name, 'waste', '%d of %d triangles only split flat faces (%.0f%%, flat_waste_max_share %.0f%%): '
                  'Limited Dissolve removes them with the look unchanged' % (a['removable'], a['triangles'], waste * 100,
                                                                              style['flat_waste_max_share'] * 100))
+        curve = a['curve'] / max(1, a['triangles'])
+        info(name, 'curve_waste_share', round(curve, 3))
+        curve_max = style.get('curve_waste_max_share')
+        curve_max = curve_max.get(a['cls']) if isinstance(curve_max, dict) else curve_max   # a number: every class
+        if curve_max is not None and curve > curve_max:
+            fail(name, 'curve', 'about %d of %d triangles (%.0f%%, curve_waste_max_share %.0f%%) refine smooth curves '
+                 'past %.2f px of chord error at asset_px: fewer segments look the same at game size'
+                 % (a['curve'], a['triangles'], curve * 100, curve_max * 100, CHORD_PX))
     return failures, facts
 
 
