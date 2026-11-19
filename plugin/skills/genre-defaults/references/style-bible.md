@@ -65,10 +65,13 @@ Every call is `blender --background --factory-startup --python-exit-code 1 [<ass
 2. The build script takes its colours from the bible, never typed again. In the toon-art pipeline:
    `PALETTE = {r: (tuple(v["srgb"]), v["smoothness"]) for r, v in json.load(open(STYLE))["palette"].items()}`. The
    asset's root object gets the custom property `style_class` (`obj["style_class"] = "prop"`, on the object, not
-   its mesh); a multi-part asset parents its parts under that root, and the gate sums their triangles. A cutout
+   its mesh); a multi-part asset parents its parts under that root, and the gate sums their triangles (an Empty that
+   only groups props is not an asset). A piece the game draws without the ink line (toon_prop's `"outline": False`,
+   kit and level pieces) sets `obj["outline"] = False` on its root, so the sheet leaves the line off too. A cutout
    links the texture's Alpha to the Principled Alpha; any other texture alpha (the toon-art atlas's smoothness) is
    not transparency. The script saves the `.blend` it exported.
 3. `style_gate.py` on that `.blend`. Exit 1: fix the cause and rebuild; never loosen `style.json` to pass one asset.
+   An `--objects` list that names only some parts of an asset prints a `STYLE NOTE` with the parts it left out.
 4. `contact_sheet.py -- --style ... --out Tools/Blender/<Asset>/review/<Asset>_sheet.png --crops
    Tools/Blender/Style/crops.json --class <class> --golden Tools/Blender/Style/golden.png` (`--refs <files>` adds
    whole images). Read the sheet: rows front, right, back, top, game camera, references (the class's object crops);
@@ -95,7 +98,7 @@ the kit lineup. One art-reviewer pass looks for drift (a colour, a bevel or a de
   "shading": "toon",
   "outline": {"px": 1.5, "srgb": [0.36, 0.30, 0.46]},
   "camera": {"projection": "ortho", "pitch": 35, "yaw": 45, "fov": 40, "asset_px": 128, "asset_m": 1.0},
-  "light": {"pitch": 50, "yaw": -30, "band": 0.05, "shadow_srgb": [0.55, 0.50, 0.65], "shade_saturation": 1.3,
+  "light": {"pitch": 50, "yaw": -30, "band": 0.05, "shadow_srgb": [0.62, 0.62, 0.86], "shade_saturation": 1.3,
             "ambient": 0.5},
   "palette": {"Wood": {"srgb": [0.78, 0.52, 0.30], "smoothness": 0.15}},
   "accents": [[0.95, 0.15, 0.10]],

@@ -59,7 +59,7 @@ def material(name, rgb=None, base=None):
     return mat
 
 
-def crate(name, colour=None, tiny=False, subdiv=0, bevel=True, size=0.6):
+def crate(name, colour=None, tiny=False, subdiv=0, bevel=True, size=0.6, touch=False):
     mesh = bpy.data.meshes.new(name)
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.scene.collection.objects.link(obj)
@@ -72,6 +72,9 @@ def crate(name, colour=None, tiny=False, subdiv=0, bevel=True, size=0.6):
     if tiny:
         made = bmesh.ops.create_cube(bm, size=0.01)
         bmesh.ops.translate(bm, vec=(0.0, 0.0, 0.4), verts=made['verts'])
+    if touch:           # a 1 cm cube whose corner sits on the crate's corner: one shared point, still a loose part
+        made = bmesh.ops.create_cube(bm, size=0.01)
+        bmesh.ops.translate(bm, vec=(size / 2 + 0.005,) * 3, verts=made['verts'])
     bm.to_mesh(mesh)
     bm.free()
     if colour is None:
@@ -193,6 +196,9 @@ def main():
     trim.parent = trimmed
     split = crate('SM_Split', ('Wood', WOOD))
     split.modifiers.new('Split', 'EDGE_SPLIT')                          # split edges are not loose parts
+    shelf = bpy.data.objects.new('Props', None)                         # an Empty that only groups props
+    bpy.context.scene.collection.objects.link(shelf)
+    good.parent = split.parent = shelf
     # SM_Atlas reads only the bottom (wood) cell; SM_Cut's UVs span both: its magenta texels are transparent, so unseen
     passing = [good, trimmed, trim, split, atlas('SM_Atlas', 0.0), atlas('SM_Cut', 0.25, cutout=True)]
     failing = {
@@ -206,6 +212,7 @@ def main():
         'SM_Stain': (atlas('SM_Stain', 0.5), {'texture'}),
         'SM_Stripes': (atlas('SM_Stripes', 0.0, stripes=True), {'texture'}),
         'SM_Hard': (crate('SM_Hard', ('Wood', WOOD), bevel=False), {'edges'}),
+        'SM_Touch': (crate('SM_Touch', ('Wood', WOOD), bevel=False, touch=True), {'edges', 'detail'}),
     }
     failing['SM_Dense'][0].modifiers.new('Subdiv', 'SUBSURF').levels = 3   # the exported mesh is counted
     failures, facts = style_gate.gate(passing + [o for o, _ in failing.values()], style)
@@ -218,6 +225,10 @@ def main():
         assert found.get(name) == rules, 'style_gate on %s: %s, expected %s' % (name, found.get(name), rules)
     assert facts['SM_Trimmed']['asset_triangles'] == facts['SM_Trimmed']['triangles'] + facts['SM_Trimmed_Band'][
         'triangles'], 'triangles are not summed per asset: %s' % facts['SM_Trimmed']
+    assert facts['SM_Good']['asset_triangles'] == facts['SM_Good']['triangles'], 'the grouping Empty became an asset'
+    _, part_facts = style_gate.gate([trimmed], style)
+    assert part_facts['SM_Trimmed'].get('unchecked_parts') == ['SM_Trimmed_Band'], 'partial asset not reported: %s' \
+        % part_facts['SM_Trimmed']
     stripes = facts['SM_Stripes']['texture_off_palette']
     assert 0.2 < stripes < 0.32, 'texture sampling missed the stripes: %.3f off-palette, about 0.27 drawn' % stripes
     texel, _ = style_gate.gate([bpy.data.objects['SM_Atlas']], dict(style, texel_density=10000))
@@ -241,8 +252,10 @@ def main():
         checked = json.load(f)['objects']
     assert 'COL_SM_Good' not in checked and 'SM_Good_LOD1' not in checked, 'the CLI checked COL_/LOD1: %s' % checked
 
-    sphere('SM_Ball', bpy.data.materials['M_Wood'])
-    _, rep = sheet(dict(style, outline=False), out, 'SM_Ball', 'SM_Ball', '--tile', '64')
+    ball = sphere('SM_Ball', bpy.data.materials['M_Wood'])
+    ball['outline'] = False                      # a piece the game draws without the line, as toon_prop says
+    _, rep = sheet(style, out, 'SM_Ball', 'SM_Ball', '--tile', '64')
+    assert rep['outlined'] == [], 'the root\'s "outline": False was ignored: %s' % rep['outlined']
     share, n = band_agreement(style, rep['game_tile'])
     assert n > 500 and share > 0.98, 'toon band off Toon.shader: %.3f of %d pixels agree' % (share, n)
     for o in [o for o in bpy.data.objects if o.name.startswith('SHEET_')]:
@@ -264,6 +277,9 @@ def main():
     lit = srgb_to_lab(linear_to_srgb(contact_sheet.linear(WOOD) * (1 + contact_sheet.toon_params(style['light'])['ambient'])))
     assert (np.linalg.norm(game - lit, axis=1) < 6).mean() > 0.1, 'the outline hull shades the lit band away'
     assert rep['against_style']['palette_coverage'] >= 0.85, 'look pass is off-palette: %s' % rep['against_style']
+    # the atlas keeps smoothness 0.15 in alpha: drawn premultiplied, its wood would read at 15% and fall off-palette
+    _, rep = sheet(style, out, 'SM_Atlas', 'SM_Atlas')
+    assert rep['against_style']['palette_coverage'] >= 0.85, 'atlas look pass is off-palette: %s' % rep['against_style']
     print('STYLE BIBLE PASS')
 
 

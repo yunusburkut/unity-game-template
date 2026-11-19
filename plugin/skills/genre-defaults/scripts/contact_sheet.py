@@ -47,7 +47,7 @@ from mathutils import Vector
 sys.dont_write_bytecode = True     # no __pycache__ beside the plugin's scripts
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from extract_style import SCREEN_H, linear_to_srgb, metrics, pixels, read_rgb, read_rgba, srgb_to_lab  # noqa: E402
-from style_gate import LOD_CHILD, base_colour  # noqa: E402
+from style_gate import LOD_CHILD, base_colour, is_cutout, root_of  # noqa: E402
 
 VIEWS = [('front', 0.0, 0.0), ('right', 90.0, 0.0), ('back', 180.0, 0.0), ('top', 0.0, 90.0)]
 GREY_BG = 0.55
@@ -73,7 +73,7 @@ def linear(c):
 
 
 def toon_params(light):
-    return {'shadow': linear(light.get('shadow_srgb', [0.55, 0.5, 0.65])),
+    return {'shadow': linear(light.get('shadow_srgb', [0.62, 0.62, 0.86])),     # Toon.shader _ShadeColor
             'saturation': float(light.get('shade_saturation', 1.3)),
             'ambient': float(light.get('ambient', 0.5)) * AMBIENT_STRENGTH,
             # Shader to RGB of a white diffuse: world 0.25 + sun 3 W/m2 x N.L / pi; the band edge sits at N.L = band
@@ -93,6 +93,10 @@ def colour_node(nt, mat):
         col = nt.nodes.new('ShaderNodeTexImage')
         col.image = val.image
         col.interpolation = val.interpolation
+        if not is_cutout(mat, val):
+            # alpha is data here (the toon-art atlas keeps smoothness in it); with the Alpha output unlinked Blender
+            # premultiplies Color by it, Unity does not
+            col.image.alpha_mode = 'CHANNEL_PACKED'
         return col.outputs['Color']
     col = nt.nodes.new('ShaderNodeRGB')
     col.outputs[0].default_value = (*linear(val if kind == 'rgb' else (1.0, 0.0, 1.0)), 1.0)
@@ -205,9 +209,14 @@ def drawn_colours(style, shading, toon, ink):
     return out
 
 
+def to8(rgb):
+    """0-1 float to 8-bit: the sheet is assembled at a quarter of float32's memory (a 1024 px asset: ~50 MB)."""
+    return (np.clip(rgb, 0.0, 1.0) * 255 + 0.5).astype(np.uint8)
+
+
 def write_png(rgb, path):
     buf = oiio.ImageBuf(oiio.ImageSpec(rgb.shape[1], rgb.shape[0], 3, oiio.UINT8))
-    buf.set_pixels(oiio.ROI(), np.clip(rgb, 0, 1).astype(np.float32))
+    buf.set_pixels(oiio.ROI(), rgb if rgb.dtype == np.uint8 else to8(rgb))
     if not buf.write(path):
         raise SystemExit('cannot write %s: %s' % (path, buf.geterror()))
 
@@ -315,7 +324,9 @@ def main():
             bg.inputs['Strength'].default_value = 1.0
 
     originals = {o.name: [s.material for s in o.material_slots] for o in objs}
-    hulls = add_outlines(objs, ink, ink['px'] / px_per_m) if ink else []
+    # an asset the game draws without the line (toon_prop's "outline": False, kit and level pieces) says so on its root
+    inked = [o for o in objs if ink and root_of(o).get('outline', True)]
+    hulls = add_outlines(inked, ink, ink['px'] / px_per_m) if inked else []
     looks = {}
     tmp = tempfile.mkdtemp(prefix='contact_sheet_')
     views = VIEWS + [('game', cam_cfg.get('yaw', 45.0), cam_cfg.get('pitch', 30.0))]
@@ -374,16 +385,16 @@ def main():
                     game_look = (rgb, core if core.any() else inside)
                     write_png(upscale(shown, tile), stem + '_game.png')
             tiles.append(upscale(shown, tile))
-        rows.append(np.concatenate(tiles, axis=1))
+        rows.append(to8(np.concatenate(tiles, axis=1)))
     shutil.rmtree(tmp, ignore_errors=True)
 
     refs_in = ref_images(args)
     extra = [fit(img, tile) for _, img in refs_in] + ([fit(read_rgb(args.golden), tile)] if args.golden else [])
     width = max(3, len(extra)) * tile
-    sheet = [np.pad(r, ((0, 0), (0, width - r.shape[1]), (0, 0)), constant_values=1.0) for r in rows]
+    sheet = [np.pad(r, ((0, 0), (0, width - r.shape[1]), (0, 0)), constant_values=255) for r in rows]
     if extra:
-        ref_row = np.concatenate(extra, axis=1)
-        sheet.append(np.pad(ref_row, ((0, 0), (0, width - ref_row.shape[1]), (0, 0)), constant_values=1.0))
+        ref_row = to8(np.concatenate(extra, axis=1))
+        sheet.append(np.pad(ref_row, ((0, 0), (0, width - ref_row.shape[1]), (0, 0)), constant_values=255))
     sheet = np.concatenate(sheet, axis=0)
     write_png(sheet, args.out)
 
@@ -400,7 +411,7 @@ def main():
     target = style.get('look') or {}
     report = {
         'sheet': os.path.abspath(args.out), 'objects': [o.name for o in objs], 'shading': shading,
-        'outline': ink,
+        'outline': ink, 'outlined': [o.name for o in inked],
         'layout': {'rows': [v[0] for v in views] + (['references'] if extra else []),
                    'columns': ['silhouette', 'clay', 'look'], 'tile_px': tile, 'render_px': n, 'render_scale': round(render_scale, 3), 'asset_px': px,
                    'references': [n for n, _ in refs_in] + (['golden'] if args.golden else [])},

@@ -5,7 +5,8 @@
 #
 # Exit 1 is a failed gate; every failure names the object or asset, the rule and the number. Checked: every mesh
 # object (minus COL_ proxies and _LOD1+ children, unless --objects names some), on its evaluated mesh (modifiers
-# applied, as exported), welded by position so split edges do not read as loose parts:
+# applied, as exported); faces sharing an edge's two end positions count as joined, so split edges (Edge Split, a
+# hard-edge export) do not read as loose parts, while a part touching at one point stays its own:
 #   material  every used slot has a material; none is Blender's untouched default; the base colour is a flat colour
 #             or an image texture (node-made colour does not reach Unity through FBX: bake it). The colour judged is
 #             the one FBX carries, the Principled Base Color, then the viewport colour the toon pipeline's manifest
@@ -21,9 +22,10 @@
 #   texel     with a numeric texel_density (px/m), an image-textured material is within 10% of it
 #   edges     with hard_edges_max_share set, the share of edges sharper than 80 degrees stays under it (a proxy for
 #             bevel_m: the bevel width itself is not measurable from the mesh; the review sheet judges it)
-# and per asset (a top-level object with its mesh children: parent a multi-part asset's parts under one root):
-#   triangles the summed triangle count is inside triangles[<class>] (class from --class, or "style_class" on the
-#             root or a part)
+# and per asset: the topmost object up the parent chain with "style_class" (on the object, not its mesh) and every
+# mesh under it; without one, the topmost mesh. Parent a multi-part asset's parts under one root; an Empty that only
+# groups props is not an asset. With --objects naming only some parts, the report lists the rest as unchecked_parts:
+#   triangles the summed triangle count is inside triangles[<class>] (class from --class or the root's "style_class")
 #   accent    the share of the surface nearest an accent colour stays under accent_max_share
 
 import argparse
@@ -81,9 +83,18 @@ def is_cutout(mat, tex):
     return link.from_node == tex and link.from_socket.name == 'Alpha'
 
 
+_IMAGES = {}     # (image name, side) -> pixels, for one gate() run: a kit's 20 parts share one atlas read
+
+
 def image_rgba(img, side=TEXTURE_SIDE):
     """(sRGB (h, w, 3), alpha (h, w)) of a texture, top row first, at most side on the long side; None without
     pixels (file missing and not packed)."""
+    if (img.name, side) not in _IMAGES:
+        _IMAGES[img.name, side] = read_image(img, side)
+    return _IMAGES[img.name, side]
+
+
+def read_image(img, side):
     path = bpy.path.abspath(img.filepath) if img.filepath else ''
     if path and os.path.isfile(path):
         return read_rgba(path, long_side=side)
@@ -187,32 +198,38 @@ def check_mesh(name, mesh, matrix, style, fail, info):
     bm = bmesh.new()
     bm.from_mesh(mesh)
     bm.transform(matrix)
-    # an Edge Split modifier or a hard-edge export cuts faces apart along edges: weld them back for the topology rules
-    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+    bm.normal_update()
     bm.faces.index_update()
+    # an Edge Split modifier or a hard-edge export cuts faces apart along edges: faces join where an edge's two end
+    # positions match (0.01 mm grid), which a part touching the body at one vertex does not
+    pos = {v: tuple(int(round(c * 1e5)) for c in v.co) for v in bm.verts}
+    shared = {}
+    for e in bm.edges:
+        shared.setdefault(frozenset((pos[e.verts[0]], pos[e.verts[1]])), []).extend(e.link_faces)
     floor = style.get('detail_floor_m')
     if floor:
-        seen, small = set(), 0
+        part = list(range(len(bm.faces)))
+
+        def find(i):
+            while part[i] != i:
+                part[i] = part[part[i]]
+                i = part[i]
+            return i
+
+        for faces in shared.values():
+            for f in faces[1:]:
+                part[find(f.index)] = find(faces[0].index)
+        lo_co, hi_co = {}, {}
         for f in bm.faces:
-            if f.index in seen:
-                continue
-            stack, part = [f], []
-            seen.add(f.index)
-            while stack:
-                cur = stack.pop()
-                part.append(cur)
-                for e in cur.edges:
-                    for nb in e.link_faces:
-                        if nb.index not in seen:
-                            seen.add(nb.index)
-                            stack.append(nb)
-            co = np.array([v.co for p in part for v in p.verts])
-            if (co.max(0) - co.min(0)).max() < floor:
-                small += 1
+            co = np.array([v.co for v in f.verts])
+            r = find(f.index)
+            lo_co[r] = np.minimum(lo_co.get(r, co.min(0)), co.min(0))
+            hi_co[r] = np.maximum(hi_co.get(r, co.max(0)), co.max(0))
+        small = sum(1 for r in lo_co if (hi_co[r] - lo_co[r]).max() < floor)
         if small:
             fail(name, 'detail', '%d loose part(s) smaller than detail_floor_m %.3f m' % (small, floor))
-    inner = [e for e in bm.edges if len(e.link_faces) == 2]
-    hard = sum(1 for e in inner if e.calc_face_angle(0.0) > math.radians(80))
+    inner = [faces for faces in shared.values() if len(faces) == 2]
+    hard = sum(1 for a, b in inner if a.normal.angle(b.normal, 0.0) > math.radians(80))
     share = hard / max(1, len(inner))
     info(name, 'hard_edge_share', round(share, 3))
     limit = style.get('hard_edges_max_share')
@@ -285,14 +302,26 @@ def check_image(name, mat, tex, area, uv, refs, n_pal, de, lo, hi, style, fail, 
 
 
 def root_of(obj):
-    while obj.parent is not None:
+    """The asset obj belongs to: its topmost ancestor (or itself) with "style_class", else its topmost mesh ancestor.
+    An Empty that only groups props in the .blend is not an asset."""
+    chain = []
+    while obj is not None:
+        chain.append(obj)
         obj = obj.parent
-    return obj
+    classed = [o for o in chain if o.get('style_class') is not None]
+    return classed[-1] if classed else [o for o in chain if o.type == 'MESH'][-1]
+
+
+def parts_of(root):
+    """The mesh objects the gate sums into root's asset (COL_ proxies and LOD1+ children left out)."""
+    return [o for o in [root, *root.children_recursive] if o.type == 'MESH' and not o.name.startswith('COL_')
+            and not LOD_CHILD.search(o.name) and root_of(o) == root]
 
 
 def gate(objs, style, cls=None):
     """Runs every rule; returns (failures [{object, rule, message}], facts {name: {key: value}})."""
     failures, facts, assets = [], {}, {}
+    _IMAGES.clear()
 
     def fail(o, rule, msg):
         failures.append({'object': o, 'rule': rule, 'message': msg})
@@ -311,8 +340,12 @@ def gate(objs, style, cls=None):
 
     bands = style.get('triangles') or {}
     limit = style.get('accent_max_share')
+    checked = {o.name for o in objs}
     for name, a in assets.items():
         info(name, 'asset_triangles', a['triangles'])
+        unchecked = [o.name for o in parts_of(bpy.data.objects[name]) if o.name not in checked]
+        if unchecked:       # --objects named only some parts: the sums below leave these out
+            info(name, 'unchecked_parts', unchecked)
         if bands:
             if a['cls'] not in bands:
                 fail(name, 'triangles', 'no class: pass --class or set "style_class" on the asset root to one of %s'
@@ -360,6 +393,10 @@ def main():
             json.dump(report, f, indent=1)
     for fl in failures:
         print('STYLE FAIL %s [%s] %s' % (fl['object'], fl['rule'], fl['message']))
+    for name, f in facts.items():
+        if 'unchecked_parts' in f:
+            print('STYLE NOTE %s: parts %s not named in --objects, so its triangle and accent sums leave them out'
+                  % (name, ', '.join(f['unchecked_parts'])))
     print('STYLE GATE %s: %d object(s), %d failure(s)' % ('PASS' if not failures else 'FAIL', len(objs), len(failures)))
     sys.exit(1 if failures else 0)
 
