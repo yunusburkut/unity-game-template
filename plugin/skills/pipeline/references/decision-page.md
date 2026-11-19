@@ -44,6 +44,9 @@ file adds only what a decision page holds. The page file goes in the scratchpad.
 
 ## How the picks come back
 
+Load the `artifact-capabilities` skill before writing this code; its type definitions (`db.d.ts`) win over the
+snippet below, which was checked on runtime contract 0.2.96.
+
 1. Publish with `capabilities: {db: {}}`. The button writes one document per round:
    `db.doc("picks/r<N>").set({answers: {q1: "q1-a", q2: "other: <text>"}, note, at: Date.now()})`, then shows
    "Kaydedildi; sohbete `seçtim` yaz". When `claude.use("db")` gives `null` or the write rejects, the page shows the

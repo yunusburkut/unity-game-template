@@ -684,8 +684,10 @@ run 'bad usage is unknown' 2 frobnicate
     # estimate warns instead of failing (a red suite on a guess hides real failures); the ratchet above is the hard
     # check. The way up: compare a live session's skill listing (bare gamekit names = overflow) after any change here.
     if ($listing + $otherSkills -gt 8000) { Write-Output "WARN skill listing: about $($listing + $otherSkills - 8000) characters over the 8,000 budget of a 200k context; if a session lists gamekit skills without descriptions, trim gamekit descriptions or set unused skills name-only through skillOverrides in ~/.claude/settings.json" }
-    # A skill named as the one to load or invoke must exist: in the plugin, in ~/.claude/skills or in a pack.
-    $known = @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'skills') -Directory | ForEach-Object Name) +
+    # A skill named as the one to load or invoke must exist: in the plugin, in ~/.claude/skills, in a pack, or built
+    # into Claude Code (not on disk, so listed by hand: add one here when a skill starts naming it).
+    $known = @('artifact-capabilities') +
+        @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'skills') -Directory | ForEach-Object Name) +
         @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'agents') -Filter *.md | ForEach-Object BaseName) +
         @(Get-ChildItem -Path (Join-Path $template 'packs\*\.claude\skills') -Directory -ErrorAction SilentlyContinue | ForEach-Object Name) +
         @(Get-ChildItem -LiteralPath (Join-Path $HOME '.claude\skills') -Directory -ErrorAction SilentlyContinue | ForEach-Object Name)
