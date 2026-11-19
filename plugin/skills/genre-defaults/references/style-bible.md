@@ -88,7 +88,8 @@ Every call is `blender --background --factory-startup --python-exit-code 1 [<ass
    colour`, each given the sheet, its `.json`, `STYLE.md`, `style.json`, `Tools/Blender/Style/anchors/` and the
    brief, never the build script. Previous sheet too from round 2 (A/B). Done when both score at least 8/10 with no
    blocker; at most 3 rounds, then show the user the sheet and the open findings.
-6. The user sees the final sheet before export. Then `unity-export`, and the final judgement is an in-engine capture
+6. The user sees the final sheet before export. Show a sheet with `SendUserFile` (`display: render`), so it opens
+   beside the chat and reaches the phone; without that tool, give its path as a link. Then `unity-export`, and the final judgement is an in-engine capture
    at the game camera (`gk-bridge play-capture`) beside a reference crop.
 7. A helper that repeats across assets (a trim, a plank, an edge-wear recipe) moves into the game's shared build
    module, so the next asset reuses it instead of re-inventing it.
