@@ -27,6 +27,8 @@
 # groups props is not an asset. With --objects naming only some parts, the report lists the rest as unchecked_parts:
 #   triangles the summed triangle count is inside triangles[<class>] (class from --class or the root's "style_class")
 #   accent    the share of the surface nearest an accent colour stays under accent_max_share
+#   waste     with flat_waste_max_share set, the share of triangles that only split flat faces stays under it: those
+#             Limited Dissolve removes with nothing on screen changing (no shape, shading, material or UV seam lost)
 
 import argparse
 import json
@@ -48,6 +50,7 @@ LOD_CHILD = re.compile(r'_LOD[1-9]\d*$')
 TEXTURE_SIDE = 1024        # textures are sampled at most this size: an atlas cell stays pixels wide, a 4K map 16 MB
 TRI_SAMPLES = (4, 4096)     # samples per triangle: about one per texel it covers, within these bounds
 MAX_SAMPLES = 2_000_000     # per material; past it every triangle's count shrinks in proportion
+FLAT_DEG = 0.1              # faces and normals this close count as the same plane: float noise, not modelled shape
 
 
 def is_default(rgb):
@@ -236,8 +239,34 @@ def check_mesh(name, mesh, matrix, style, fail, info):
     if limit is not None and share > limit:
         fail(name, 'edges', '%.0f%% of edges are unbevelled hard corners (max %.0f%%; bevel_m %s)'
              % (share * 100, limit * 100, style.get('bevel_m')))
+    removable = flat_waste(mesh, bm)
+    info(name, 'flat_waste', removable)
     bm.free()
-    return {'triangles': int(len(mi)), 'area': float(area.sum()), 'accent_area': accent_area}
+    return {'triangles': int(len(mi)), 'area': float(area.sum()), 'accent_area': accent_area, 'removable': removable}
+
+
+def flat_waste(mesh, bm):
+    """Triangles Limited Dissolve removes with the look unchanged. Only faces whose every corner normal is the face
+    normal take part (flat shaded, or smooth inside a flat region), so shading interpolates as before; material and UV
+    seams stay. Consumes bm. Ceiling: a split hard edge (Edge Split) is a border whose vertices stay, so the count
+    errs low; a UV warped inside one flat region is taken as affine (an unwrap of a flat region is)."""
+    if not len(mesh.polygons):
+        return 0
+    cn = np.empty(len(mesh.loops) * 3, np.float32)
+    mesh.corner_normals.foreach_get('vector', cn)
+    pn = np.empty(len(mesh.polygons) * 3, np.float32)
+    mesh.polygon_normals.foreach_get('vector', pn)
+    start, total = (np.empty(len(mesh.polygons), np.int32) for _ in range(2))
+    mesh.polygons.foreach_get('loop_start', start)
+    mesh.polygons.foreach_get('loop_total', total)
+    same = (cn.reshape(-1, 3) * np.repeat(pn.reshape(-1, 3), total, axis=0)).sum(1) > math.cos(math.radians(FLAT_DEG))
+    flat = set(np.flatnonzero(np.minimum.reduceat(same.astype(np.int8), start)).tolist())   # bm keeps face order
+    edges = [e for e in bm.edges if len(e.link_faces) == 2 and all(f.index in flat for f in e.link_faces)]
+    verts = [v for v in bm.verts if v.link_faces and all(f.index in flat for f in v.link_faces)]
+    before = sum(len(f.verts) - 2 for f in bm.faces)
+    bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(FLAT_DEG), use_dissolve_boundaries=False, verts=verts,
+                             edges=edges, delimit={'MATERIAL', 'UV'})
+    return before - sum(len(f.verts) - 2 for f in bm.faces)
 
 
 def check_image(name, mat, tex, area, uv, refs, n_pal, de, lo, hi, style, fail, info):
@@ -333,9 +362,9 @@ def gate(objs, style, cls=None):
         got = check_object(obj, style, fail, info)
         info(obj.name, 'triangles', got['triangles'])
         root = root_of(obj)
-        a = assets.setdefault(root.name, {'cls': None, 'triangles': 0, 'area': 0.0, 'accent_area': 0.0})
+        a = assets.setdefault(root.name, {'cls': None, 'triangles': 0, 'area': 0.0, 'accent_area': 0.0, 'removable': 0})
         a['cls'] = a['cls'] or cls or root.get('style_class') or obj.get('style_class')
-        for k in ('triangles', 'area', 'accent_area'):
+        for k in ('triangles', 'area', 'accent_area', 'removable'):
             a[k] += got[k]
 
     bands = style.get('triangles') or {}
@@ -358,6 +387,12 @@ def gate(objs, style, cls=None):
         if limit is not None and share > limit:
             fail(name, 'accent', '%.0f%% of the surface is accent colour (accent_max_share %.0f%%)'
                  % (share * 100, limit * 100))
+        waste = a['removable'] / max(1, a['triangles'])
+        info(name, 'flat_waste_share', round(waste, 3))
+        if style.get('flat_waste_max_share') is not None and waste > style['flat_waste_max_share']:
+            fail(name, 'waste', '%d of %d triangles only split flat faces (%.0f%%, flat_waste_max_share %.0f%%): '
+                 'Limited Dissolve removes them with the look unchanged' % (a['removable'], a['triangles'], waste * 100,
+                                                                             style['flat_waste_max_share'] * 100))
     return failures, facts
 
 

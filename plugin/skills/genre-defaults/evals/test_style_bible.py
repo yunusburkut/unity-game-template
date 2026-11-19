@@ -6,10 +6,11 @@
 # 2. style_gate passes good assets (a bevelled palette crate, a two-part asset with an accent trim, an atlas keeping
 #    smoothness in alpha whose UVs use only its wood cells, a cutout, an Edge Split crate) and fails each rule once
 #    (default material, loose part, off-palette, role mismatch, pure black, stale viewport colour, texture off palette,
-#    texel density, hard edges, accent share, triangles, also from a modifier) and measures striped texels' share; the
-#    CLI exits 1, skips COL_ and LOD1.
+#    texel density, hard edges, accent share, triangles, also from a modifier, flat waste) and measures striped
+#    texels' share; the CLI exits 1, skips COL_ and LOD1.
 # 3. contact_sheet draws the toon band where Toon.shader puts it (a sphere against N.L), and the crate's sheet with
-#    its outline, references, json and game tile; on-palette coverage is 0.85 or more.
+#    its outline, references, json and game tile; on-palette coverage is 0.85 or more. Dissolving the waste the gate
+#    counts leaves the game tile unchanged.
 # Prints STYLE BIBLE PASS; any failed assert exits 1.
 
 import json
@@ -59,7 +60,7 @@ def material(name, rgb=None, base=None):
     return mat
 
 
-def crate(name, colour=None, tiny=False, subdiv=0, bevel=True, size=0.6, touch=False):
+def crate(name, colour=None, tiny=False, subdiv=0, bevel=True, size=0.6, touch=False, smooth=False):
     mesh = bpy.data.meshes.new(name)
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.scene.collection.objects.link(obj)
@@ -75,6 +76,8 @@ def crate(name, colour=None, tiny=False, subdiv=0, bevel=True, size=0.6, touch=F
     if touch:           # a 1 cm cube whose corner sits on the crate's corner: one shared point, still a loose part
         made = bmesh.ops.create_cube(bm, size=0.01)
         bmesh.ops.translate(bm, vec=(size / 2 + 0.005,) * 3, verts=made['verts'])
+    for f in bm.faces:
+        f.smooth = smooth
     bm.to_mesh(mesh)
     bm.free()
     if colour is None:
@@ -186,6 +189,7 @@ def main():
         'palette': {'Wood': {'srgb': list(WOOD), 'smoothness': 0.15}, 'Stone': {'srgb': list(STONE)}},
         'accents': [list(RED)], 'palette_de': 6, 'value_range': [20, 92], 'triangles': {'prop': [12, 800]},
         'detail_floor_m': 0.02, 'texture_off_palette_max': 0.1, 'accent_max_share': 0.3, 'hard_edges_max_share': 0.5,
+        'flat_waste_max_share': 0.1,
     }
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -199,13 +203,16 @@ def main():
     shelf = bpy.data.objects.new('Props', None)                         # an Empty that only groups props
     bpy.context.scene.collection.objects.link(shelf)
     good.parent = split.parent = shelf
+    # smooth shading interpolates across the extra vertices, so they carry the look: not waste
+    smooth = crate('SM_Smooth', ('Wood', WOOD), subdiv=1, smooth=True)
     # SM_Atlas reads only the bottom (wood) cell; SM_Cut's UVs span both: its magenta texels are transparent, so unseen
-    passing = [good, trimmed, trim, split, atlas('SM_Atlas', 0.0), atlas('SM_Cut', 0.25, cutout=True)]
+    passing = [good, trimmed, trim, split, smooth, atlas('SM_Atlas', 0.0), atlas('SM_Cut', 0.25, cutout=True)]
     failing = {
         'SM_Bad': (crate('SM_Bad', None, tiny=True), {'material', 'detail'}),
-        'SM_Pink': (crate('SM_Pink', ('Pink', (1.0, 0.2, 0.8)), subdiv=6), {'palette', 'triangles'}),
+        'SM_Pink': (crate('SM_Pink', ('Pink', (1.0, 0.2, 0.8)), subdiv=6), {'palette', 'triangles', 'waste'}),
         'SM_Accent': (crate('SM_Accent', ('Trim', RED)), {'accent'}),
-        'SM_Dense': (crate('SM_Dense', ('Wood', WOOD)), {'triangles'}),
+        'SM_Dense': (crate('SM_Dense', ('Wood', WOOD)), {'triangles'}),     # subdivision curves every face: no waste
+        'SM_Grid': (crate('SM_Grid', ('Wood', WOOD), subdiv=1), {'waste'}),     # flat faces cut in four, flat shaded
         'SM_Role': (crate('SM_Role', ('Wood', STONE)), {'palette'}),
         'SM_Black': (crate('SM_Black', ('Ink', (0.0, 0.0, 0.0))), {'value', 'palette'}),
         'SM_Stale': (crate('SM_Stale', material('M_Stale', WOOD, MAGENTA)), {'palette'}),
@@ -280,6 +287,29 @@ def main():
     # the atlas keeps smoothness 0.15 in alpha: drawn premultiplied, its wood would read at 15% and fall off-palette
     _, rep = sheet(style, out, 'SM_Atlas', 'SM_Atlas')
     assert rep['against_style']['palette_coverage'] >= 0.85, 'atlas look pass is off-palette: %s' % rep['against_style']
+
+    # the waste rule's claim: dissolving what it counts leaves the drawn asset as it was (a sheet changes the meshes it
+    # draws, so each copy is drawn once)
+    grid = bpy.data.objects['SM_Grid']
+    flat = grid.copy()
+    flat.data = grid.data.copy()
+    flat.name = 'SM_GridFlat'
+    bpy.context.scene.collection.objects.link(flat)
+    bm = bmesh.new()
+    bm.from_mesh(flat.data)
+    bm.faces.index_update()
+    removed = style_gate.flat_waste(flat.data, bm)
+    bm.to_mesh(flat.data)
+    bm.free()
+    tiles = []
+    for name in ('SM_Grid', 'SM_GridFlat'):
+        for o in [o for o in bpy.data.objects if o.name.startswith('SHEET_')]:
+            bpy.data.objects.remove(o)
+        tiles.append(read_rgba(sheet(style, out, name, name, '--tile', '128')[1]['game_tile'], long_side=None)[0])
+    assert removed == facts['SM_Grid']['flat_waste'] > 0, 'dissolved %d, the gate counted %s' % (
+        removed, facts['SM_Grid']['flat_waste'])
+    diff = float(np.abs(tiles[0] - tiles[1]).max())
+    assert diff <= 2 / 255, 'dissolving the counted waste changed the game tile by %.3f' % diff
     print('STYLE BIBLE PASS')
 
 
