@@ -3,21 +3,28 @@
 #   blender --background --factory-startup --python-exit-code 1 <asset>.blend --python style_gate.py -- \
 #       --style Tools/Blender/Style/style.json [--class prop] [--objects SM_A,SM_B] [--report gate.json]
 #
-# Exit 1 is a failed gate; every failure names the object, the rule and the number. Checked per mesh object (all of
-# them, minus COL_ proxies and _LOD1+ children, unless --objects names some):
+# Exit 1 is a failed gate; every failure names the object or asset, the rule and the number. Checked: every mesh
+# object (minus COL_ proxies and _LOD1+ children, unless --objects names some), on its evaluated mesh (modifiers
+# applied, as exported), welded by position so split edges do not read as loose parts:
 #   material  every used slot has a material; none is Blender's untouched default; the base colour is a flat colour
-#             or an image texture (node-made colour does not reach Unity through FBX: bake it)
-#   palette   a flat colour sits within palette_de (CIELAB distance) of a palette role; an M_<Role> material of the
-#             toon pipeline matches its own role
+#             or an image texture (node-made colour does not reach Unity through FBX: bake it). The colour judged is
+#             the one FBX carries, the Principled Base Color, then the viewport colour the toon pipeline's manifest
+#             carries
+#   palette   a flat colour sits within palette_de (CIELAB distance) of a palette role or an accent; an M_<Role>
+#             material of the toon pipeline matches its own role
 #   value     every colour's L* is inside value_range, and nothing is pure black (L* < 3) or pure white (L* > 97)
-#   texture   an image's L* p2/p98 stay inside value_range (5 L* slack), and at most texture_off_palette_max of its
-#             pixels are farther than palette_de from every palette and accent colour
-#   triangles the evaluated triangle count is inside triangles[<class>] (class from --class or the object's
-#             "style_class" property)
+#   texture   sampled through the mesh's UVs (the texels the asset shows, not the whole atlas), weighted by surface
+#             area: L* p2/p98 inside value_range (5 L* slack), at most texture_off_palette_max of the samples farther
+#             than palette_de from every palette and accent colour. Alpha hides a texel only when the material's
+#             Alpha takes the texture's alpha (a cutout); an atlas keeping smoothness in alpha is measured whole
 #   detail    no loose part is smaller than detail_floor_m on its longest side: it vanishes at game size
-#   texel     with a numeric texel_density (px/m), an image-textured object is within 10% of it
-#   edges     with hard_edges_max_share set, the share of unbevelled edges sharper than 80 degrees stays under it
-#             (a proxy for bevel_m: the bevel width itself is not measurable from the mesh; the review sheet judges it)
+#   texel     with a numeric texel_density (px/m), an image-textured material is within 10% of it
+#   edges     with hard_edges_max_share set, the share of edges sharper than 80 degrees stays under it (a proxy for
+#             bevel_m: the bevel width itself is not measurable from the mesh; the review sheet judges it)
+# and per asset (a top-level object with its mesh children: parent a multi-part asset's parts under one root):
+#   triangles the summed triangle count is inside triangles[<class>] (class from --class, or "style_class" on the
+#             root or a part)
+#   accent    the share of the surface nearest an accent colour stays under accent_max_share
 
 import argparse
 import json
@@ -32,70 +39,117 @@ import numpy as np
 
 sys.dont_write_bytecode = True     # no __pycache__ beside the plugin's scripts
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from extract_style import LONG_SIDE, linear_to_srgb, read_rgba, srgb_to_lab  # noqa: E402
+from extract_style import linear_to_srgb, read_rgba, srgb_to_lab  # noqa: E402
 
 DEFAULT_RGB = (0.8, 0.8, 0.8)
 LOD_CHILD = re.compile(r'_LOD[1-9]\d*$')
+TEXTURE_SIDE = 1024        # textures are sampled at most this size: an atlas cell stays pixels wide, a 4K map 16 MB
+TRI_SAMPLES = (4, 4096)     # samples per triangle: about one per texel it covers, within these bounds
+MAX_SAMPLES = 2_000_000     # per material; past it every triangle's count shrinks in proportion
 
 
 def is_default(rgb):
     return all(abs(a - b) < 1e-4 for a, b in zip(rgb, DEFAULT_RGB))
 
 
+def principled(mat):
+    return next((n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None) if mat.node_tree else None
+
+
 def base_colour(mat):
-    """('image', bpy image) | ('rgb', sRGB tuple) | ('nodes', node name) | ('default', None)."""
-    bsdf = next((n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None) if mat.node_tree else None
+    """('image', image node) | ('rgb', sRGB tuple) | ('nodes', node name) | ('default', None)."""
+    bsdf = principled(mat)
     if bsdf is not None and bsdf.inputs['Base Color'].is_linked:
         src = bsdf.inputs['Base Color'].links[0].from_node
         if src.type == 'TEX_IMAGE' and src.image is not None:
-            return 'image', src.image
+            return 'image', src
         return 'nodes', src.name
-    # the toon pipeline (toon_prop.py) keeps the palette colour in the viewport colour; the manifest carries it
-    for rgb in (tuple(mat.diffuse_color)[:3], tuple(bsdf.inputs['Base Color'].default_value)[:3] if bsdf else None):
+    # FBX carries the Principled Base Color; the toon pipeline (toon_prop.py) leaves it default and keeps the palette
+    # colour in the viewport colour, which its manifest carries
+    for rgb in (tuple(bsdf.inputs['Base Color'].default_value)[:3] if bsdf else None, tuple(mat.diffuse_color)[:3]):
         if rgb is not None and not is_default(rgb):
             return 'rgb', tuple(float(c) for c in linear_to_srgb(rgb))
     return 'default', None
 
 
-def image_rgba(img):
-    """(sRGB, alpha) of a texture at most LONG_SIDE on the long side, or None when it has no pixels."""
+def is_cutout(mat, tex):
+    """True when the material's Alpha takes this texture's alpha: only then is a low-alpha texel unseen."""
+    bsdf = principled(mat)
+    if bsdf is None or not bsdf.inputs['Alpha'].is_linked:
+        return False
+    link = bsdf.inputs['Alpha'].links[0]
+    return link.from_node == tex and link.from_socket.name == 'Alpha'
+
+
+def image_rgba(img, side=TEXTURE_SIDE):
+    """(sRGB (h, w, 3), alpha (h, w)) of a texture, top row first, at most side on the long side; None without
+    pixels (file missing and not packed)."""
     path = bpy.path.abspath(img.filepath) if img.filepath else ''
     if path and os.path.isfile(path):
-        return read_rgba(path)
+        return read_rgba(path, long_side=side)
     w, h = img.size
     if not w or not h:
         return None
     px = np.empty(w * h * 4, np.float32)
-    img.pixels.foreach_get(px)      # a generated or packed image: its stored values, sRGB for byte images
-    step = max(1, math.ceil(max(w, h) / LONG_SIDE))
-    px = px.reshape(h, w, 4)[::step, ::step]
-    return px[:, :, :3], px[:, :, 3]
+    img.pixels.foreach_get(px)      # a generated or packed image; Blender keeps the bottom row first
+    step = max(1, math.ceil(max(w, h) / side))
+    px = px.reshape(h, w, 4)[::-1][::step, ::step]
+    rgb = linear_to_srgb(px[:, :, :3]) if img.is_float else px[:, :, :3]    # float buffers hold linear values
+    return np.clip(rgb, 0.0, 1.0), px[:, :, 3]
 
 
-def check_object(obj, style, cls, fail, info):
-    """Every rule on the mesh as exported: the evaluated one, modifiers applied."""
+def mesh_arrays(mesh, matrix):
+    """Per loop triangle: material index, world area, and UVs (n, 3, 2) or None."""
+    mesh.calc_loop_triangles()
+    n = len(mesh.loop_triangles)
+    co = np.empty(len(mesh.vertices) * 3, np.float32)
+    mesh.vertices.foreach_get('co', co)
+    m = np.array(matrix)
+    co = co.reshape(-1, 3) @ m[:3, :3].T + m[:3, 3]
+    tv = np.empty(n * 3, np.int32)
+    tl = np.empty(n * 3, np.int32)
+    mi = np.empty(n, np.int32)
+    mesh.loop_triangles.foreach_get('vertices', tv)
+    mesh.loop_triangles.foreach_get('loops', tl)
+    mesh.loop_triangles.foreach_get('material_index', mi)
+    p = co[tv.reshape(-1, 3)]
+    area = np.linalg.norm(np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0]), axis=1) / 2
+    uv = None
+    if mesh.uv_layers.active:
+        u = np.empty(len(mesh.loops) * 2, np.float32)
+        mesh.uv_layers.active.data.foreach_get('uv', u)
+        uv = u.reshape(-1, 2)[tl.reshape(-1, 3)]
+    return mi, area, uv
+
+
+def wpercentile(x, w, q):
+    o = np.argsort(x)
+    c = np.cumsum(w[o])
+    return np.interp(np.asarray(q) / 100.0, c / c[-1], x[o])
+
+
+def check_object(obj, style, fail, info):
+    """Every per-object rule on the mesh as exported; returns its triangles, world area and accent-coloured area."""
     eval_obj = obj.evaluated_get(bpy.context.evaluated_depsgraph_get())
     mesh = eval_obj.to_mesh()
     try:
-        check_mesh(obj.name, mesh, obj.matrix_world, style, cls, fail, info)
+        return check_mesh(obj.name, mesh, obj.matrix_world, style, fail, info)
     finally:
         eval_obj.to_mesh_clear()
 
 
-def check_mesh(name, mesh, matrix, style, cls, fail, info):
+def check_mesh(name, mesh, matrix, style, fail, info):
     pal = style.get('palette') or {}
     pal_lab = {r: srgb_to_lab(np.array(v['srgb'], float)) for r, v in pal.items()}
     accent_lab = [srgb_to_lab(np.array(a, float)) for a in style.get('accents', [])]
     allowed = list(pal_lab.items()) + [('accent', a) for a in accent_lab]
     de = float(style.get('palette_de', 6.0))
     lo, hi = style.get('value_range', [0.0, 100.0])
-    bm = bmesh.new()
-    bm.from_mesh(mesh)
-    bm.transform(matrix)
-    world_area = sum(f.calc_area() for f in bm.faces)
+    mi, area, uv = mesh_arrays(mesh, matrix)
+    accent_area = 0.0
 
-    used = {p.material_index for p in mesh.polygons}
-    for i in sorted(used):
+    for i in sorted(set(mi.tolist())):
+        sel = mi == i
         mat = mesh.materials[i] if i < len(mesh.materials) else None
         if mat is None:
             fail(name, 'material', 'slot %d has no material' % i)
@@ -113,7 +167,8 @@ def check_mesh(name, mesh, matrix, style, cls, fail, info):
             elif not lo <= lab[0] <= hi:
                 fail(name, 'value', '%s L* %.0f outside value_range %s-%s' % (mat.name, lab[0], lo, hi))
             if allowed:
-                role = mat.name[2:] if mat.name.startswith('M_') else None
+                # M_Wood.001 (Blender's duplicate name) is still the Wood role
+                role = re.sub(r'\.\d+$', '', mat.name[2:]) if mat.name.startswith('M_') else None
                 if role in pal_lab:
                     d = float(np.linalg.norm(lab - pal_lab[role]))
                     if d > de:
@@ -123,20 +178,18 @@ def check_mesh(name, mesh, matrix, style, cls, fail, info):
                     if d > de:
                         fail(name, 'palette', '%s is off-palette: nearest %s at %.1f (palette_de %.0f)'
                              % (mat.name, near, d, de))
+                    elif near == 'accent':
+                        accent_area += float(area[sel].sum())
         else:
-            check_image(name, mesh, world_area, val, [a for _, a in allowed], de, lo, hi, style, fail, info)
+            accent_area += check_image(name, mat, val, area[sel], None if uv is None else uv[sel],
+                                       [a for _, a in allowed], len(pal_lab), de, lo, hi, style, fail, info)
 
-    mesh.calc_loop_triangles()
-    tris = len(mesh.loop_triangles)
-    info(name, 'triangles', tris)
-    bands = style.get('triangles') or {}
-    if bands:
-        if cls not in bands:
-            fail(name, 'triangles', 'no class: pass --class or set the object\'s "style_class" to one of %s'
-                 % ', '.join(sorted(bands)))
-        elif not bands[cls][0] <= tris <= bands[cls][1]:
-            fail(name, 'triangles', '%d triangles outside the %s band %d-%d' % (tris, cls, *bands[cls]))
-
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.transform(matrix)
+    # an Edge Split modifier or a hard-edge export cuts faces apart along edges: weld them back for the topology rules
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+    bm.faces.index_update()
     floor = style.get('detail_floor_m')
     if floor:
         seen, small = set(), 0
@@ -167,43 +220,112 @@ def check_mesh(name, mesh, matrix, style, cls, fail, info):
         fail(name, 'edges', '%.0f%% of edges are unbevelled hard corners (max %.0f%%; bevel_m %s)'
              % (share * 100, limit * 100, style.get('bevel_m')))
     bm.free()
+    return {'triangles': int(len(mi)), 'area': float(area.sum()), 'accent_area': accent_area}
 
 
-def check_image(name, mesh, area, img, refs, de, lo, hi, style, fail, info):
+def check_image(name, mat, tex, area, uv, refs, n_pal, de, lo, hi, style, fail, info):
+    """The texture rules on the texels the mesh shows; returns the accent-coloured world area."""
+    img = tex.image
     got = image_rgba(img)
     if got is None:
         fail(name, 'texture', '%s has no pixels (file missing and not packed)' % img.name)
-        return
+        return 0.0
     rgb, alpha = got
-    opaque = alpha >= 0.5            # a cutout's transparent texels are never seen
-    if not opaque.any():
-        fail(name, 'texture', '%s is fully transparent' % img.name)
-        return
-    lab = srgb_to_lab(rgb[opaque])
-    p2, p98 = np.percentile(lab[:, 0], [2, 98])
+    uv_area = None
+    if uv is not None and len(uv):
+        e1, e2 = uv[:, 1] - uv[:, 0], uv[:, 2] - uv[:, 0]
+        uv_area = np.abs(e1[:, 0] * e2[:, 1] - e1[:, 1] * e2[:, 0]) / 2
+        h, w = alpha.shape
+        k = np.clip(np.ceil(uv_area * w * h), *TRI_SAMPLES).astype(int)
+        if k.sum() > MAX_SAMPLES:
+            k = np.maximum(1, (k * MAX_SAMPLES / k.sum()).astype(int))
+        tri = np.repeat(np.arange(len(uv)), k)
+        r1, r2 = np.random.default_rng(7).random((2, len(tri)))     # uniform points inside each triangle
+        s = np.sqrt(r1)
+        pts = np.einsum('nk,nkd->nd', np.stack([1 - s, s * (1 - r2), s * r2], axis=1), uv[tri])
+        x = np.clip(np.floor((pts[:, 0] % 1.0) * w).astype(int), 0, w - 1)
+        y = np.clip(np.floor((1.0 - pts[:, 1] % 1.0) * h).astype(int), 0, h - 1)
+        rgb, alpha, weight = rgb[y, x], alpha[y, x], (area / k)[tri]
+    else:                                                           # no UVs: the whole image stands in
+        rgb, alpha = rgb.reshape(-1, 3), alpha.ravel()
+        weight = np.full(len(alpha), area.sum() / max(1, len(alpha)))
+    if is_cutout(mat, tex):
+        keep = alpha >= 0.5
+        if not keep.any():
+            fail(name, 'texture', '%s is transparent everywhere the mesh samples it' % img.name)
+            return 0.0
+        rgb, weight = rgb[keep], weight[keep]
+    if weight.sum() <= 0:
+        return 0.0
+    lab = srgb_to_lab(rgb)
+    p2, p98 = wpercentile(lab[:, 0], weight, [2, 98])
     if p2 < lo - 5 or p98 > hi + 5:
         fail(name, 'texture', '%s L* p2-p98 %.0f-%.0f outside value_range %s-%s' % (img.name, p2, p98, lo, hi))
-    limit = style.get('texture_off_palette_max')
-    if refs and limit is not None:
-        d = np.full(len(lab), np.inf)
-        for r in refs:                  # a running minimum: N x refs x 3 at once is hundreds of MB
-            d = np.minimum(d, np.linalg.norm(lab - r, axis=1))
-        off = float((d > de).mean())
+    accent_area = 0.0
+    if refs:
+        d, nearest = np.full(len(lab), np.inf), np.zeros(len(lab), int)
+        for k, r in enumerate(refs):        # a running minimum: N x refs x 3 at once is hundreds of MB
+            dk = np.linalg.norm(lab - r, axis=1)
+            nearest = np.where(dk < d, k, nearest)
+            d = np.minimum(d, dk)
+        off = float(weight[d > de].sum() / weight.sum())
         info(name, 'texture_off_palette', round(off, 3))
-        if off > limit:
-            fail(name, 'texture', '%s: %.0f%% of pixels off-palette (max %.0f%%)' % (img.name, off * 100, limit * 100))
+        limit = style.get('texture_off_palette_max')
+        if limit is not None and off > limit:
+            fail(name, 'texture', '%s: %.0f%% of the shown texels off-palette (max %.0f%%)'
+                 % (img.name, off * 100, limit * 100))
+        accent_area = float(weight[(nearest >= n_pal) & (d <= de)].sum())
     target = style.get('texel_density')
-    if isinstance(target, (int, float)) and mesh.uv_layers.active:
-        uv = mesh.uv_layers.active.data
-        uv_area = 0.0
-        for p in mesh.polygons:
-            pts = [uv[li].uv for li in p.loop_indices]
-            uv_area += abs(sum(pts[i].x * pts[i - 1].y - pts[i - 1].x * pts[i].y for i in range(len(pts)))) / 2
-        w, h = img.size
-        density = math.sqrt(uv_area * w * h / area) if area > 0 else 0.0
+    if isinstance(target, (int, float)) and uv_area is not None:
+        density = math.sqrt(uv_area.sum() * img.size[0] * img.size[1] / area.sum()) if area.sum() > 0 else 0.0
         info(name, 'texel_density', round(density, 1))
         if abs(density - target) > 0.1 * target:
-            fail(name, 'texel', '%.0f px/m, style is %s px/m (10%% band)' % (density, target))
+            fail(name, 'texel', '%s: %.0f px/m, style is %s px/m (10%% band)' % (mat.name, density, target))
+    return accent_area
+
+
+def root_of(obj):
+    while obj.parent is not None:
+        obj = obj.parent
+    return obj
+
+
+def gate(objs, style, cls=None):
+    """Runs every rule; returns (failures [{object, rule, message}], facts {name: {key: value}})."""
+    failures, facts, assets = [], {}, {}
+
+    def fail(o, rule, msg):
+        failures.append({'object': o, 'rule': rule, 'message': msg})
+
+    def info(o, k, v):
+        facts.setdefault(o, {})[k] = v
+
+    for obj in objs:
+        got = check_object(obj, style, fail, info)
+        info(obj.name, 'triangles', got['triangles'])
+        root = root_of(obj)
+        a = assets.setdefault(root.name, {'cls': None, 'triangles': 0, 'area': 0.0, 'accent_area': 0.0})
+        a['cls'] = a['cls'] or cls or root.get('style_class') or obj.get('style_class')
+        for k in ('triangles', 'area', 'accent_area'):
+            a[k] += got[k]
+
+    bands = style.get('triangles') or {}
+    limit = style.get('accent_max_share')
+    for name, a in assets.items():
+        info(name, 'asset_triangles', a['triangles'])
+        if bands:
+            if a['cls'] not in bands:
+                fail(name, 'triangles', 'no class: pass --class or set "style_class" on the asset root to one of %s'
+                     % ', '.join(sorted(bands)))
+            elif not bands[a['cls']][0] <= a['triangles'] <= bands[a['cls']][1]:
+                fail(name, 'triangles', '%d triangles outside the %s band %d-%d'
+                     % (a['triangles'], a['cls'], *bands[a['cls']]))
+        share = a['accent_area'] / a['area'] if a['area'] > 0 else 0.0
+        info(name, 'accent_share', round(share, 3))
+        if limit is not None and share > limit:
+            fail(name, 'accent', '%.0f%% of the surface is accent colour (accent_max_share %.0f%%)'
+                 % (share * 100, limit * 100))
+    return failures, facts
 
 
 def main():
@@ -222,16 +344,15 @@ def main():
         if missing:
             raise SystemExit('no such object(s): %s' % ', '.join(missing))
         objs = [bpy.data.objects[n] for n in names]
+        not_mesh = [o.name for o in objs if o.type != 'MESH']
+        if not_mesh:
+            raise SystemExit('not mesh object(s): %s (name the mesh parts, not their root)' % ', '.join(not_mesh))
     else:
         objs = [o for o in bpy.data.objects if o.type == 'MESH' and not o.name.startswith('COL_')
                 and not LOD_CHILD.search(o.name)]
     if not objs:
         raise SystemExit('no mesh objects to check')
-    failures, facts = [], {}
-    for obj in objs:
-        check_object(obj, style, args.cls or obj.get('style_class'),
-                     lambda o, rule, msg: failures.append({'object': o, 'rule': rule, 'message': msg}),
-                     lambda o, k, v: facts.setdefault(o, {}).__setitem__(k, v))
+    failures, facts = gate(objs, style, args.cls)
     report = {'style': os.path.abspath(args.style), 'objects': [o.name for o in objs], 'facts': facts,
               'failures': failures, 'pass': not failures}
     if args.report:

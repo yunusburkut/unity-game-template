@@ -2,24 +2,33 @@
 # the saved .blend of the build (it never saves the file):
 #
 #   blender --background --factory-startup --python-exit-code 1 <asset>.blend --python contact_sheet.py -- \
-#       --style Tools/Blender/Style/style.json --out <asset>_sheet.png [--crops crops.json] [--refs a.png b.png]
-#       [--golden Tools/Blender/Style/golden.png] [--objects SM_A] [--tile 256]
+#       --style Tools/Blender/Style/style.json --out <asset>_sheet.png [--crops crops.json] [--class prop]
+#       [--refs a.png b.png] [--golden Tools/Blender/Style/golden.png] [--objects SM_A] [--tile 256]
 #
 # Rows: front, right, back, top (orthographic) and the game camera (style.json camera: pitch, yaw, projection).
 # Columns: silhouette (black on white), clay (grey studio light, cavity) and look. Each view renders at the game's
-# on-screen size (camera.asset_px) and is scaled up by whole pixels to the tile, so detail that is lost in the game is
-# lost here too. A last row holds the reference crops (the rects of crops.json, or whole --refs images) and the golden
-# asset, scaled to the tile height. <out>_game.png is the game-view look tile alone: the golden asset's one is golden.png.
+# 1080p scale, camera.asset_px pixels per camera.asset_m metres (the typical prop's height, default 1), so a hero
+# draws larger than a prop (past 1024 px it shrinks to fit: layout.render_scale < 1 and a SHEET WARNING); the tile
+# scales it up by whole pixels, so detail that is lost in the game is lost here too. A last row holds the references: the "kind": "object" crops of crops.json (those of
+# --class, or with no class), else its surface crops, then whole --refs images, then the golden asset.
+# <out>_game.png is the game-view look tile alone: the golden asset's one becomes golden.png.
 #
 # The look pass copies the Unity shading model from style.json "shading", with the light from "light":
-#   toon    two bands: the colour, and colour x light.shadow_srgb where N.L falls under light.band (default 0.05,
-#           Toon.shader's _RampOffset) or the asset shadows itself
+#   toon    __GAME__/Toon's bands: the colour where N.L is over light.band (Toon.shader _RampOffset, default 0.05) and
+#           the asset does not shadow itself, else lerp(luminance, colour, light.shade_saturation 1.3) x
+#           light.shadow_srgb; both plus colour x light.ambient (the scene's SH level, default 0.5) x 0.18. No gloss
+#           spot or rim (they follow smoothness and the view)
 #   flat    the colour unlit
 #   lit, painted   Principled with the colour or image and the material's roughness, a sun and a grey ambient
-# It is a Blender stand-in, not the Unity render: the final judgement is an in-engine screenshot.
+# "outline" (true, or {"px": 1.5, "srgb": [0.36, 0.30, 0.46]}, Toon.shader's defaults) adds the inverted-hull ink line
+# at px 1080p pixels, coloured albedo x srgb. It is a Blender stand-in, not the Unity render: the final judgement is an
+# in-engine screenshot.
 #
-# <out>.json beside the sheet: the layout, and extract_style's numbers measured on the game-view look render (asset
-# pixels only) next to the style's value_range and palette, as palette_coverage (share within palette_de).
+# <out>.json beside the sheet: the layout; extract_style's numbers measured on the game tile (asset pixels one pixel
+# in from the edge) next to style.json "look" (the reference numbers, same 1080p pixel scale); inside_value_range; and
+# palette_coverage, the share of asset pixels within palette_de of a palette or accent colour as this shading draws it
+# (lit band, shade band, ink). A toon or flat asset on palette reads 0.85 or more; lit and painted vary with the
+# light, so compare with the golden asset's number.
 
 import argparse
 import json
@@ -37,11 +46,14 @@ from mathutils import Vector
 
 sys.dont_write_bytecode = True     # no __pycache__ beside the plugin's scripts
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from extract_style import metrics, pixels, read_rgb, read_rgba, srgb_to_lab  # noqa: E402
+from extract_style import SCREEN_H, linear_to_srgb, metrics, pixels, read_rgb, read_rgba, srgb_to_lab  # noqa: E402
 from style_gate import LOD_CHILD, base_colour  # noqa: E402
 
 VIEWS = [('front', 0.0, 0.0), ('right', 90.0, 0.0), ('back', 180.0, 0.0), ('top', 0.0, 90.0)]
 GREY_BG = 0.55
+AMBIENT_STRENGTH = 0.18          # Toon.shader _AmbientStrength
+OUTLINE = {'px': 1.5, 'srgb': [0.36, 0.30, 0.46]}     # Toon.shader _OutlineWidth, _OutlineColor
+LOOK_KEYS = ('detail_energy', 'dark_edge_share', 'chroma_mean', 'accent_share')
 
 
 def direction(yaw, pitch):
@@ -60,54 +72,137 @@ def linear(c):
     return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
 
 
-def look_material(mat, shading, shadow, edge):
-    """A render-only stand-in for mat that draws the style's shading model."""
+def toon_params(light):
+    return {'shadow': linear(light.get('shadow_srgb', [0.55, 0.5, 0.65])),
+            'saturation': float(light.get('shade_saturation', 1.3)),
+            'ambient': float(light.get('ambient', 0.5)) * AMBIENT_STRENGTH,
+            # Shader to RGB of a white diffuse: world 0.25 + sun 3 W/m2 x N.L / pi; the band edge sits at N.L = band
+            'edge': 0.25 + float(light.get('band', 0.05)) * 3.0 / math.pi}
+
+
+def outline_cfg(style):
+    o = style.get('outline')
+    if not o:
+        return None
+    return {**OUTLINE, **(o if isinstance(o, dict) else {})}
+
+
+def colour_node(nt, mat):
     kind, val = base_colour(mat)
+    if kind == 'image':
+        col = nt.nodes.new('ShaderNodeTexImage')
+        col.image = val.image
+        col.interpolation = val.interpolation
+        return col.outputs['Color']
+    col = nt.nodes.new('ShaderNodeRGB')
+    col.outputs[0].default_value = (*linear(val if kind == 'rgb' else (1.0, 0.0, 1.0)), 1.0)
+    return col.outputs[0]
+
+
+def mix(nt, blend, a, b, factor=1.0):
+    """A Mix (Color) node: a and b are sockets or RGB tuples; the RGBA inputs are 6 and 7, after the float/vector ones."""
+    m = nt.nodes.new('ShaderNodeMix')
+    m.data_type, m.blend_type, m.clamp_factor = 'RGBA', blend, False
+    if isinstance(factor, float):
+        m.inputs['Factor'].default_value = factor
+    else:
+        nt.links.new(factor, m.inputs['Factor'])
+    for sock, v in ((m.inputs[6], a), (m.inputs[7], b)):
+        if isinstance(v, (tuple, list, np.ndarray)):
+            sock.default_value = (*[float(x) for x in v], 1.0)
+        else:
+            nt.links.new(v, sock)
+    return m.outputs[2]
+
+
+def emit(nt, colour):
+    out = nt.nodes.new('ShaderNodeOutputMaterial')
+    em = nt.nodes.new('ShaderNodeEmission')
+    nt.links.new(colour, em.inputs['Color'])
+    nt.links.new(em.outputs[0], out.inputs['Surface'])
+
+
+def look_material(mat, shading, toon):
+    """A render-only stand-in for mat that draws the style's shading model."""
     m = bpy.data.materials.new('LOOK_' + mat.name)
     nt = m.node_tree
     nt.nodes.clear()
-    out = nt.nodes.new('ShaderNodeOutputMaterial')
-    if kind == 'image':
-        col = nt.nodes.new('ShaderNodeTexImage')
-        col.image = val
-        colour = col.outputs['Color']
-    else:
-        col = nt.nodes.new('ShaderNodeRGB')
-        col.outputs[0].default_value = (*linear(val if kind == 'rgb' else (1.0, 0.0, 1.0)), 1.0)
-        colour = col.outputs[0]
+    colour = colour_node(nt, mat)
     if shading == 'flat':
-        em = nt.nodes.new('ShaderNodeEmission')
-        nt.links.new(colour, em.inputs['Color'])
-        nt.links.new(em.outputs[0], out.inputs['Surface'])
+        emit(nt, colour)
     elif shading == 'toon':
         diff = nt.nodes.new('ShaderNodeBsdfDiffuse')
         diff.inputs['Color'].default_value = (1, 1, 1, 1)
         to_rgb = nt.nodes.new('ShaderNodeShaderToRGB')
+        nt.links.new(diff.outputs[0], to_rgb.inputs[0])
         ramp = nt.nodes.new('ShaderNodeValToRGB')
         ramp.color_ramp.interpolation = 'CONSTANT'
         ramp.color_ramp.elements[0].color = (0, 0, 0, 1)
-        ramp.color_ramp.elements[1].position = edge
-        dark = nt.nodes.new('ShaderNodeMix')
-        dark.data_type, dark.blend_type = 'RGBA', 'MULTIPLY'
-        dark.inputs['Factor'].default_value = 1.0
-        nt.links.new(colour, dark.inputs[6])          # the RGBA A and B (the float and vector ones come first)
-        dark.inputs[7].default_value = (*linear(shadow), 1.0)
-        band = nt.nodes.new('ShaderNodeMix')
-        band.data_type = 'RGBA'
-        nt.links.new(diff.outputs[0], to_rgb.inputs[0])
+        ramp.color_ramp.elements[1].position = toon['edge']
         nt.links.new(to_rgb.outputs['Color'], ramp.inputs['Fac'])
-        nt.links.new(ramp.outputs['Color'], band.inputs['Factor'])
-        nt.links.new(dark.outputs[2], band.inputs[6])
-        nt.links.new(colour, band.inputs[7])
-        em = nt.nodes.new('ShaderNodeEmission')
-        nt.links.new(band.outputs[2], em.inputs['Color'])
-        nt.links.new(em.outputs[0], out.inputs['Surface'])
+        lum = nt.nodes.new('ShaderNodeRGBToBW')
+        nt.links.new(colour, lum.inputs[0])
+        shade = mix(nt, 'MIX', lum.outputs[0], colour, toon['saturation'])     # lerp(luminance, colour, saturation)
+        shade = mix(nt, 'MULTIPLY', shade, toon['shadow'])
+        band = mix(nt, 'MIX', shade, colour, ramp.outputs['Color'])
+        k = toon['ambient']
+        emit(nt, mix(nt, 'ADD', band, mix(nt, 'MULTIPLY', colour, (k, k, k))))
     else:
+        out = nt.nodes.new('ShaderNodeOutputMaterial')
         bsdf = nt.nodes.new('ShaderNodeBsdfPrincipled')
         nt.links.new(colour, bsdf.inputs['Base Color'])
         bsdf.inputs['Roughness'].default_value = mat.roughness
         nt.links.new(bsdf.outputs[0], out.inputs['Surface'])
     return m
+
+
+def ink_material(mat, tint):
+    """The outline hull's material: albedo x tint, unlit, back faces only (the hull's normals are flipped)."""
+    m = bpy.data.materials.new('INK_' + mat.name)
+    m.use_backface_culling = True
+    # the hull's sun-side faces are back faces too: culled from the shadow map, or the hull shades the whole asset
+    m.use_backface_culling_shadow = True
+    nt = m.node_tree
+    nt.nodes.clear()
+    emit(nt, mix(nt, 'MULTIPLY', colour_node(nt, mat), linear(tint)))
+    return m
+
+
+def add_outlines(objs, cfg, width):
+    """An inverted hull per object (Solidify outward, flipped normals, ink materials after the originals); returns
+    the modifiers so the clay pass can hide them."""
+    mods, offsets = [], {}
+    for o in objs:
+        if o.data.name not in offsets:
+            mats = list(o.data.materials)
+            offsets[o.data.name] = len(mats)
+            for m in mats:
+                o.data.materials.append(ink_material(m, cfg['srgb']) if m else None)
+        mod = o.modifiers.new('SHEET_Outline', 'SOLIDIFY')
+        # Solidify works in object units: divide out an unapplied scale so every part draws the same world width
+        mod.thickness, mod.offset = width / max(1e-6, float(np.mean(o.matrix_world.to_scale()))), 1.0
+        mod.use_flip_normals, mod.use_rim, mod.use_even_offset = True, False, True
+        mod.material_offset = offsets[o.data.name]
+        mods.append(mod)
+    return mods
+
+
+def drawn_colours(style, shading, toon, ink):
+    """CIELAB of every palette and accent colour as the look pass draws it: lit band, shade band and ink for toon."""
+    srgb = [v['srgb'] for v in (style.get('palette') or {}).values()] + list(style.get('accents', []))
+    out = []
+    for c in srgb:
+        lin = linear(c)
+        if shading == 'toon':
+            lum = float(lin @ np.array([0.2126, 0.7152, 0.0722]))
+            variants = [lin * (1 + toon['ambient']),
+                        (lum + toon['saturation'] * (lin - lum)) * toon['shadow'] + lin * toon['ambient']]
+        else:
+            variants = [lin]
+        if ink:
+            variants.append(lin * linear(ink['srgb']))
+        out += [srgb_to_lab(linear_to_srgb(np.clip(v, 0.0, 1.0))) for v in variants]     # the render clamps too
+    return out
 
 
 def write_png(rgb, path):
@@ -118,14 +213,16 @@ def write_png(rgb, path):
 
 
 def ref_images(args):
-    """sRGB images for the reference row: crops.json rects (paths relative to it), then whole --refs files."""
+    """(name, sRGB image) for the reference row: object crops of the class (else surface crops), then --refs."""
     out = []
     if args.crops:
         base = os.path.dirname(os.path.abspath(args.crops))
         with open(args.crops, encoding='utf-8') as f:
-            for c in json.load(f):
-                out.append((os.path.basename(c['file']), read_rgba(os.path.join(base, c['file']), c.get('rect'),
-                                                                   long_side=None)[0]))
+            crops = json.load(f)
+        objects = [c for c in crops if c.get('kind') == 'object' and c.get('class') in (None, args.cls)]
+        for c in objects or [c for c in crops if c.get('kind', 'surface') == 'surface']:
+            path = os.path.join(base, c['file'])
+            out.append((os.path.basename(c['file']), read_rgba(path, c.get('rect'), long_side=None)[0]))
     out += [(os.path.basename(p), read_rgba(p, long_side=None)[0]) for p in args.refs]
     return out
 
@@ -159,6 +256,7 @@ def main():
     ap.add_argument('--style', required=True)
     ap.add_argument('--out', required=True)
     ap.add_argument('--crops')
+    ap.add_argument('--class', dest='cls')
     ap.add_argument('--refs', nargs='*', default=[])
     ap.add_argument('--golden')
     ap.add_argument('--objects')
@@ -168,8 +266,10 @@ def main():
         style = json.load(f)
     cam_cfg, light = style.get('camera', {}), style.get('light', {})
     shading = style.get('shading', 'lit')
+    toon, ink = toon_params(light), outline_cfg(style)
     px = int(cam_cfg.get('asset_px', 128))
-    tile = max(args.tile, px)
+    px_per_m = px / float(cam_cfg.get('asset_m', 1.0))
+    stem = re.sub(r'\.[^.]+$', '', args.out)
 
     names = args.objects.split(',') if args.objects else None
     objs = [o for o in bpy.data.objects if o.type == 'MESH' and (o.name in names if names else
@@ -181,9 +281,19 @@ def main():
     corners = np.array([o.matrix_world @ Vector(c) for o in objs for c in o.bound_box])
     centre = Vector(((corners.min(0) + corners.max(0)) / 2).tolist())
     radius = float(np.linalg.norm(corners - np.array(centre), axis=1).max())
+    # one render pixel is one 1080p screen pixel: n pixels frame the asset's bounding sphere with a margin. Past 1024
+    # pixels (a building at prop scale) the render shrinks to fit and the report says so
+    need = max(16, math.ceil(radius * 2.1 * px_per_m))
+    n = min(1024, need)
+    render_scale = n / need
+    if render_scale < 1:
+        print('SHEET WARNING: the asset needs %d px at game scale; drawn at %.2f x, so pixel detail reads coarser than '
+              'in the game' % (need, render_scale))
+        px_per_m *= render_scale
+    tile = max(args.tile, n)
 
     sc = bpy.context.scene
-    sc.render.resolution_x = sc.render.resolution_y = px
+    sc.render.resolution_x = sc.render.resolution_y = n
     sc.render.resolution_percentage = 100
     sc.render.film_transparent = True
     sc.render.image_settings.file_format = 'PNG'
@@ -205,10 +315,8 @@ def main():
             bg.inputs['Strength'].default_value = 1.0
 
     originals = {o.name: [s.material for s in o.material_slots] for o in objs}
+    hulls = add_outlines(objs, ink, ink['px'] / px_per_m) if ink else []
     looks = {}
-    shadow = light.get('shadow_srgb', [0.55, 0.5, 0.65])
-    # Shader to RGB of a white diffuse: world ambient 0.25 + sun 3 W/m2 x N.L / pi; the band edge sits at N.L = band
-    edge = 0.25 + float(light.get('band', 0.05)) * 3.0 / math.pi
     tmp = tempfile.mkdtemp(prefix='contact_sheet_')
     views = VIEWS + [('game', cam_cfg.get('yaw', 45.0), cam_cfg.get('pitch', 30.0))]
     rows, game_look = [], None
@@ -217,16 +325,21 @@ def main():
         persp = vname == 'game' and cam_cfg.get('projection', 'ortho') == 'persp'
         cam.data.type = 'PERSP' if persp else 'ORTHO'
         if persp:
-            cam.data.angle = math.radians(cam_cfg.get('fov', 40.0))
-            dist = radius / math.sin(cam.data.angle / 2) * 1.05
+            # the distance where the game's fov shows px_per_m at the asset's centre; the render is that frame's
+            # middle n pixels
+            half = math.tan(math.radians(cam_cfg.get('fov', 40.0)) / 2)
+            dist = max(SCREEN_H / (2 * px_per_m * half), radius * 1.2)
+            cam.data.angle = 2 * math.atan(n / (2 * px_per_m * dist))
         else:
-            cam.data.ortho_scale = radius * 2.1
+            cam.data.ortho_scale = n / px_per_m
             dist = radius * 4
         cam.data.clip_end = dist + radius * 4
         cam.location = centre + d * dist
         aim(cam, d)
         tiles = []
         for pass_name in ('clay', 'look'):
+            for mod in hulls:
+                mod.show_render = pass_name == 'look'
             if pass_name == 'clay':
                 sc.render.engine = 'BLENDER_WORKBENCH'
                 sh = sc.display.shading
@@ -240,7 +353,7 @@ def main():
                 for o in objs:
                     for s, m in zip(o.material_slots, originals[o.name]):
                         if m is not None:
-                            looks.setdefault(m.name, look_material(m, shading, shadow, edge))
+                            looks.setdefault(m.name, look_material(m, shading, toon))
                             s.material = looks[m.name]
             path = os.path.join(tmp, '%s_%s.png' % (vname, pass_name))
             sc.render.filepath = path
@@ -259,7 +372,7 @@ def main():
                     core[:, 1:] &= inside[:, :-1]
                     core[:, :-1] &= inside[:, 1:]
                     game_look = (rgb, core if core.any() else inside)
-                    write_png(upscale(shown, tile), re.sub(r'\.[^.]+$', '', args.out) + '_game.png')
+                    write_png(upscale(shown, tile), stem + '_game.png')
             tiles.append(upscale(shown, tile))
         rows.append(np.concatenate(tiles, axis=1))
     shutil.rmtree(tmp, ignore_errors=True)
@@ -277,26 +390,31 @@ def main():
     lab, g = pixels(*game_look)
     measured = metrics(lab, g, k=8)
     lo, hi = style.get('value_range', [0.0, 100.0])
-    refs = [srgb_to_lab(np.array(v['srgb'], float)) for v in (style.get('palette') or {}).values()]
-    refs += [srgb_to_lab(np.array(a, float)) for a in style.get('accents', [])]
+    refs = drawn_colours(style, shading, toon, ink)
     coverage = None
     if refs:
         dist = np.full(len(lab), np.inf)
         for r in refs:
             dist = np.minimum(dist, np.linalg.norm(lab - r, axis=1))
         coverage = round(float((dist <= float(style.get('palette_de', 6.0))).mean()), 3)
+    target = style.get('look') or {}
     report = {
         'sheet': os.path.abspath(args.out), 'objects': [o.name for o in objs], 'shading': shading,
+        'outline': ink,
         'layout': {'rows': [v[0] for v in views] + (['references'] if extra else []),
-                   'columns': ['silhouette', 'clay', 'look'], 'tile_px': tile, 'asset_px': px,
+                   'columns': ['silhouette', 'clay', 'look'], 'tile_px': tile, 'render_px': n, 'render_scale': round(render_scale, 3), 'asset_px': px,
                    'references': [n for n, _ in refs_in] + (['golden'] if args.golden else [])},
-        'game_tile': re.sub(r'\.[^.]+$', '', os.path.abspath(args.out)) + '_game.png',
+        'game_tile': os.path.abspath(stem + '_game.png'),
         'game_view': measured,
         'against_style': {'value_range': [lo, hi],
                           'inside_value_range': round(float(((lab[:, 0] >= lo) & (lab[:, 0] <= hi)).mean()), 3),
-                          'palette_coverage': coverage},
+                          'palette_coverage': coverage,
+                          'palette_coverage_expected': '>= 0.85' if shading in ('toon', 'flat')
+                          else "the golden asset's number",
+                          # a guide for the reviewers, not a gate: the references are whole frames, this is one asset
+                          'look': {k: {'asset': measured[k], 'style': target[k]} for k in LOOK_KEYS if k in target}},
     }
-    with open(re.sub(r'\.[^.]+$', '', args.out) + '.json', 'w', encoding='utf-8', newline='\n') as f:
+    with open(stem + '.json', 'w', encoding='utf-8', newline='\n') as f:
         json.dump(report, f, indent=1)
     print('SHEET %s: %dx%d, game view L* %.0f-%.0f, inside value_range %.2f, palette coverage %s'
           % (args.out, sheet.shape[1], sheet.shape[0], measured['L_p2'], measured['L_p98'],

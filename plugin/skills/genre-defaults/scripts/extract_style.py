@@ -7,11 +7,13 @@
 # crops.json: [{"file": "a.png", "rect": [x, y, w, h], "note": "flat-lit wall, mid distance"}, ...]; rect in pixels
 # from the top left. A file listed without rect is used whole; with --crops only the listed regions are measured.
 # Crop flat-lit surfaces: the numbers describe the final graded frame (light, fog, bloom, grading), not the albedo, so
-# a crop full of fog or UI moves the palette. The metrics() function is shared with contact_sheet.py.
+# a crop full of fog or UI moves the palette. An entry with "kind": "object" (a prop of one class, "class": "prop") is
+# for contact_sheet's reference row and is skipped here. The metrics() function is shared with contact_sheet.py.
 #
 # Output per crop and pooled: palette (k-means in CIELAB, swatches by share), L* percentiles 2/50/98, mean chroma,
-# accent_share (pixels with C* > 60), detail_energy (mean |grad L*| at 256 px on the long side) and dark_edge_share
-# (pixels with L* < 15 on a strong edge: a proxy for drawn outlines).
+# accent_share (pixels with C* > 60), detail_energy (mean |grad L*|) and dark_edge_share (pixels with L* < 15 on a
+# strong edge: a proxy for drawn outlines). Every shot is measured as if 1080 px tall (SCREEN_H), the scale
+# camera.asset_px is given at, so the last two compare with contact_sheet's game tile.
 
 import argparse
 import json
@@ -21,7 +23,10 @@ import sys
 import numpy as np
 import OpenImageIO as oiio
 
-LONG_SIDE = 256          # every crop is measured at this size, so detail_energy compares across screenshot sizes
+LONG_SIDE = 256          # thumbnails and the golden tile
+SCREEN_H = 1080          # screenshots are measured as if 1080 px tall: the scale camera.asset_px is given at, so the
+                         # game tile of contact_sheet and a crop compare on detail_energy and dark_edge_share
+POOL_MAX = 200000        # pixels per crop in the pooled numbers: 20 full 1080p shots would be over 1 GB of CIELAB
 ACCENT_CHROMA = 60.0
 EXTS = ('.png', '.jpg', '.jpeg', '.webp', '.tga', '.bmp', '.exr', '.tif', '.tiff')
 
@@ -31,16 +36,18 @@ def linear_to_srgb(c):
     return np.where(c <= 0.0031308, c * 12.92, 1.055 * c ** (1 / 2.4) - 0.055)
 
 
-def read_rgba(path, rect=None, long_side=LONG_SIDE):
+def read_rgba(path, rect=None, long_side=LONG_SIDE, screen_h=None):
     """(sRGB (h, w, 3), alpha (h, w)) in 0..1 with straight, not premultiplied, colour; cropped to rect [x, y, w, h]
-    and box-resampled to long_side on the long side (None keeps the size). Float files (EXR, float TIFF) hold linear
-    values and are converted to sRGB."""
+    and box-resampled: with screen_h, by the factor that makes the whole image screen_h tall (the pixel scale
+    camera.asset_px is given at); otherwise down to long_side on the long side (None keeps the size). Float files
+    (EXR, float TIFF) hold linear values and are converted to sRGB."""
     cfg = oiio.ImageSpec()
     cfg.attribute('oiio:UnassociatedAlpha', 1)     # OIIO premultiplies on read otherwise: a cutout edge reads dark
     buf = oiio.ImageBuf(path, 0, 0, cfg)
     if buf.has_error:
         raise SystemExit('cannot read %s: %s' % (path, buf.geterror()))
     spec = buf.spec()
+    full_h = spec.height
     if rect:
         x, y, w, h = (int(round(v)) for v in rect)
         x0, y0, x1, y1 = max(0, x), max(0, y), min(spec.width, x + w), min(spec.height, y + h)
@@ -48,10 +55,14 @@ def read_rgba(path, rect=None, long_side=LONG_SIDE):
             raise SystemExit('rect %s lies outside %s (%dx%d)' % (rect, path, spec.width, spec.height))
         buf = oiio.ImageBufAlgo.cut(buf, oiio.ROI(x0, x1, y0, y1))
         spec = buf.spec()
-    scale = long_side / float(max(spec.width, spec.height)) if long_side else 1.0
-    if scale < 1.0:
+    if screen_h:
+        scale = screen_h / float(full_h)
+    else:
+        scale = min(1.0, long_side / float(max(spec.width, spec.height))) if long_side else 1.0
+    if abs(scale - 1.0) > 1e-3:
         w, h = max(1, round(spec.width * scale)), max(1, round(spec.height * scale))
-        buf = oiio.ImageBufAlgo.resize(buf, roi=oiio.ROI(0, w, 0, h, 0, 1, 0, spec.nchannels))
+        # box: the default windowed sinc rings at hard edges and invents overshoot colours the k-means would keep
+        buf = oiio.ImageBufAlgo.resize(buf, filtername='box', roi=oiio.ROI(0, w, 0, h, 0, 1, 0, spec.nchannels))
     px = buf.get_pixels(oiio.FLOAT)
     if px.ndim == 2:
         px = px[:, :, None]
@@ -63,8 +74,8 @@ def read_rgba(path, rect=None, long_side=LONG_SIDE):
     return np.clip(rgb, 0.0, 1.0), np.clip(alpha, 0.0, 1.0)
 
 
-def read_rgb(path, rect=None):
-    return read_rgba(path, rect)[0]
+def read_rgb(path, rect=None, **kw):
+    return read_rgba(path, rect, **kw)[0]
 
 
 def srgb_to_lab(rgb):
@@ -179,7 +190,8 @@ def jobs(args):
         base = os.path.dirname(os.path.abspath(args.crops))
         with open(args.crops, encoding='utf-8') as f:
             for c in json.load(f):
-                yield os.path.join(base, c['file']), c.get('rect'), c.get('note', '')
+                if c.get('kind', 'surface') == 'surface':      # object crops hold background: the sheet shows them
+                    yield os.path.join(base, c['file']), c.get('rect'), c.get('note', '')
         return
     for p in args.images:
         if os.path.isdir(p):
@@ -200,10 +212,12 @@ def main():
     ap.add_argument('--swatches')
     args = ap.parse_args(argv)
     per, pooled = [], []
+    rng = np.random.default_rng(7)
     for path, rect, note in jobs(args):
-        lab, g = pixels(read_rgb(path, rect))
+        lab, g = pixels(read_rgb(path, rect, screen_h=SCREEN_H))
         per.append({'file': os.path.basename(path), 'rect': rect, 'note': note, **metrics(lab, g, args.k)})
-        pooled.append((lab, g))
+        keep = rng.choice(len(lab), POOL_MAX, replace=False) if len(lab) > POOL_MAX else slice(None)
+        pooled.append((lab[keep], g[keep]))
     if not per:
         raise SystemExit('no images: pass --images <dir or files> or --crops crops.json')
     result = {'pooled': metrics(np.concatenate([p[0] for p in pooled]), np.concatenate([p[1] for p in pooled]), args.k),
