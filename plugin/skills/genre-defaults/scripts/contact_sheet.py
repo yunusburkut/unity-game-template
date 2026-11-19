@@ -277,8 +277,12 @@ def main():
     shading = style.get('shading', 'lit')
     toon, ink = toon_params(light), outline_cfg(style)
     px = int(cam_cfg.get('asset_px', 128))
-    px_per_m = px / float(cam_cfg.get('asset_m', 1.0))
+    px_per_m = px / float(cam_cfg.get('asset_m') or 1.0)
     stem = re.sub(r'\.[^.]+$', '', args.out)
+    os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+    if args.golden and not os.path.isfile(args.golden):     # the golden asset's own first sheet: none approved yet
+        print('SHEET NOTE: no golden asset at %s yet, the sheet goes without it' % args.golden)
+        args.golden = None
 
     names = args.objects.split(',') if args.objects else None
     objs = [o for o in bpy.data.objects if o.type == 'MESH' and (o.name in names if names else

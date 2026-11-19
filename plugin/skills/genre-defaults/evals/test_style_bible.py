@@ -2,17 +2,20 @@
 #
 #   blender --background --factory-startup --python-exit-code 1 --python test_style_bible.py -- --out <empty dir>
 #
-# 1. extract_style finds the fixture screenshots' wood and red accent colours and scales a 720p shot to 1080p.
+# 1. extract_style finds the fixture screenshots' wood and red accent colours, scales a 720p shot to 1080p, reads an
+#    EXR as linear, and its CLI measures crops.json's surface crop, not its object crop.
 # 2. style_gate passes good assets (a bevelled palette crate, a two-part asset with an accent trim, an atlas keeping
 #    smoothness in alpha whose UVs use only its wood cells, a cutout, an Edge Split crate) and fails each rule once
-#    (default material, loose part, off-palette, role mismatch, pure black, stale viewport colour, texture off palette,
-#    texel density, hard edges, accent share, triangles, also from a modifier, flat waste) and measures striped
-#    texels' share; the CLI exits 1, skips COL_ and LOD1.
+#    (default material, node colour, loose part, thin rod, off-palette, role mismatch, pure black, dim colour, stale
+#    viewport colour, texture off palette and too dark, texel density, hard edges, accent share, triangles, also from
+#    a modifier, flat waste) and measures striped texels' share; the CLI exits 1, skips COL_ and LOD1.
 # 3. contact_sheet draws the toon band where Toon.shader puts it (a sphere against N.L), and the crate's sheet with
-#    its outline, references, json and game tile; on-palette coverage is 0.85 or more. Dissolving the waste the gate
-#    counts leaves the game tile unchanged.
-# 4. curve_waste fails a 64x32 smooth ball and a 64-sided cylinder at prop size and passes 26 segments (the formula's
-#    count), also twisted and triangulated, and a faceted ball; the smooth crate's rounded corners count 0.
+#    its outline, references, json and game tile; on-palette coverage is 0.85 or more, also through a perspective
+#    camera into a folder not made yet with a golden not approved yet. Removing the flat and the straight waste the
+#    gate counts leaves the game tile unchanged.
+# 4. curve_waste fails a 64x32 smooth ball, a 64-sided cylinder and height loops on an open smooth tube at prop size
+#    and passes 26 segments (the formula's count), also twisted and triangulated, a faceted ball and height loops
+#    under hard caps (the baked outline normal needs them); the smooth crate's rounded corners count 0.
 # Prints STYLE BIBLE PASS; any failed assert exits 1.
 
 import json
@@ -29,6 +32,7 @@ SCRIPTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'script
 sys.dont_write_bytecode = True     # no __pycache__ beside the plugin's scripts
 sys.path.insert(0, os.path.abspath(SCRIPTS))
 import contact_sheet  # noqa: E402
+import extract_style  # noqa: E402
 import style_gate  # noqa: E402
 from extract_style import linear_to_srgb, metrics, pixels, read_rgb, read_rgba, srgb_to_lab  # noqa: E402
 
@@ -63,7 +67,7 @@ def material(name, rgb=None, base=None):
     return mat
 
 
-def crate(name, colour=None, tiny=False, subdiv=0, bevel=True, size=0.6, touch=False, smooth=False):
+def crate(name, colour=None, tiny=False, subdiv=0, bevel=True, size=0.6, touch=False, smooth=False, rod=False):
     mesh = bpy.data.meshes.new(name)
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.scene.collection.objects.link(obj)
@@ -79,6 +83,11 @@ def crate(name, colour=None, tiny=False, subdiv=0, bevel=True, size=0.6, touch=F
     if touch:           # a 1 cm cube whose corner sits on the crate's corner: one shared point, still a loose part
         made = bmesh.ops.create_cube(bm, size=0.01)
         bmesh.ops.translate(bm, vec=(size / 2 + 0.005,) * 3, verts=made['verts'])
+    if rod:             # a 5 mm rod 0.3 m long, tilted: long enough, but under a pixel across at game size
+        made = bmesh.ops.create_cube(bm, size=1.0)
+        bmesh.ops.scale(bm, vec=(0.005, 0.005, 0.3), verts=made['verts'])
+        bmesh.ops.rotate(bm, matrix=Matrix.Rotation(0.8, 3, 'Y'), verts=made['verts'])
+        bmesh.ops.translate(bm, vec=(size, 0.0, 0.0), verts=made['verts'])
     for f in bm.faces:
         f.smooth = smooth
     bm.to_mesh(mesh)
@@ -93,13 +102,13 @@ def crate(name, colour=None, tiny=False, subdiv=0, bevel=True, size=0.6, touch=F
     return obj
 
 
-def atlas(name, v0, cutout=False, stripes=False):
+def atlas(name, v0, cutout=False, stripes=False, wood=WOOD):
     """A crate textured from a two-cell atlas: wood (alpha 0.15) in the bottom half, magenta in the top (alpha 1, or
     0 for a cutout); its UVs map into the half that starts at v0, so a wrong row order reads magenta. Alpha drives the
     material's Alpha only for a cutout; otherwise it is smoothness, as in the toon-art kit atlas."""
     img = bpy.data.images.new('T_' + name, 64, 64, alpha=True)
     px = np.zeros((64, 64, 4), np.float32)          # Blender's pixel rows run bottom first
-    px[:32] = (*WOOD, 0.15 if not cutout else 1.0)
+    px[:32] = (*wood, 0.15 if not cutout else 1.0)
     px[32:] = (*MAGENTA, 0.0 if cutout else 1.0)
     if stripes:                                     # one texel row in 4 of the wood cell: about a quarter of each face
         px[:32:4] = (*MAGENTA, 1.0)
@@ -145,15 +154,18 @@ def panel(name, inner):
     return mesh
 
 
-def sphere(name, colour, u=64, v=32, smooth=True, twist=0.0, cylinder=False):
-    """A 0.3 m radius ball, or a capped cylinder with flat caps; twist turns each ring by twist x z / r and
-    triangulates, so no quad stays planar (an imported mesh)."""
+def sphere(name, colour, u=64, v=32, smooth=True, twist=0.0, cylinder=False, cuts=0, caps=True):
+    """A 0.3 m radius ball, or a cylinder with flat caps (or none) and cuts height loops; twist turns each ring by
+    twist x z / r and triangulates, so no quad stays planar (an imported mesh)."""
     mesh = bpy.data.meshes.new(name)
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.scene.collection.objects.link(obj)
     bm = bmesh.new()
     if cylinder:
-        bmesh.ops.create_cone(bm, cap_ends=True, segments=u, radius1=0.3, radius2=0.3, depth=0.6)
+        bmesh.ops.create_cone(bm, cap_ends=caps, segments=u, radius1=0.3, radius2=0.3, depth=0.6)
+        if cuts:
+            bmesh.ops.subdivide_edges(bm, edges=[e for e in bm.edges if abs(e.verts[0].co.z - e.verts[1].co.z) > 0.1],
+                                      cuts=cuts)
     else:
         bmesh.ops.create_uvsphere(bm, u_segments=u, v_segments=v, radius=0.3)
     if twist:
@@ -169,11 +181,11 @@ def sphere(name, colour, u=64, v=32, smooth=True, twist=0.0, cylinder=False):
     return obj
 
 
-def sheet(style, out, name, objects, *extra):
+def sheet(style, out, name, objects, *extra, folder=''):
     path = os.path.join(out, 'style_%s.json' % name)
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(style, f)
-    png = os.path.join(out, '%s_sheet.png' % name)
+    png = os.path.join(out, folder, '%s_sheet.png' % name)
     sys.argv = ['blender', '--', '--style', path, '--out', png, '--objects', objects, *extra]
     contact_sheet.main()
     with open(png[:-4] + '.json', encoding='utf-8') as f:
@@ -220,6 +232,12 @@ def main():
     assert near(m['palette'], WOOD), 'extract_style: no wood swatch in %s' % m['palette']
     assert near(m['accents'], RED, 6.0), 'extract_style: no red accent in %s' % m['accents']
     assert read_rgb(shots[0], screen_h=1080).shape[:2] == (1080, 1920), 'extract_style: 720p not scaled to 1080p'
+    srgb = read_rgb(shots[0], long_side=None)
+    exr = oiio.ImageBuf(oiio.ImageSpec(1280, 720, 3, oiio.FLOAT))   # a float file holds linear values
+    exr.set_pixels(oiio.ROI(), contact_sheet.linear(srgb).astype(np.float32))
+    assert exr.write(os.path.join(out, 'shot0.exr')), exr.geterror()
+    diff = np.abs(read_rgb(os.path.join(out, 'shot0.exr'), long_side=None) - srgb).max()
+    assert diff < 2 / 255, 'extract_style read an EXR %.3f off its sRGB twin' % diff
 
     style = {
         'shading': 'toon', 'outline': True, 'camera': {'projection': 'ortho', 'pitch': 30, 'yaw': 45, 'asset_px': 64,
@@ -246,6 +264,9 @@ def main():
     smooth = crate('SM_Smooth', ('Wood', WOOD), subdiv=1, smooth=True)
     # SM_Atlas reads only the bottom (wood) cell; SM_Cut's UVs span both: its magenta texels are transparent, so unseen
     passing = [good, trimmed, trim, split, smooth, atlas('SM_Atlas', 0.0), atlas('SM_Cut', 0.25, cutout=True)]
+    node = material('M_Node')                                           # a base colour FBX cannot carry
+    node.node_tree.links.new(node.node_tree.nodes.new('ShaderNodeRGB').outputs[0],
+                             style_gate.principled(node).inputs['Base Color'])
     failing = {
         'SM_Bad': (crate('SM_Bad', None, tiny=True), {'material', 'detail'}),
         'SM_Pink': (crate('SM_Pink', ('Pink', (1.0, 0.2, 0.8)), subdiv=6), {'palette', 'triangles', 'waste'}),
@@ -259,6 +280,10 @@ def main():
         'SM_Stripes': (atlas('SM_Stripes', 0.0, stripes=True), {'texture'}),
         'SM_Hard': (crate('SM_Hard', ('Wood', WOOD), bevel=False), {'edges'}),
         'SM_Touch': (crate('SM_Touch', ('Wood', WOOD), bevel=False, touch=True), {'edges', 'detail'}),
+        'SM_Rod': (crate('SM_Rod', ('Wood', WOOD), rod=True), {'detail'}),
+        'SM_Dim': (crate('SM_Dim', ('Dim', (0.08, 0.08, 0.08))), {'value', 'palette'}),     # L* 6: under value_range
+        'SM_Node': (crate('SM_Node', node), {'material'}),
+        'SM_Dark': (atlas('SM_Dark', 0.0, wood=(0.05, 0.035, 0.02)), {'texture'}),
     }
     failing['SM_Dense'][0].modifiers.new('Subdiv', 'SUBSURF').levels = 3   # the exported mesh is counted
     failures, facts = style_gate.gate(passing + [o for o, _ in failing.values()], style)
@@ -275,6 +300,8 @@ def main():
     _, part_facts = style_gate.gate([trimmed], style)
     assert part_facts['SM_Trimmed'].get('unchecked_parts') == ['SM_Trimmed_Band'], 'partial asset not reported: %s' \
         % part_facts['SM_Trimmed']
+    assert any('outside value_range' in f['message'] for f in failures if f['object'] == 'SM_Dark'), \
+        'a dark texture passed value_range: %s' % [f for f in failures if f['object'] == 'SM_Dark']
     stripes = facts['SM_Stripes']['texture_off_palette']
     assert 0.2 < stripes < 0.32, 'texture sampling missed the stripes: %.3f off-palette, about 0.27 drawn' % stripes
     # 9 quads of one plane and one UV map are one quad: 18 -> 2 triangles
@@ -283,14 +310,19 @@ def main():
     # an unbevelled crate cut in four: each side loses its centre, keeps the edge midpoints the outline hull leans on
     assert waste(crate('SM_HardGrid', ('Wood', WOOD), bevel=False, subdiv=1).data) == 12, 'edge midpoints dissolved'
     # a 0.3 m ball at 64 px per 0.6 m has a 32 px radius: 26 x 13 segments (the style-bible formula) are needed, also
-    # twisted and triangulated, 64 x 32 are not, nor a 64-sided cylinder; faceted, the 64 x 32 facets are a look
+    # twisted and triangulated, 64 x 32 are not, nor a 64-sided cylinder, nor height loops on an open smooth tube;
+    # faceted, the 64 x 32 facets are a look; under hard caps the loops hold the baked outline normal upright (the
+    # rims tilt 45 degrees), so they stay
     wood = bpy.data.materials['M_Wood']
     balls = [sphere('SM_Fine', wood), sphere('SM_Lean', wood, 26, 13), sphere('SM_Facet', wood, smooth=False),
              sphere('SM_Twist', wood, 26, 13, twist=1.0), sphere('SM_Tube', wood, cylinder=True),
-             sphere('SM_LeanTube', wood, 26, cylinder=True)]
+             sphere('SM_LeanTube', wood, 26, cylinder=True), sphere('SM_CapTube', wood, 26, cylinder=True, cuts=4),
+             sphere('SM_CutTube', wood, 26, cylinder=True, cuts=4, caps=False)]
     curves, curve_facts = style_gate.gate(balls, style, 'prop')
-    assert {f['object'] for f in curves if f['rule'] == 'curve'} == {'SM_Fine', 'SM_Tube'}, 'curve rule: %s %s' % (
-        curves, {n: f.get('curve_waste_share') for n, f in curve_facts.items()})
+    assert {f['object'] for f in curves if f['rule'] == 'curve'} == {'SM_Fine', 'SM_Tube', 'SM_CutTube'}, \
+        'curve rule: %s %s' % (curves, {n: f.get('curve_waste_share') for n, f in curve_facts.items()})
+    assert curve_facts['SM_CutTube']['curve_waste'] == 26 * 8, 'height loops: 26 columns of 10 triangles keep 2 each'
+    assert curve_facts['SM_CapTube']['curve_waste'] == 0, 'height loops under hard caps counted: the outline needs them'
     for o in balls:
         bpy.data.objects.remove(o)
     texel, _ = style_gate.gate([bpy.data.objects['SM_Atlas']], dict(style, texel_density=10000))
@@ -327,6 +359,15 @@ def main():
     with open(crops, 'w', encoding='utf-8') as f:
         json.dump([{'file': 'shot0.png', 'rect': [0, 300, 700, 400], 'note': 'wood block'},
                    {'file': 'shot1.png', 'rect': [300, 500, 700, 250], 'kind': 'object', 'class': 'prop'}], f)
+    found_json = os.path.join(out, 'style_metrics.json')
+    sys.argv = ['blender', '--', '--crops', crops, '--out', found_json, '--swatches', os.path.join(out, 'palette.png')]
+    extract_style.main()
+    with open(found_json, encoding='utf-8') as f:
+        found = json.load(f)
+    assert [c['file'] for c in found['crops']] == ['shot0.png'], 'extract_style measured an object crop: %s' % [
+        c['file'] for c in found['crops']]
+    assert near(found['pooled']['palette'], WOOD), 'extract_style CLI: no wood in the crop: %s' % found['pooled']
+    assert os.path.isfile(os.path.join(out, 'palette.png')), 'extract_style wrote no swatch strip'
     png, rep = sheet(style, out, 'SM_Good', 'SM_Good', '--tile', '128', '--crops', crops, '--class', 'prop',
                      '--refs', shots[1])
     spec = oiio.ImageBuf(png).spec()
@@ -342,6 +383,13 @@ def main():
     # the atlas keeps smoothness 0.15 in alpha: drawn premultiplied, its wood would read at 15% and fall off-palette
     _, rep = sheet(style, out, 'SM_Atlas', 'SM_Atlas')
     assert rep['against_style']['palette_coverage'] >= 0.85, 'atlas look pass is off-palette: %s' % rep['against_style']
+    # a perspective game camera, framed from its fov to the same pixels per metre; no golden approved yet, no review
+    # folder made yet: the sheet still comes out
+    persp = dict(style, camera=dict(style['camera'], projection='persp', fov=40))
+    _, rep = sheet(persp, out, 'SM_Split', 'SM_Split', '--tile', '64', '--golden', os.path.join(out, 'no_golden.png'),
+                   folder='review')
+    assert rep['against_style']['palette_coverage'] >= 0.85, 'persp look pass is off-palette: %s' % rep['against_style']
+    assert 'golden' not in rep['layout']['references'], 'a missing golden got a tile'
 
     # the waste rule's claim: dissolving what it counts leaves the drawn asset as it was (a sheet changes the meshes it
     # draws, so each copy is drawn once)
@@ -351,15 +399,19 @@ def main():
     flat.name = 'SM_GridFlat'
     bpy.context.scene.collection.objects.link(flat)
     removed = waste(flat.data)
-    tiles = []
-    for name in ('SM_Grid', 'SM_GridFlat'):
-        for o in [o for o in bpy.data.objects if o.name.startswith('SHEET_')]:
-            bpy.data.objects.remove(o)
-        tiles.append(read_rgba(sheet(style, out, name, name, '--tile', '128')[1]['game_tile'], long_side=None)[0])
     assert removed == facts['SM_Grid']['flat_waste'] > 0, 'dissolved %d, the gate counted %s' % (
         removed, facts['SM_Grid']['flat_waste'])
-    diff = float(np.abs(tiles[0] - tiles[1]).max())
-    assert diff <= 2 / 255, 'dissolving the counted waste changed the game tile by %.3f' % diff
+    # and the curve rule's straight part: a smooth side's height loops draw as the side without them
+    sphere('SM_CutTube', wood, 26, cylinder=True, cuts=4, caps=False)
+    sphere('SM_LeanTube', wood, 26, cylinder=True, caps=False)
+    for pair in (('SM_Grid', 'SM_GridFlat'), ('SM_CutTube', 'SM_LeanTube')):
+        tiles = []
+        for name in pair:
+            for o in [o for o in bpy.data.objects if o.name.startswith('SHEET_')]:
+                bpy.data.objects.remove(o)
+            tiles.append(read_rgba(sheet(style, out, name, name, '--tile', '128')[1]['game_tile'], long_side=None)[0])
+        diff = float(np.abs(tiles[0] - tiles[1]).max())
+        assert diff <= 2 / 255, 'removing the waste %s counts changed the game tile by %.3f' % (pair[0], diff)
     print('STYLE BIBLE PASS')
 
 

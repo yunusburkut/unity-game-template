@@ -29,7 +29,8 @@
     Blender is the one BLENDER_PATH names, else PATH's, else the newest install (as the hook and the *_for_cli tools
     pick it), with a warning when its version has no MCP add-on; every tracked .py and every ~/.claude/skills/blender-*,
     unity-export .py compiles in it, a cube exports headless with unity-export's FBX call verbatim, toon-art's
-    toon_prop.py exports a prop and a manifest whose collider signs hold for an off-centre copy too,
+    toon_prop.py exports a prop and a manifest whose collider signs hold for an off-centre copy too, and with a style
+    bible saves a .blend style_gate passes,
     blender-image-to-3d's test_pack_mask.py and genre-defaults' test_style_bible.py pass, and its validate, export_delivery and roundtrip --manifest exit 0
     on the local _asset-samples\PR_Anvil or, without it, a fixture with a packed mask built headless; every --background
     line in those user-level skills carries --factory-startup; the Blender MCP
@@ -792,6 +793,21 @@ g['write_manifest'](ob, 0, os.path.join(r'$toonOut', 'SM_Barrel_offset.json'))
         }
     )
     Check 'toon-art: toon_prop.py exports SM_Barrel and a manifest whose collider is the bounds in Unity space' (-not $toonBad) ($toonBad -join '; ')
+    # with a style bible: the starter takes its palette from style.json (Wood here differs from its own by more than
+    # palette_de, so the hard-coded one fails) and saves the .blend style_gate passes
+    $bible = Join-Path $toonOut 'Tools\Blender\Style'
+    New-Item -ItemType Directory -Force $bible | Out-Null
+    [IO.File]::WriteAllText((Join-Path $bible 'style.json'), @'
+{"shading": "toon", "outline": true, "camera": {"projection": "ortho", "pitch": 35, "yaw": 45, "asset_px": 128, "asset_m": 0.8},
+ "palette": {"Wood": {"srgb": [0.70, 0.44, 0.24], "smoothness": 0.15}, "WoodDark": {"srgb": [0.55, 0.34, 0.20], "smoothness": 0.10},
+             "Metal": {"srgb": [0.62, 0.66, 0.74], "smoothness": 0.55}},
+ "accents": [], "palette_de": 6, "value_range": [15, 92], "triangles": {"prop": [100, 600]}, "detail_floor_m": 0.0125,
+ "flat_waste_max_share": 0.1, "curve_waste_max_share": {"prop": 0.1}}
+'@, (New-Object Text.UTF8Encoding $false))
+    $res = cmd /c "`"$blender`" --background --factory-startup --python-exit-code 1 --python `"$((Resolve-Path -LiteralPath 'packs/toon-art/examples/toon_prop.py').Path)`" -- `"$toonOut`" 2>&1"
+    $saved = Join-Path $toonOut 'Tools\Blender\checks\SM_Barrel.blend'
+    $gate = if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $saved)) { cmd /c "`"$blender`" --background --factory-startup --python-exit-code 1 `"$saved`" --python `"$PSScriptRoot\plugin\skills\genre-defaults\scripts\style_gate.py`" -- --style `"$bible\style.json`" 2>&1" }
+    Check 'toon-art: toon_prop.py with a style bible saves a .blend style_gate passes' ($LASTEXITCODE -eq 0 -and ($gate -match 'STYLE GATE PASS')) ((@($res) + @($gate) | Select-String 'STYLE FAIL|Error|toon_prop' | Select-Object -First 4) -join ' ')
     if (Test-Path -LiteralPath $toonOut) { Remove-Item -LiteralPath $toonOut -Recurse -Force -ErrorAction SilentlyContinue }
 } else { Write-Host '  skip  no Blender installed' }
 # every profile: after a reinstall or account switch a stale patched copy can sit next to the active unpatched one

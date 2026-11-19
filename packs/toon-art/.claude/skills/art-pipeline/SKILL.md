@@ -39,7 +39,10 @@ Examples live only in the template, never in a game: `C:\GitHub\unity-game-templ
 - **Start from** `toon_prop.py` + `PropBuilder.cs.txt`: the whole chain for one prop, generic and runnable. The script
   builds, checks (triangle budget, palette roles, pivot, identity transform) and exports with the `unity-export`
   preset into `Game/Art/Models/`, and writes the manifest; the C# file pins the import and rebuilds the materials and
-  prefab in place.
+  prefab in place. With a style bible (`Tools/Blender/Style/style.json`,
+  `${CLAUDE_PLUGIN_ROOT}/skills/genre-defaults/references/style-bible.md`) it takes the palette and the triangle band
+  from there, tags the root's `style_class` and saves `Tools/Blender/checks/<Thing>.blend`; run that bible's
+  `style_gate.py` and `contact_sheet.py` on it before the user sees the asset.
 - `kit_common.py` (Mixtrol): a large real kit module for a modular level kit (pieces, hosts, colliders, walk heights,
   a palette atlas). Read it for those patterns only: it imports Mixtrol's `kit_palette.py` (not included, so it does
   not run here), its paths are Mixtrol's (`Art/LevelKit`, `Game/Art/LevelKit`, outside the folder that gets outline

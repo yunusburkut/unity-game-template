@@ -24,6 +24,8 @@ import bpy
 # role -> (sRGB colour, smoothness). The builder makes one __GAME__/Toon material per role and outline choice
 # (M_<Role>, M_<Role>_Outline); a colour change happens here and nowhere else. Every script that uses a role gives it
 # the same values (keep the shared palette in one module when there are several), or the rebuild fails on that role.
+# A game with a style bible (genre-defaults references/style-bible.md) takes both from Tools/Blender/Style/style.json
+# instead, in main(): its palette roles and its class's triangle band.
 PALETTE = {
     "Wood": ((0.78, 0.52, 0.30), 0.15),
     "WoodDark": ((0.55, 0.34, 0.20), 0.10),
@@ -31,6 +33,7 @@ PALETTE = {
 }
 TRIANGLE_BUDGET = 600       # a hand-sized prop on a phone; set it from the brief's screen size
 NAME = "SM_Barrel"
+STYLE_CLASS = "prop"        # the style bible's triangles key; the gate reads it off the root object
 
 
 class CheckError(Exception):
@@ -44,6 +47,8 @@ def srgb_to_linear(c):
 def material(role):
     """A Blender material named after its palette role; Unity reads only the name (and the builder the role)."""
     name = "M_" + role
+    if role not in PALETTE:
+        raise CheckError("%s: role %s is not in the palette %s" % (NAME, role, sorted(PALETTE)))
     mat = bpy.data.materials.get(name) or bpy.data.materials.new(name)
     rgb, smooth = PALETTE[role]
     mat.diffuse_color = (*(srgb_to_linear(c) for c in rgb), 1.0)    # the check render shows the palette
@@ -65,6 +70,7 @@ def build():
     mesh = bpy.data.meshes.new(NAME)
     obj = bpy.data.objects.new(NAME, mesh)
     bpy.context.scene.collection.objects.link(obj)
+    obj["style_class"] = STYLE_CLASS
     for role in roles:
         mesh.materials.append(material(role))
 
@@ -196,12 +202,26 @@ def check_render(obj, path):
     bpy.ops.render.render(write_still=True)
 
 
+def use_style_bible(project):
+    """The style bible's palette and triangle band, when the game has one."""
+    global TRIANGLE_BUDGET
+    path = os.path.join(project, "Tools", "Blender", "Style", "style.json")
+    if not os.path.isfile(path):
+        return
+    with open(path, encoding="utf-8") as f:
+        style = json.load(f)
+    PALETTE.clear()
+    PALETTE.update({r: (tuple(v["srgb"]), v["smoothness"]) for r, v in style["palette"].items()})
+    TRIANGLE_BUDGET = style["triangles"][STYLE_CLASS][1]
+
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     if not argv:
         raise SystemExit("usage: blender ... --python toon_prop.py -- <unity project> [check.png]")
     models = os.path.join(argv[0], "Assets", "__GAME__", "Game", "Art", "Models")
     os.makedirs(models, exist_ok=True)
+    use_style_bible(argv[0])
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.context.scene.unit_settings.system = 'METRIC'
@@ -212,6 +232,11 @@ def main():
     export(obj, os.path.join(models, NAME + ".fbx"))
     write_manifest(obj, triangles, os.path.join(models, NAME + ".json"))
     print("[toon_prop] %s: %d triangles, %.2f x %.2f x %.2f m" % (NAME, triangles, *obj.dimensions))
+    # the exported scene, for the style bible's style_gate and contact_sheet (checks/ is gitignored: the script is
+    # the source)
+    checks = os.path.join(argv[0], "Tools", "Blender", "checks")
+    os.makedirs(checks, exist_ok=True)
+    bpy.ops.wm.save_as_mainfile(filepath=os.path.join(checks, NAME + ".blend"))
     if len(argv) > 1:
         check_render(obj, argv[1])
 

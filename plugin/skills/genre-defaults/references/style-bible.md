@@ -29,7 +29,13 @@ Every call is `blender --background --factory-startup --python-exit-code 1 [<ass
    decision page (`${CLAUDE_PLUGIN_ROOT}/skills/pipeline/references/decision-page.md`).
 2. The user drops 10-20 of their own screenshots per game into `Tools/Blender/Style/reference/<Game>/`: several
    distances, little UI, a few evenly lit, at least 3 from the camera this game will use.
-3. Look at each shot (Read) and write `Tools/Blender/Style/crops.json`, two kinds of rect:
+3. Look at each shot (Read) and write `Tools/Blender/Style/crops.json`, a list of rects in pixels from the top left
+   (`"file"` is relative to `crops.json`'s folder; an entry without `"rect"` uses the whole shot):
+   ```json
+   [{"file": "reference/<Game>/shot01.png", "rect": [410, 300, 220, 160], "note": "flat-lit wall, mid distance"},
+    {"file": "reference/<Game>/shot04.png", "rect": [880, 520, 140, 150], "kind": "object", "class": "prop"}]
+   ```
+   Two kinds of rect:
    - surface crops (the default): evenly lit surfaces of the kind of asset this game needs, for the numbers. Leave
      out UI, fog, bloom, motion blur and night scenes: the numbers measure the graded frame, not the albedo.
    - object crops, `"kind": "object", "class": "prop"`: 1-2 whole objects per asset class from each game, tight
@@ -39,8 +45,9 @@ Every call is `blender --background --factory-startup --python-exit-code 1 [<ass
    --swatches Tools/Blender/Style/palette.png`. It measures every shot as if 1080 px tall, the scale `asset_px` is
    given at.
 5. Write `style.json` (below) and `STYLE.md` from the metrics, the screenshots and the user's words:
-   - `palette`: the swatches the user confirms by eye, renamed by material (Wood, Stone, Foliage); `accents`: the
-     metrics' accents the user keeps.
+   - `palette`: the swatches the user confirms by eye, renamed by material (Wood, Stone, Foliage), each
+     `{"srgb": [...], "smoothness": 0-1}`: the swatch's `srgb`, and a smoothness read off the references (matte wood
+     0.1-0.2, painted metal 0.4-0.6); the build reads both. `accents`: the metrics' accents the user keeps.
    - `value_range`: pooled `L_p2` - 3 to `L_p98` + 3; `palette_de` 6 for toon and flat, 10 for lit and painted.
    - `look`: pooled `detail_energy`, `dark_edge_share`, `chroma_mean` and `accent_share`, copied as they are.
    - `accent_max_share`: how much of one asset's surface may be accent colour, read off the object crops (a red trim
@@ -54,20 +61,24 @@ Every call is `blender --background --factory-startup --python-exit-code 1 [<ass
      shading, outline, UV map), so the look never pays for it.
    - `curve_waste_max_share`: 0.1 per class the game draws at about `asset_px` (`{"prop": 0.1, "kit": 0.1}`); a
      class it shows larger (a close-up hero) gets no entry. It counts triangles on smooth curves cut finer than
-     0.25 px of chord error at game size.
+     0.25 px of chord error at game size, and loops along a smooth side's straight way (a tube's height loops) that
+     change neither shading, outline nor UV map.
 
    Show the swatches and 2 test assets (a crate and a rock) built two ways on a decision page; the user approves.
 6. Build the golden asset: one typical prop of the most common class, through section 2. After the user's yes, copy
-   its sheet's `<Asset>_sheet_game.png` (the game-view look tile) to `Tools/Blender/Style/golden.png`; it stands
-   beside every later sheet. Keep two calibration anchors in `Tools/Blender/Style/anchors/`: the golden sheet as
-   `pass.png` and one rejected sheet (an early round, or the asset with Blender's default material) as `fail.png`,
+   its last sheet's `<Asset>_sheet_r<N>_game.png` (the game-view look tile) to `Tools/Blender/Style/golden.png`; it
+   stands beside every later sheet. Keep two calibration anchors in `Tools/Blender/Style/anchors/`: the golden sheet
+   as `pass.png` and one rejected sheet (an early round's `_r1`, or the asset with Blender's default material) as
+   `fail.png`,
    each with its score and one line why in `anchors/notes.md`.
 
 ## 2. Every asset
 
 1. Brief: class (a `triangles` key), budget, the reference crop or concept. A specific reference image of the object
    runs `blender-image-to-3d`'s phases; anything else is a build script in `Tools/Blender/`.
-2. The build script takes its colours from the bible, never typed again. In the toon-art pipeline:
+2. The build script takes its colours from the bible, never typed again. In the toon-art pipeline the starter
+   `toon_prop.py` does it (`use_style_bible`: the palette, the class's triangle band, `style_class`, and the saved
+   `Tools/Blender/checks/<Asset>.blend`); elsewhere:
    `PALETTE = {r: (tuple(v["srgb"]), v["smoothness"]) for r, v in json.load(open(STYLE))["palette"].items()}`. The
    asset's root object gets the custom property `style_class` (`obj["style_class"] = "prop"`, on the object, not
    its mesh); a multi-part asset parents its parts under that root, and the gate sums their triangles (an Empty that
@@ -83,19 +94,22 @@ Every call is `blender --background --factory-startup --python-exit-code 1 [<ass
    `dissolve_limit` is not that: it also takes the edge midpoints the outline leans on, warps a 9-slice UV and leaves
    n-gons for Unity to triangulate. Never Decimate to meet a budget: the look comes first, and Decimate removes shape.
    A `curve` failure: give each round part `ceil(pi / acos(1 - 0.25 / r_px))` segments around, `r_px` = radius x
-   `asset_px` / `asset_m` (16 px radius: 18, 32 px: 26, 64 px: 36), and half that along a sphere's height.
-4. `contact_sheet.py -- --style ... --out Tools/Blender/<Asset>/review/<Asset>_sheet.png --crops
+   `asset_px` / `asset_m` (16 px radius: 18, 32 px: 26, 64 px: 36), and half that along a sphere's height. The
+   message splits the count: the part that cuts a smooth side along its straight way goes by dropping those loops.
+4. `contact_sheet.py -- --style ... --out Tools/Blender/<Asset>/review/<Asset>_sheet_r<N>.png --crops
    Tools/Blender/Style/crops.json --class <class> --golden Tools/Blender/Style/golden.png` (`--refs <files>` adds
-   whole images). Read the sheet: rows front, right, back, top, game camera, references (the class's object crops);
+   whole images), `<N>` the review round from 1, so every round's sheet, `.json` and `_game.png` stay for the A/B
+   and the anchors. The golden asset's own sheets go without a golden (the script notes it and goes on). Read the
+   sheet: rows front, right, back, top, game camera, references (the class's object crops);
    columns silhouette, clay, look. Its `.json` holds the game view's L* range, `inside_value_range`,
    `palette_coverage` (0.85 or more for toon and flat) and the `look` numbers beside the references'.
 5. Review: two `gamekit:art-reviewer` agents in parallel, each fresh, one with `lens: shape` and one with `lens:
    colour`, each given the sheet, its `.json`, `STYLE.md`, `style.json`, `Tools/Blender/Style/anchors/` and the
-   brief, never the build script. Previous sheet too from round 2 (A/B). Done when both score at least 8/10 with no
-   blocker; at most 3 rounds, then show the user the sheet and the open findings.
+   brief, never the build script. From round 2 the previous round's sheet too (A/B). Done when both score at least
+   8/10 with no blocker; at most 3 rounds, then show the user the sheet and the open findings.
 6. The user sees the final sheet before export. Show a sheet with `SendUserFile` (`display: render`), so it opens
-   beside the chat and reaches the phone; without that tool, give its path as a link. Then `unity-export`, and the final judgement is an in-engine capture
-   at the game camera (`gk-bridge play-capture`) beside a reference crop.
+   beside the chat and reaches the phone; without that tool, give its path as a link. Then `unity-export`, and the
+   final judgement is an in-engine capture at the game camera (`gk-bridge play-capture`) beside a reference crop.
 7. A helper that repeats across assets (a trim, a plank, an edge-wear recipe) moves into the game's shared build
    module, so the next asset reuses it instead of re-inventing it.
 
@@ -140,7 +154,7 @@ the kit lineup. One art-reviewer pass looks for drift (a colour, a bevel or a de
 | `value_range`, `look` | L* 0-100 the asset's colours stay in; the references' pooled look numbers, shown beside the asset's | style_gate, contact_sheet |
 | `triangles`, `detail_floor_m`, `texel_density`, `hard_edges_max_share` | budgets per class (per asset root); smallest loose part; px per metre or `"atlas"`; share of unbevelled hard edges (`null` = report only) | style_gate |
 | `flat_waste_max_share` | share of an asset's triangles that only split flat, flat-normal faces of one material and one affine UV map, away from the edges that shape the outline: removing them leaves the render the same (`null` = report only) | style_gate |
-| `curve_waste_max_share` | per class (a number: every class): share of an asset's triangles that refine smooth curves past 0.25 px of chord error at `asset_px`; fewer segments look the same at game size (a class without an entry = report only) | style_gate |
+| `curve_waste_max_share` | per class (a number: every class): share of an asset's triangles that refine smooth curves past 0.25 px of chord error at `asset_px` (fewer segments look the same at game size), or cut a smooth side along its straight way with shading, outline and UV map unchanged (a class without an entry = report only) | style_gate |
 
 `bevel_m` and `avoid` are for the build and the reviewers; no script measures them. A threshold (`palette_de`,
 `value_range`) is tuned on the golden asset, then frozen; a later change re-runs the gate on every approved asset.
@@ -162,5 +176,6 @@ and the tie-breaker when two rules collide (for example "readability at asset_px
 - The `look` numbers compare a whole reference frame with one asset, so they guide the reviewers and gate nothing.
 - `curve` estimates each smooth edge's radius from its two faces and counts half the triangles of faces whose
   curved edges are all past the bound, so it errs low: it catches twice the segments a curve needs (a 64x32 ball,
-  a 64-sided cylinder at prop size), not a few too many. It reads asset_px as the size on screen, so a part the game
-  zooms in on needs its own class.
+  a 64-sided cylinder at prop size), not a few too many. Height loops count only where the baked outline normal
+  stays affine, so a tube under hard caps keeps them (its rims tilt the outline). It reads asset_px as the size on
+  screen, so a part the game zooms in on needs its own class.

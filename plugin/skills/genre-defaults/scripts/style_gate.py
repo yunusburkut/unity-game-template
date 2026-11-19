@@ -18,7 +18,8 @@
 #             area: L* p2/p98 inside value_range (5 L* slack), at most texture_off_palette_max of the samples farther
 #             than palette_de from every palette and accent colour. Alpha hides a texel only when the material's
 #             Alpha takes the texture's alpha (a cutout); an atlas keeping smoothness in alpha is measured whole
-#   detail    no loose part is smaller than detail_floor_m on its longest side: it vanishes at game size
+#   detail    no loose part is smaller than detail_floor_m on its longest side, or thinner across (a rod): it
+#             vanishes or breaks up at game size
 #   texel     with a numeric texel_density (px/m), an image-textured material is within 10% of it
 #   edges     with hard_edges_max_share set, the share of edges sharper than 80 degrees stays under it (a proxy for
 #             bevel_m: the bevel width itself is not measurable from the mesh; the review sheet judges it)
@@ -30,9 +31,10 @@
 #   waste     with flat_waste_max_share set, the share of triangles that only split flat faces stays under it: those
 #             Limited Dissolve removes with nothing on screen changing (shape, shading, outline, material and UV map
 #             kept; see flat_waste)
-#   curve     with curve_waste_max_share[<class>] set, smooth curves cut finer than CHORD_PX (0.25 px) of chord
-#             error at asset_px stay under that share of the triangles (see curve_waste); a class the game draws
-#             larger than asset_px (a close-up hero) has no entry
+#   curve     with curve_waste_max_share[<class>] (or one number) set, smooth curves cut finer than CHORD_PX (0.25 px)
+#             of chord error at asset_px, and cuts along a smooth surface's straight way, stay under that share of
+#             the triangles (see curve_waste); a class the game draws larger than asset_px (a close-up hero) has no
+#             entry
 
 import argparse
 import json
@@ -227,15 +229,23 @@ def check_mesh(name, mesh, matrix, style, fail, info):
         for faces in shared.values():
             for f in faces[1:]:
                 part[find(f.index)] = find(faces[0].index)
-        lo_co, hi_co = {}, {}
+        co = {}
         for f in bm.faces:
-            co = np.array([v.co for v in f.verts])
-            r = find(f.index)
-            lo_co[r] = np.minimum(lo_co.get(r, co.min(0)), co.min(0))
-            hi_co[r] = np.maximum(hi_co.get(r, co.max(0)), co.max(0))
-        small = sum(1 for r in lo_co if (hi_co[r] - lo_co[r]).max() < floor)
+            co.setdefault(find(f.index), []).extend(v.co for v in f.verts)
+        small = thin = 0
+        for c in co.values():
+            c = np.array(c)
+            c -= c.mean(0)
+            # extents along the part's principal axes: longest, then across; a thin rod is long one way only (a
+            # ring of wire reads wide both ways, so it errs low)
+            ext = np.sort(np.ptp(c @ np.linalg.svd(c, full_matrices=False)[2].T, axis=0))[::-1]
+            small += ext[0] < floor
+            thin += ext[0] >= floor and len(ext) > 1 and ext[1] < floor
         if small:
             fail(name, 'detail', '%d loose part(s) smaller than detail_floor_m %.3f m' % (small, floor))
+        if thin:
+            fail(name, 'detail', '%d loose part(s) thinner than detail_floor_m %.3f m across: a line that breaks up '
+                 'at game size' % (thin, floor))
     inner = [faces for faces in shared.values() if len(faces) == 2]
     hard = sum(1 for a, b in inner if a.normal.angle(b.normal, 0.0) > math.radians(80))
     share = hard / max(1, len(inner))
@@ -245,13 +255,14 @@ def check_mesh(name, mesh, matrix, style, fail, info):
         fail(name, 'edges', '%.0f%% of edges are unbevelled hard corners (max %.0f%%; bevel_m %s)'
              % (share * 100, limit * 100, style.get('bevel_m')))
     cam = style.get('camera') or {}
-    curve = curve_waste(mesh, bm, cam['asset_px'] / cam.get('asset_m', 1.0)) if cam.get('asset_px') else 0
-    info(name, 'curve_waste', curve)
+    around, straight = curve_waste(mesh, bm, cam['asset_px'] / (cam.get('asset_m') or 1.0)) if cam.get(
+        'asset_px') else (0, 0)
+    info(name, 'curve_waste', around + straight)
     removable = flat_waste(mesh, bm)
     info(name, 'flat_waste', removable)
     bm.free()
     return {'triangles': int(len(mi)), 'area': float(area.sum()), 'accent_area': accent_area, 'removable': removable,
-            'curve': curve}
+            'curve': around + straight, 'straight': straight}
 
 
 def corner_normals(mesh):
@@ -271,22 +282,78 @@ def curve_waste(mesh, bm, px_per_m):
     over-fine (a quad's diagonal turns little, its ring edge decides), and half its triangles go: merging every other
     segment one way. That errs low (both ways saves 3 in 4, a cylinder's caps shrink too), as do the other choices
     (coplanar pieces of one segment merged first, the wider face). Only smooth edges (both faces share each end's
-    normal): a faceted curve's facets are a look. The fix is fewer segments in the build."""
+    normal): a faceted curve's facets are a look. The fix is fewer segments in the build.
+    Returned apart from that (the fix differs: drop the loops): the cuts along a smooth surface's straight way (height loops on a cylinder's side), which flat_waste
+    leaves since its corner normals are not the face normal. A plane's faces count when they share one material, one
+    affine UV map, and corner normals and outline normals (OutlineNormalsPostprocessor's per-position average) affine in
+    position (then shading, outline hull and texture interpolate the same across the merge), and every vertex the
+    merge drops touches only such planes: all the triangles merging saves. A hard-capped cylinder's side fails the
+    outline test (its rims tilt), so its height loops are not counted; that errs low."""
+    if not len(mesh.polygons):
+        return 0
     cn, start = corner_normals(mesh)
+    flat = flat_faces(mesh, cn, start)
 
     def normal(f, v):
         return cn[start[f.index] + next(k for k, lp in enumerate(f.loops) if lp.vert == v)]
 
     same = math.cos(math.radians(FLAT_DEG))
     smooth = bm.edges.layers.int.new('style_gate_smooth')
+    plane = list(range(len(bm.faces)))         # the coplanar pieces the dissolve below merges, by union-find
+
+    def find(i):
+        while plane[i] != i:
+            plane[i] = plane[plane[i]]
+            i = plane[i]
+        return i
+
     for e in bm.edges:
         e[smooth] = len(e.link_faces) == 2 and all(normal(e.link_faces[0], v) @ normal(e.link_faces[1], v) >= same
                                                    for v in e.verts)
+        if len(e.link_faces) == 2 and e.link_faces[0].normal.angle(e.link_faces[1].normal, 0.0) <= math.radians(
+                FLAT_DEG):
+            plane[find(e.link_faces[0].index)] = find(e.link_faces[1].index)
+    group = bm.faces.layers.int.new('style_gate_plane')
+    vid = bm.verts.layers.int.new('style_gate_vert')
+    members = {}
+    for f in bm.faces:
+        f[group] = find(f.index)
+        members.setdefault(f[group], []).append(f)
+    bm.verts.index_update()
+    for v in bm.verts:
+        v[vid] = v.index
     chords = bm.copy()
-    bm.edges.layers.int.remove(smooth)
-    smooth = chords.edges.layers.int['style_gate_smooth']
+    layers = smooth, group, vid
+    smooth, group, vid = (chords.edges.layers.int['style_gate_smooth'], chords.faces.layers.int['style_gate_plane'],
+                          chords.verts.layers.int['style_gate_vert'])
     bmesh.ops.dissolve_limit(chords, angle_limit=math.radians(FLAT_DEG), use_dissolve_boundaries=False,
                              verts=chords.verts[:], edges=chords.edges[:])
+    kept = {v[vid] for v in chords.verts}
+    left = {}
+    for f in chords.faces:
+        left[f[group]] = left.get(f[group], 0) + len(f.verts) - 2
+    # the outline hull's normal, as OutlineNormalsPostprocessor bakes it: per position (0.1 mm grid) the sum of the
+    # distinct corner normals there, so a hard cap's rim tilts 45 degrees and a height loop below it does not
+    grid = {v: tuple(int(round(c * 1e4)) for c in v.co) for v in bm.verts}
+    at = {}
+    for f in bm.faces:
+        for k, lp in enumerate(f.loops):
+            ns = at.setdefault(grid[lp.vert], [])
+            n = cn[start[f.index] + k]
+            if not any(n @ m > 0.999 for m in ns):
+                ns.append(n)
+    hull = {p: sum(ns) / max(np.linalg.norm(sum(ns)), 1e-6) for p, ns in at.items()}
+    uvs = bm.loops.layers.uv.values()
+    tol = math.sin(math.radians(FLAT_DEG))
+    clean = {g for g, fs in members.items() if len(fs) > 1 and not any(f.index in flat for f in fs)
+             and len({f.material_index for f in fs}) == 1 and same_uv_map(fs, uvs)
+             and affine(fs, np.concatenate([cn[start[f.index]:start[f.index] + len(f.loops)] for f in fs]), tol)
+             and affine(fs, np.array([hull[grid[lp.vert]] for f in fs for lp in f.loops]), tol)}
+    straight = 0
+    for g in clean:
+        if all(find(lf.index) in clean for f in members[g] for v in f.verts if v.index not in kept
+               for lf in v.link_faces):
+            straight += sum(len(f.verts) - 2 for f in members[g]) - left.get(g, 0)
 
     def width(f, e):
         p, d = e.verts[0].co, (e.verts[1].co - e.verts[0].co).normalized()
@@ -306,21 +373,33 @@ def curve_waste(mesh, bm, px_per_m):
         if curved and all(curved):
             over += len(f.verts) - 2
     chords.free()
-    return over // 2
+    for seq, layer in zip((bm.edges, bm.faces, bm.verts), layers):     # last: removing one drops bm's face handles
+        seq.layers.int.remove(layer)
+    return over // 2, straight
+
+
+def affine(faces, values, tol):
+    """True when one affine map from position carries values (a row per corner of faces, in loop order)."""
+    p = np.array([lp.vert.co for f in faces for lp in f.loops])
+    p -= p[0]
+    values = values - values[0]
+    return np.abs(p @ np.linalg.lstsq(p, values, rcond=None)[0] - values).max() <= tol
 
 
 def same_uv_map(faces, layers, tol=0.5 / TEXTURE_SIDE):
     """True when one affine position-to-UV map carries every corner of faces in every UV layer, so dissolving them
     interpolates the UVs as before (a 9-slice panel's stretched middle and its trim are two maps)."""
-    loops = [lp for f in faces for lp in f.loops]
-    p = np.array([lp.vert.co for lp in loops])
-    p -= p[0]
-    for layer in layers:
-        uv = np.array([lp[layer].uv for lp in loops])
-        uv -= uv[0]
-        if np.abs(p @ np.linalg.lstsq(p, uv, rcond=None)[0] - uv).max() > tol:
-            return False
-    return True
+    return all(affine(faces, np.array([lp[layer].uv for f in faces for lp in f.loops]), tol) for layer in layers)
+
+
+def flat_faces(mesh, cn, start):
+    """Indices of the polygons whose every corner normal is the face normal (bm keeps the Mesh's face order)."""
+    pn = np.empty(len(mesh.polygons) * 3, np.float32)
+    mesh.polygon_normals.foreach_get('vector', pn)
+    total = np.empty(len(mesh.polygons), np.int32)
+    mesh.polygons.foreach_get('loop_total', total)
+    same = (cn * np.repeat(pn.reshape(-1, 3), total, axis=0)).sum(1) > math.cos(math.radians(FLAT_DEG))
+    return set(np.flatnonzero(np.minimum.reduceat(same.astype(np.int8), start)).tolist())
 
 
 def flat_waste(mesh, bm):
@@ -331,13 +410,7 @@ def flat_waste(mesh, bm):
     optimised mesh. Ceiling: a split hard edge (Edge Split) is a border whose vertices stay, so the count errs low."""
     if not len(mesh.polygons):
         return 0
-    cn, start = corner_normals(mesh)
-    pn = np.empty(len(mesh.polygons) * 3, np.float32)
-    mesh.polygon_normals.foreach_get('vector', pn)
-    total = np.empty(len(mesh.polygons), np.int32)
-    mesh.polygons.foreach_get('loop_total', total)
-    same = (cn * np.repeat(pn.reshape(-1, 3), total, axis=0)).sum(1) > math.cos(math.radians(FLAT_DEG))
-    flat = set(np.flatnonzero(np.minimum.reduceat(same.astype(np.int8), start)).tolist())   # bm keeps face order
+    flat = flat_faces(mesh, *corner_normals(mesh))
     uvs = bm.loops.layers.uv.values()
     edges = [e for e in bm.edges if len(e.link_faces) == 2 and all(f.index in flat for f in e.link_faces)
              and same_uv_map(e.link_faces, uvs)]
@@ -446,9 +519,9 @@ def gate(objs, style, cls=None):
         info(obj.name, 'triangles', got['triangles'])
         root = root_of(obj)
         a = assets.setdefault(root.name, {'cls': None, 'triangles': 0, 'area': 0.0, 'accent_area': 0.0, 'removable': 0,
-                                          'curve': 0})
+                                          'curve': 0, 'straight': 0})
         a['cls'] = a['cls'] or cls or root.get('style_class') or obj.get('style_class')
-        for k in ('triangles', 'area', 'accent_area', 'removable', 'curve'):
+        for k in ('triangles', 'area', 'accent_area', 'removable', 'curve', 'straight'):
             a[k] += got[k]
 
     bands = style.get('triangles') or {}
@@ -482,9 +555,11 @@ def gate(objs, style, cls=None):
         curve_max = style.get('curve_waste_max_share')
         curve_max = curve_max.get(a['cls']) if isinstance(curve_max, dict) else curve_max   # a number: every class
         if curve_max is not None and curve > curve_max:
-            fail(name, 'curve', 'about %d of %d triangles (%.0f%%, curve_waste_max_share %.0f%%) refine smooth curves '
-                 'past %.2f px of chord error at asset_px: fewer segments look the same at game size'
-                 % (a['curve'], a['triangles'], curve * 100, curve_max * 100, CHORD_PX))
+            fail(name, 'curve', 'about %d of %d triangles (%.0f%%, curve_waste_max_share %.0f%%) look the same at game '
+                 'size without: %d refine smooth curves past %.2f px of chord error at asset_px (fewer segments), %d '
+                 'cut a smooth side along its straight way (drop those loops)'
+                 % (a['curve'], a['triangles'], curve * 100, curve_max * 100, a['curve'] - a['straight'], CHORD_PX,
+                    a['straight']))
     return failures, facts
 
 
