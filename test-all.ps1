@@ -29,9 +29,11 @@
     Blender is the one BLENDER_PATH names, else PATH's, else the newest install (as the hook and the *_for_cli tools
     pick it), with a warning when its version has no MCP add-on; every tracked .py and every ~/.claude/skills/blender-*,
     unity-export .py compiles in it, a cube exports headless with unity-export's FBX call verbatim, toon-art's
-    toon_prop.py exports a prop and a manifest whose collider signs hold for an off-centre copy too, with a style
-    bible built by its own formulas saves a .blend style_gate passes, under that bible's band stops with the remedy, and
-    a --style reading that is no file stops without exporting,
+    toon_prop.py exports a prop into the game folder it finds under Assets (the one that holds Game/Art) and a manifest
+    whose collider signs hold for an off-centre copy too, with a style bible built by its own formulas saves a .blend
+    style_gate passes, under that bible's band stops with the remedy, refuses to --export the unchanged starter barrel,
+    a --style reading that is no file stops without exporting, relative arguments (. check_rel.png) land in the project
+    folder they were run from, and a project with no Game/Art stops naming --game,
     blender-image-to-3d's test_pack_mask.py and genre-defaults' test_style_bible.py and player-clarity's test_ui_style_bible.py pass, and its validate, export_delivery and roundtrip --manifest exit 0
     on the local _asset-samples\PR_Anvil or, without it, a fixture with a packed mask built headless; every --background
     line in those user-level skills carries --factory-startup; the Blender MCP
@@ -667,7 +669,7 @@ sys.exit(1 if bad else 0)
         Check 'blender-image-to-3d: bake_maps pack_mask channels (test_pack_mask.py)' ($LASTEXITCODE -eq 0 -and ($res -match 'PACK MASK PASS')) (($res | Select-Object -Last 3) -join ' ')
         if (Test-Path -LiteralPath $maskOut) { Remove-Item -LiteralPath $maskOut -Recurse -Force -ErrorAction SilentlyContinue }
     }
-    # the style-bible scripts (genre-defaults references/style-bible.md) on their fixture, about 10 s: extract_style
+    # the style-bible scripts (genre-defaults references/style-bible.md) on their fixture, about 20 s: extract_style
     # finds the palette, style_gate passes a palette crate and fails the planted faults the eval's header lists,
     # contact_sheet renders a sheet
     $styleOut = Join-Path $env:TEMP "gk-test-style-bible-$PID"
@@ -755,7 +757,8 @@ bpy.ops.wm.save_as_mainfile(filepath=blend)
         Check "blender-image-to-3d: $delName validate, export_delivery FBX and roundtrip against its manifest exit 0" (-not $delBad) ($delBad -join '; ')
         Remove-Item -LiteralPath $delOut -Recurse -Force -ErrorAction SilentlyContinue
     } else { Write-Host '  skip  blender-image-to-3d delivery chain: the skill''s scripts are not installed' }
-    # toon-art's runnable chain, Blender half: toon_prop.py builds, checks and exports SM_Barrel, and its manifest's
+    # toon-art's runnable chain, Blender half: toon_prop.py builds, checks and exports SM_Barrel into the game folder it
+    # finds (the fixture's Assets\Demo, the one folder that holds Game\Art, as the pack leaves a game), and its manifest's
     # collider is the mesh bounds in Unity prefab space: the size is Blender (x, z, y), the centre is (-x, z, -y) of the
     # Blender bounds centre, the pivot at the base. The barrel is centred, so the same process then moves its mesh by
     # Blender (+0.1, +0.2, 0) and has toon_prop's own write_manifest write SM_Barrel_offset.json, whose centre must be
@@ -764,7 +767,7 @@ bpy.ops.wm.save_as_mainfile(filepath=blend)
     # when a game copies it in; test-template -Packs toon-art checks the pack's own compile, not this example.
     $toonOut = Join-Path $env:TEMP 'gk-test-all-toon'
     if (Test-Path -LiteralPath $toonOut) { Remove-Item -LiteralPath $toonOut -Recurse -Force }
-    New-Item -ItemType Directory -Force $toonOut | Out-Null
+    New-Item -ItemType Directory -Force (Join-Path $toonOut 'Assets\Demo\Game\Art') | Out-Null
     $toonPy = Join-Path $toonOut 'run_toon_prop.py'
     [IO.File]::WriteAllText($toonPy, @"
 import bpy, os
@@ -779,7 +782,7 @@ g['write_manifest'](ob, 0, os.path.join(r'$toonOut', 'SM_Barrel_offset.json'))
 "@, (New-Object Text.UTF8Encoding $false))
     $res = cmd /c "`"$blender`" --background --factory-startup --python-exit-code 1 --python `"$toonPy`" -- `"$toonOut`" 2>&1"
     $toonCode = $LASTEXITCODE
-    $models = Join-Path $toonOut 'Assets\__GAME__\Game\Art\Models'
+    $models = Join-Path $toonOut 'Assets\Demo\Game\Art\Models'
     $dims = [regex]::Match(($res -join "`n"), '\[toon_prop\] SM_Barrel: (\d+) triangles, ([\d.]+) x ([\d.]+) x ([\d.]+) m')
     $toonBad = @(
         if ($toonCode -ne 0 -or -not $dims.Success) { "run failed: $(($res | Select-Object -Last 3) -join ' ')" }
@@ -804,12 +807,14 @@ g['write_manifest'](ob, 0, os.path.join(r'$toonOut', 'SM_Barrel_offset.json'))
     # floor 2 x 0.8 / 64): the starter takes its palette from style.json (Wood here differs from its own by more than
     # palette_de, so the hard-coded one fails), drops segments until it fits the band's top and saves the .blend
     # style_gate passes; a reading (--style style_b.json) with a band above its barrel stops the build with the remedy,
-    # and a --style file that is missing stops it before anything is exported
+    # --export refuses the unchanged starter barrel, a --style file that is missing stops it before anything is
+    # exported, relative arguments resolve against the folder the run started in, and a project where no folder under
+    # Assets holds Game\Art stops before it writes anywhere, naming --game
     $bible = Join-Path $toonOut 'Tools\Blender\Style'
     New-Item -ItemType Directory -Force $bible | Out-Null
     $bibleJson = @'
 {"shading": "toon", "outline": true, "camera": {"projection": "ortho", "pitch": 35, "yaw": 45, "asset_px": 64, "asset_m": 0.8},
- "palette": {"Wood": {"srgb": [0.70, 0.44, 0.24], "smoothness": 0.15}, "WoodDark": {"srgb": [0.55, 0.34, 0.20], "smoothness": 0.10},
+ "palette": {"Wood": {"srgb": [0.70, 0.44, 0.24], "smoothness": 0.0}, "WoodDark": {"srgb": [0.55, 0.34, 0.20], "smoothness": 0.0},
              "Metal": {"srgb": [0.62, 0.66, 0.74], "smoothness": 0.55}},
  "accents": [[0.95, 0.15, 0.10]], "palette_de": 6, "value_range": [15, 92], "accent_max_share": 0.12,
  "triangles": {"prop": [200, 400]}, "detail_floor_m": 0.025, "flat_waste_max_share": 0.1, "curve_waste_max_share": {"prop": 0.1}}
@@ -824,8 +829,21 @@ g['write_manifest'](ob, 0, os.path.join(r'$toonOut', 'SM_Barrel_offset.json'))
     $res = cmd /c "`"$blender`" --background --factory-startup --python-exit-code 1 --python `"$starter`" -- `"$toonOut`" --style `"$bible\style_b.json`" 2>&1"
     Check 'toon-art: toon_prop.py --style reading under its band stops with the remedy' ($LASTEXITCODE -ne 0 -and ($res -match 'under the prop band') -and (Test-Path -LiteralPath (Join-Path $toonOut 'Tools\Blender\checks\SM_Barrel_style_b.blend'))) ((@($res) | Select-String 'Error|toon_prop' | Select-Object -First 2) -join ' ')
     Remove-Item -LiteralPath "$models\SM_Barrel.fbx", "$models\SM_Barrel.json" -ErrorAction SilentlyContinue
+    $res = cmd /c "`"$blender`" --background --factory-startup --python-exit-code 1 --python `"$starter`" -- `"$toonOut`" --export 2>&1"
+    Check 'toon-art: toon_prop.py with a style bible refuses to --export the unchanged starter barrel' ($LASTEXITCODE -ne 0 -and ($res -match 'build\(\) must come from') -and -not (Test-Path -LiteralPath "$models\SM_Barrel.fbx")) ((@($res) | Select-String 'Error|toon_prop' | Select-Object -First 2) -join ' ')
     $res = cmd /c "`"$blender`" --background --factory-startup --python-exit-code 1 --python `"$starter`" -- `"$toonOut`" --style `"$bible\style_a.json`" 2>&1"
     Check 'toon-art: toon_prop.py with a missing --style file stops and exports nothing' ($LASTEXITCODE -ne 0 -and ($res -match 'is no file') -and -not (Test-Path -LiteralPath "$models\SM_Barrel.fbx")) ((@($res) | Select-String 'Error|toon_prop' | Select-Object -First 2) -join ' ')
+    # relative arguments, run from the project folder: Blender resolves a relative path against the drive root, so the
+    # starter makes them absolute first and the .blend and the check render land in the project
+    Remove-Item -LiteralPath $saved -ErrorAction SilentlyContinue
+    Push-Location -LiteralPath $toonOut
+    $res = cmd /c "`"$blender`" --background --factory-startup --python-exit-code 1 --python `"$starter`" -- . check_rel.png 2>&1"
+    Pop-Location
+    Check 'toon-art: toon_prop.py run in the project with relative paths (. check_rel.png) writes the .blend and the render there' ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $saved) -and (Test-Path -LiteralPath (Join-Path $toonOut 'check_rel.png'))) ((@($res) | Select-String 'Error|toon_prop|Saved' | Select-Object -First 3) -join ' ')
+    $noArt = Join-Path $toonOut 'NoArt'
+    New-Item -ItemType Directory -Force $noArt | Out-Null
+    $res = cmd /c "`"$blender`" --background --factory-startup --python-exit-code 1 --python `"$starter`" -- `"$noArt`" 2>&1"
+    Check 'toon-art: toon_prop.py in a project with no Game/Art under Assets stops, names --game and writes nothing' ($LASTEXITCODE -ne 0 -and ($res -match 'pass --game <Name>') -and -not (Get-ChildItem -LiteralPath $noArt)) ((@($res) | Select-String 'Error|toon_prop' | Select-Object -First 2) -join ' ')
     if (Test-Path -LiteralPath $toonOut) { Remove-Item -LiteralPath $toonOut -Recurse -Force -ErrorAction SilentlyContinue }
 } else { Write-Host '  skip  no Blender installed' }
 # every profile: after a reinstall or account switch a stale patched copy can sit next to the active unpatched one

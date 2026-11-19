@@ -120,6 +120,7 @@ InitTestScene*.unity*
 /Tools/Blender/**/checks/
 /Tools/Blender/**/review/
 /Tools/Blender/Style/reference/
+/Tools/Blender/Style/anchors/
 
 # iOS archives
 *.ipa

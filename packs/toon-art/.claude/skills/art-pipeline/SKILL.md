@@ -39,15 +39,30 @@ Examples live only in the template, never in a game: `C:\GitHub\unity-game-templ
 - **Start from** `toon_prop.py` + `PropBuilder.cs.txt`: the whole chain for one prop, generic and runnable. The script
   builds, checks (triangle budget, palette roles, pivot, identity transform) and exports with the `unity-export`
   preset into `Game/Art/Models/`, and writes the manifest; the C# file pins the import and rebuilds the materials and
-  prefab in place. With a style bible (`Tools/Blender/Style/style.json`,
-  the `genre-defaults` skill's references/style-bible.md) it takes the palette, the triangle band, the outline and
-  `bevel_m` from there, drops segments two at a time until the triangles fit the band, tags the root's `style_class`
-  and saves `Tools/Blender/checks/<Thing>.blend` without exporting; run that bible's `style_gate.py` and
-  `contact_sheet.py` on it before the user sees the asset, and rerun the script with `-- <project> --export` after
-  the user's yes (`--style <file>` builds a decision-page reading, `checks/<Thing>_<stem>.blend`, and never exports).
-  It builds one mesh: parts parented under it fail the check (join them). Its barrel (one closed surface turned from
-  a profile, hoops stepped out of it) is wiring only: `build()` is written anew from each asset's brief. Each
-  material is a submesh under `__GAME__/Toon`, drawn twice when outlined (lit and outline), so keep the roles few.
+  prefab in place. It finds the game's folder itself, the one folder under `Assets` that holds `Game/Art`; with none
+  or several it stops before writing anything and names `--game <Name>`. With a style bible
+  (`Tools/Blender/Style/style.json`, the `genre-defaults` skill's references/style-bible.md) it takes the palette (a
+  colour that is not 3 numbers 0-1 stops the run), the triangle band (the floor scaled down for an asset smaller than
+  `camera.asset_m`, as the style gate's), the outline and `bevel_m` from there, cuts round parts at 0.5 px of chord
+  error on the widest ring (rounded up to even) and drops two segments at a time, down to 8, only while the
+  triangles are over the band's top
+  (a ceiling, not a target; still over, it stops and names the `style_gate.py` run that says what to cut, or that
+  the design has more parts than the band affords: drop parts in `build()` or take the band back to the decision
+  page), tags the root's `style_class` and saves `Tools/Blender/checks/<Thing>.blend` without exporting; run that
+  bible's `style_gate.py` and `contact_sheet.py` on it before the user sees the asset, and rerun the script with
+  `-- <project> --export` after the user's yes (`--style <file>` builds a decision-page reading,
+  `checks/<Thing>_<stem>.blend`, and never exports; `<project>`, the check render and `--style` may be relative to
+  the working folder). It builds one mesh: parts parented under it fail the check (join
+  them). Its barrel (one closed surface turned from a profile, hoops stepped out of it, one flat cap for the bottom;
+  with a bible, profile detail under 2 px at game size is shed: the chime bevel, the top head's recess, a side ring
+  beside a hoop) is wiring only: `build()` is written anew from each asset's brief, `ROLES` named from `style.json`'s
+  palette, and with a bible `--export` refuses it while `NAME` is still `SM_Barrel`.
+  The new `build()` tags the STYLE.md Motif's faces in a boolean face attribute `motif` (FBX ignores it; the
+  contact sheet measures it); the starter tags none, so its sheet warns. Helpers a build shares (`srgb_to_linear`,
+  `flat_waste`) are copied into `Tools/Blender/style_common.py`, never imported from the plugin's folder, which
+  moves with every update. Each material is a submesh under `__GAME__/Toon`, drawn twice when outlined (lit and
+  outline), so keep the roles few. Smoothness: 0 matte (wood, stone, cloth: no glossy spot, no rim), about 0.3
+  paint, 0.5-0.6 metal.
   No `style.json` yet and DESIGN.md's Look names games: make the bible first (that reference, section 1); no named
   games: offer it in one line.
 - `kit_common.py` (Mixtrol): a large real kit module for a modular level kit (pieces, hosts, colliders, walk heights,
@@ -100,8 +115,13 @@ the shader and keeps the colours.
   must read (characters, carried things), not the whole level.
 - Outline width is in 1080p pixels, so it reads the same on a phone and a monitor.
 - A mesh outside `Game/Art/Models/` gets no smoothed normals; its outline may split at hard edges.
-- Bake or paint only the base map for a toon asset (`bake_maps.py --maps basecolor`, or a palette atlas); Smoothness
-  is a material value. No normal, AO or mask map: the shader samples none, and `OutlineNormalsPostprocessor`
+- No cutouts: the shader has no alpha clip, so a card cut by its texture's alpha draws solid; model the shape. The lit
+  pass culls back faces, so a part wound inside out, or single flipped faces, show the far inside. The style gate
+  fails all three, and a wall left inside a weld (a Mirror or Array merge): recalc the normals in the build script
+  (`bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])`) and delete the inner faces.
+- Bake or paint only the base map for a toon asset (`bake_maps.py --maps basecolor`, or a palette atlas: one painted
+  in memory is packed, `image.pack()`, or saved to a file before the `.blend` is saved, or the gate fails it);
+  Smoothness is a material value. No normal, AO or mask map: the shader samples none, and `OutlineNormalsPostprocessor`
   overwrites the tangents under `Game/Art/Models/`. The `unity-export` skill has the per-shader texture table.
 - Lighting it takes: the main light with its shadows (fading out at the shadow distance), point and spot lights in the
   same two bands (Forward and Forward+), light layers, fog, ambient from light probes or Adaptive Probe Volumes, SSAO
