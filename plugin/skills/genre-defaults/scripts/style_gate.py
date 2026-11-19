@@ -28,7 +28,8 @@
 #   triangles the summed triangle count is inside triangles[<class>] (class from --class or the root's "style_class")
 #   accent    the share of the surface nearest an accent colour stays under accent_max_share
 #   waste     with flat_waste_max_share set, the share of triangles that only split flat faces stays under it: those
-#             Limited Dissolve removes with nothing on screen changing (no shape, shading, material or UV seam lost)
+#             Limited Dissolve removes with nothing on screen changing (shape, shading, outline, material and UV map
+#             kept; see flat_waste)
 
 import argparse
 import json
@@ -245,11 +246,26 @@ def check_mesh(name, mesh, matrix, style, fail, info):
     return {'triangles': int(len(mi)), 'area': float(area.sum()), 'accent_area': accent_area, 'removable': removable}
 
 
+def same_uv_map(faces, layers, tol=0.5 / TEXTURE_SIDE):
+    """True when one affine position-to-UV map carries every corner of faces in every UV layer, so dissolving them
+    interpolates the UVs as before (a 9-slice panel's stretched middle and its trim are two maps)."""
+    loops = [lp for f in faces for lp in f.loops]
+    p = np.array([lp.vert.co for lp in loops])
+    p -= p[0]
+    for layer in layers:
+        uv = np.array([lp[layer].uv for lp in loops])
+        uv -= uv[0]
+        if np.abs(p @ np.linalg.lstsq(p, uv, rcond=None)[0] - uv).max() > tol:
+            return False
+    return True
+
+
 def flat_waste(mesh, bm):
-    """Triangles Limited Dissolve removes with the look unchanged. Only faces whose every corner normal is the face
-    normal take part (flat shaded, or smooth inside a flat region), so shading interpolates as before; material and UV
-    seams stay. Consumes bm. Ceiling: a split hard edge (Edge Split) is a border whose vertices stay, so the count
-    errs low; a UV warped inside one flat region is taken as affine (an unwrap of a flat region is)."""
+    """Triangles Limited Dissolve removes with the look unchanged, counted after triangulating (Unity gets triangles,
+    not the n-gons). Only faces whose every corner normal is the face normal take part, so shading interpolates as
+    before; faces join only on one material and one affine UV map; a vertex goes only from inside one plane, so the
+    corners and edge midpoints that steer Toon.shader's outline hull stay. Consumes bm: written back, it is that
+    optimised mesh. Ceiling: a split hard edge (Edge Split) is a border whose vertices stay, so the count errs low."""
     if not len(mesh.polygons):
         return 0
     cn = np.empty(len(mesh.loops) * 3, np.float32)
@@ -261,11 +277,17 @@ def flat_waste(mesh, bm):
     mesh.polygons.foreach_get('loop_total', total)
     same = (cn.reshape(-1, 3) * np.repeat(pn.reshape(-1, 3), total, axis=0)).sum(1) > math.cos(math.radians(FLAT_DEG))
     flat = set(np.flatnonzero(np.minimum.reduceat(same.astype(np.int8), start)).tolist())   # bm keeps face order
-    edges = [e for e in bm.edges if len(e.link_faces) == 2 and all(f.index in flat for f in e.link_faces)]
-    verts = [v for v in bm.verts if v.link_faces and all(f.index in flat for f in v.link_faces)]
+    uvs = bm.loops.layers.uv.values()
+    edges = [e for e in bm.edges if len(e.link_faces) == 2 and all(f.index in flat for f in e.link_faces)
+             and same_uv_map(e.link_faces, uvs)]
+    verts = [v for v in bm.verts if v.link_faces and all(f.index in flat for f in v.link_faces)
+             and all(f.normal.angle(v.link_faces[0].normal, 0.0) <= math.radians(FLAT_DEG) for f in v.link_faces)
+             and same_uv_map(v.link_faces, uvs)]
     before = sum(len(f.verts) - 2 for f in bm.faces)
-    bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(FLAT_DEG), use_dissolve_boundaries=False, verts=verts,
-                             edges=edges, delimit={'MATERIAL', 'UV'})
+    region = bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(FLAT_DEG), use_dissolve_boundaries=False,
+                                      verts=verts, edges=edges, delimit={'MATERIAL'})['region']
+    # only the merged faces: re-splitting an untouched curved quad along another diagonal would change its shape
+    bmesh.ops.triangulate(bm, faces=[f for f in region if f.is_valid], quad_method='BEAUTY', ngon_method='BEAUTY')
     return before - sum(len(f.verts) - 2 for f in bm.faces)
 
 

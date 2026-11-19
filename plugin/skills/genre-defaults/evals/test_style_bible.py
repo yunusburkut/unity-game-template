@@ -116,6 +116,32 @@ def atlas(name, v0, cutout=False, stripes=False):
     return obj
 
 
+def waste(mesh):
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.faces.index_update()
+    n = style_gate.flat_waste(mesh, bm)
+    bm.to_mesh(mesh)
+    bm.free()
+    return n
+
+
+def panel(name, inner):
+    """A flat panel of 3 x 3 quads whose inner grid lines map to UV inner and 1 - inner (1/3: one affine map; 0.1: a
+    9-slice keeping its trim narrow)."""
+    mesh = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    bmesh.ops.create_grid(bm, x_segments=3, y_segments=3, size=0.3)
+    uv = bm.loops.layers.uv.new('UVMap')
+    lines = np.linspace(min(v.co.x for v in bm.verts), max(v.co.x for v in bm.verts), 4)
+    for f in bm.faces:
+        for lp in f.loops:
+            lp[uv].uv = tuple(np.interp(c, lines, [0, inner, 1 - inner, 1]) for c in lp.vert.co[:2])
+    bm.to_mesh(mesh)
+    bm.free()
+    return mesh
+
+
 def sphere(name, colour):
     mesh = bpy.data.meshes.new(name)
     obj = bpy.data.objects.new(name, mesh)
@@ -238,6 +264,11 @@ def main():
         % part_facts['SM_Trimmed']
     stripes = facts['SM_Stripes']['texture_off_palette']
     assert 0.2 < stripes < 0.32, 'texture sampling missed the stripes: %.3f off-palette, about 0.27 drawn' % stripes
+    # 9 quads of one plane and one UV map are one quad: 18 -> 2 triangles
+    assert waste(panel('Panel', 1 / 3)) == 16, 'flat panel with one UV map: waste missed'
+    assert waste(panel('Slice', 0.1)) == 0, 'a 9-slice UV counted as waste: dissolving it stretches the trim'
+    # an unbevelled crate cut in four: each side loses its centre, keeps the edge midpoints the outline hull leans on
+    assert waste(crate('SM_HardGrid', ('Wood', WOOD), bevel=False, subdiv=1).data) == 12, 'edge midpoints dissolved'
     texel, _ = style_gate.gate([bpy.data.objects['SM_Atlas']], dict(style, texel_density=10000))
     assert [f['rule'] for f in texel] == ['texel'], 'style_gate missed the texel density: %s' % texel
 
@@ -295,12 +326,7 @@ def main():
     flat.data = grid.data.copy()
     flat.name = 'SM_GridFlat'
     bpy.context.scene.collection.objects.link(flat)
-    bm = bmesh.new()
-    bm.from_mesh(flat.data)
-    bm.faces.index_update()
-    removed = style_gate.flat_waste(flat.data, bm)
-    bm.to_mesh(flat.data)
-    bm.free()
+    removed = waste(flat.data)
     tiles = []
     for name in ('SM_Grid', 'SM_GridFlat'):
         for o in [o for o in bpy.data.objects if o.name.startswith('SHEET_')]:

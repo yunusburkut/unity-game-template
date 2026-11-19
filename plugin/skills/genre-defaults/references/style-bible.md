@@ -50,8 +50,8 @@ Every call is `blender --background --factory-startup --python-exit-code 1 [<ass
      prop's height in metres; the sheet draws every asset at that scale. `triangles` from them: prop about 3-6 x
      `asset_px` (64 px: 200-400, 128 px: 400-800), hero 3x prop, kit 0.75x prop.
    - `detail_floor_m`: 2 pixels at game size, 2 x `asset_m` / `asset_px`.
-   - `flat_waste_max_share`: 0.1. It counts only triangles whose removal changes no pixel, so the look never pays
-     for it.
+   - `flat_waste_max_share`: 0.1. It counts only triangles whose removal leaves the asset looking the same (shape,
+     shading, outline, UV map), so the look never pays for it.
 
    Show the swatches and 2 test assets (a crate and a rock) built two ways on a decision page; the user approves.
 6. Build the golden asset: one typical prop of the most common class, through section 2. After the user's yes, copy
@@ -74,9 +74,11 @@ Every call is `blender --background --factory-startup --python-exit-code 1 [<ass
    not transparency. The script saves the `.blend` it exported.
 3. `style_gate.py` on that `.blend`. Exit 1: fix the cause and rebuild; never loosen `style.json` to pass one asset.
    An `--objects` list that names only some parts of an asset prints a `STYLE NOTE` with the parts it left out.
-   A `waste` failure: drop the cuts on flat faces in the build script (no subdivide or loop cut where nothing bends),
-   or end it with `bmesh.ops.dissolve_limit` as `style_gate.flat_waste` runs it. Never Decimate to meet a budget:
-   the look comes first, and Decimate removes shape.
+   A `waste` failure: drop the cuts on flat faces in the build script (no subdivide or loop cut where nothing bends).
+   Where a shared helper has to cut, copy `flat_waste` (with `same_uv_map`) from `style_gate.py` into the game's
+   build module and write its bmesh back: it dissolves and triangulates only what the gate counted. A bare
+   `dissolve_limit` is not that: it also takes the edge midpoints the outline leans on, warps a 9-slice UV and leaves
+   n-gons for Unity to triangulate. Never Decimate to meet a budget: the look comes first, and Decimate removes shape.
 4. `contact_sheet.py -- --style ... --out Tools/Blender/<Asset>/review/<Asset>_sheet.png --crops
    Tools/Blender/Style/crops.json --class <class> --golden Tools/Blender/Style/golden.png` (`--refs <files>` adds
    whole images). Read the sheet: rows front, right, back, top, game camera, references (the class's object crops);
@@ -130,7 +132,7 @@ the kit lineup. One art-reviewer pass looks for drift (a colour, a bevel or a de
 | `palette`, `accents`, `palette_de`, `accent_max_share` | the roles (sRGB 0-1), how far (CIELAB distance) a colour may sit from one, and how much of an asset's surface may be accent | style_gate, contact_sheet |
 | `value_range`, `look` | L* 0-100 the asset's colours stay in; the references' pooled look numbers, shown beside the asset's | style_gate, contact_sheet |
 | `triangles`, `detail_floor_m`, `texel_density`, `hard_edges_max_share` | budgets per class (per asset root); smallest loose part; px per metre or `"atlas"`; share of unbevelled hard edges (`null` = report only) | style_gate |
-| `flat_waste_max_share` | share of an asset's triangles that only split flat, flat-normal faces of one material and UV island: Limited Dissolve removes them and the render stays the same (`null` = report only) | style_gate |
+| `flat_waste_max_share` | share of an asset's triangles that only split flat, flat-normal faces of one material and one affine UV map, away from the edges that shape the outline: removing them leaves the render the same (`null` = report only) | style_gate |
 
 `bevel_m` and `avoid` are for the build and the reviewers; no script measures them. A threshold (`palette_de`,
 `value_range`) is tuned on the golden asset, then frozen; a later change re-runs the gate on every approved asset.
