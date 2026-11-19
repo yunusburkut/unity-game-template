@@ -3,34 +3,51 @@
 #   blender --background --factory-startup --python-exit-code 1 <asset>.blend --python style_gate.py -- \
 #       --style Tools/Blender/Style/style.json [--class prop] [--objects SM_A,SM_B] [--report gate.json]
 #
-# Exit 1 is a failed gate; every failure names the object or asset, the rule and the number. Checked: every mesh
-# object (minus COL_ proxies and _LOD1+ children, unless --objects names some), on its evaluated mesh (modifiers
-# applied, as exported); faces sharing an edge's two end positions count as joined, so split edges (Edge Split, a
-# hard-edge export) do not read as loose parts, while a part touching at one point stays its own:
-#   material  every used slot has a material; none is Blender's untouched default; the base colour is a flat colour
-#             or an image texture (node-made colour does not reach Unity through FBX: bake it). The colour judged is
-#             the one FBX carries, the Principled Base Color, then the viewport colour the toon pipeline's manifest
-#             carries
+# Exit 1 is a failed gate; every failure names the object or asset, the rule and the number. Checked: the meshes an
+# export takes (exported_meshes: in the view layer, rendered or a part under a classed root, which an export by
+# selection ships hidden too, not a Boolean cutter; minus COL_ proxies and _LOD1+ children), or the ones --objects
+# names, on the evaluated mesh (modifiers applied, as exported) with the object's material slots (a slot linked to the
+# object wins, as in the FBX); faces sharing an edge's two end positions count as joined, so split edges (Edge Split,
+# a hard-edge export) do not read as loose parts, while a part touching at one point stays its own:
+#   instances the object instances nothing (unrealized geometry nodes, particles): the counts below would miss it
+#   material  every used slot has a material; none is Blender's untouched default (Blender's name, Material or
+#             Material.001; a renamed one at Blender's 0.8 grey is judged as that light grey); the base colour is a
+#             flat colour or an image texture linked straight to Base Color (node-made colour, or an image behind a
+#             Reroute or a muted node, does not reach Unity through FBX), with nothing on its Vector input but a UV
+#             Map node reading UV0 (Unity's material takes no Mapping: bake it into the UVs). The colour judged is the
+#             one FBX carries, the Principled Base Color, then the viewport colour the toon pipeline's manifest carries
 #   palette   a flat colour sits within palette_de (CIELAB distance) of a palette role or an accent; an M_<Role>
 #             material of the toon pipeline matches its own role
-#   value     every colour's L* is inside value_range, and nothing is pure black (L* < 3) or pure white (L* > 97)
-#   texture   sampled through the mesh's UVs (the texels the asset shows, not the whole atlas), weighted by surface
-#             area: L* p2/p98 inside value_range (5 L* slack), at most texture_off_palette_max of the samples farther
-#             than palette_de from every palette and accent colour. Alpha hides a texel only when the material's
+#   value     every colour's L* is inside value_range (a palette or accent colour may sit outside it: confirmed by
+#             eye, a bright accent is too few pixels to move the p98 it comes from), and nothing is pure black
+#             (L* < 3) or pure white (L* > 97)
+#   texture   sampled through the first UV layer (UV0, the one Unity's _BaseMap reads: the texels the asset shows,
+#             not the whole atlas; an image material on a mesh with no UV map fails), weighted by surface area:
+#             L* p2/p98 inside value_range (5 L* slack), at most texture_off_palette_max of the samples farther than
+#             palette_de from every palette and accent colour. Alpha hides a texel only when the material's
 #             Alpha takes the texture's alpha (a cutout); an atlas keeping smoothness in alpha is measured whole
 #   detail    no loose part is smaller than detail_floor_m on its longest side, or thinner across (a rod): it
-#             vanishes or breaks up at game size
+#             vanishes or breaks up at game size; the message gives the first parts' centres and sizes
 #   texel     with a numeric texel_density (px/m), an image-textured material is within 10% of it
 #   edges     with hard_edges_max_share set, the share of edges sharper than 80 degrees stays under it (a proxy for
 #             bevel_m: the bevel width itself is not measurable from the mesh; the review sheet judges it)
 # and per asset: the topmost object up the parent chain with "style_class" (on the object, not its mesh) and every
 # mesh under it; without one, the topmost mesh. Parent a multi-part asset's parts under one root; an Empty that only
 # groups props is not an asset. With --objects naming only some parts, the report lists the rest as unchecked_parts:
-#   triangles the summed triangle count is inside triangles[<class>] (class from --class or the root's "style_class")
-#   accent    the share of the surface nearest an accent colour stays under accent_max_share
+#   triangles the summed triangle count is inside triangles[<class>] (class from --class or the root's "style_class");
+#             the message says under or over and the remedy
+#   mesh      no part under the root is a render-visible curve, text, metaball or other non-mesh: the export drops it
+#   accent    the share of the seen surface within palette_de of an accent colour (by colour, so an M_<Role> material
+#             in an accent colour counts) stays under accent_max_share; a triangle whose centre lies inside another
+#             closed loose part of the asset (every edge joins two faces; a mirrored part's winding turned back) is
+#             not seen
+#   hidden    with hidden_max_share set, the share of those unseen triangles stays under it: the player never sees
+#             them, so they only cost
+#   materials with materials_max[<class>] (or one number) set, the asset uses at most that many materials: each is a
+#             submesh and a draw call in Unity
 #   waste     with flat_waste_max_share set, the share of triangles that only split flat faces stays under it: those
-#             Limited Dissolve removes with nothing on screen changing (shape, shading, outline, material and UV map
-#             kept; see flat_waste)
+#             flat_waste's restricted dissolve removes with nothing on screen changing (shape, shading, outline,
+#             material and UV map kept); a bare Limited Dissolve is not the same
 #   curve     with curve_waste_max_share[<class>] (or one number) set, smooth curves cut finer than CHORD_PX (0.25 px)
 #             of chord error at asset_px, and cuts along a smooth surface's straight way, stay under that share of
 #             the triangles (see curve_waste); a class the game draws larger than asset_px (a close-up hero) has no
@@ -49,15 +66,20 @@ import numpy as np
 
 sys.dont_write_bytecode = True     # no __pycache__ beside the plugin's scripts
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from extract_style import linear_to_srgb, read_rgba, srgb_to_lab  # noqa: E402
+from extract_style import linear_to_srgb, read_rgba, srgb_to_lab, srgb_to_linear  # noqa: E402
+from mathutils import Vector  # noqa: E402
+from mathutils.bvhtree import BVHTree  # noqa: E402
 
 DEFAULT_RGB = (0.8, 0.8, 0.8)
+DEFAULT_NAME = re.compile(r'^Material(\.\d+)?$')     # the names Blender gives a new material
 LOD_CHILD = re.compile(r'_LOD[1-9]\d*$')
 TEXTURE_SIDE = 1024        # textures are sampled at most this size: an atlas cell stays pixels wide, a 4K map 16 MB
 TRI_SAMPLES = (4, 4096)     # samples per triangle: about one per texel it covers, within these bounds
 MAX_SAMPLES = 2_000_000     # per material; past it every triangle's count shrinks in proportion
 FLAT_DEG = 0.1              # faces and normals this close count as the same plane: float noise, not modelled shape
 CHORD_PX = 0.25             # chord error at asset_px that never shows: at 0.5 px a 32 px ball's top reads flat
+# renders in Blender, never exported (the FBX export takes meshes only)
+NON_MESH = {'CURVE', 'SURFACE', 'META', 'FONT', 'CURVES', 'POINTCLOUD', 'VOLUME', 'GREASEPENCIL'}
 
 
 def is_default(rgb):
@@ -65,23 +87,51 @@ def is_default(rgb):
 
 
 def principled(mat):
-    return next((n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None) if mat.node_tree else None
+    """The Principled BSDF that reaches the active Material Output (through Mix Shaders), the one FBX exports; a
+    leftover unconnected one is not judged. No output node: the first Principled."""
+    if not mat.node_tree:
+        return None
+    nodes = mat.node_tree.nodes
+    out = next((n for n in nodes if n.type == 'OUTPUT_MATERIAL' and n.is_active_output), None)
+    if out is None:
+        return next((n for n in nodes if n.type == 'BSDF_PRINCIPLED'), None)
+    todo = [link.from_node for link in out.inputs['Surface'].links]
+    while todo:
+        n = todo.pop(0)
+        if n.type == 'BSDF_PRINCIPLED':
+            return n
+        todo += [link.from_node for i in n.inputs for link in i.links]
+    return None
 
 
-def base_colour(mat):
-    """('image', image node) | ('rgb', sRGB tuple) | ('nodes', node name) | ('default', None)."""
+def base_colour(mat, viewport=True):
+    """('image', image node) | ('rgb', sRGB tuple) | ('viewport', sRGB tuple) | ('nodes', node name) |
+    ('default', None). viewport: the colour may live in the viewport colour (the toon pipeline); else that colour is
+    reported as 'viewport', which FBX does not carry. 'nodes' includes an image behind a Reroute or a muted node: the
+    FBX export takes only an Image Texture linked straight to Base Color. 'default' is a material Blender named
+    (Material.001) with both colours at Blender's 0.8 grey; a named one there is a deliberate light grey."""
     bsdf = principled(mat)
     if bsdf is not None and bsdf.inputs['Base Color'].is_linked:
         src = bsdf.inputs['Base Color'].links[0].from_node
         if src.type == 'TEX_IMAGE' and src.image is not None:
             return 'image', src
         return 'nodes', src.name
-    # FBX carries the Principled Base Color; the toon pipeline (toon_prop.py) leaves it default and keeps the palette
-    # colour in the viewport colour, which its manifest carries
-    for rgb in (tuple(bsdf.inputs['Base Color'].default_value)[:3] if bsdf else None, tuple(mat.diffuse_color)[:3]):
+    # FBX carries the Principled Base Color; a toon build may keep the palette colour only in the viewport colour, which
+    # only its manifest carries (toon_prop.py writes both)
+    for kind, rgb in (('rgb', tuple(bsdf.inputs['Base Color'].default_value)[:3] if bsdf else None),
+                      ('rgb' if viewport else 'viewport', tuple(mat.diffuse_color)[:3])):
         if rgb is not None and not is_default(rgb):
-            return 'rgb', tuple(float(c) for c in linear_to_srgb(rgb))
-    return 'default', None
+            return kind, tuple(float(c) for c in linear_to_srgb(rgb))
+    if DEFAULT_NAME.match(mat.name):
+        return 'default', None
+    return 'rgb', tuple(float(c) for c in linear_to_srgb(DEFAULT_RGB))
+
+
+def typed_srgb(val, role_lab, de):
+    """A hint when the colour holds the role's sRGB numbers as if they were linear (Blender colours are linear)."""
+    if np.linalg.norm(srgb_to_lab(srgb_to_linear(np.array(val))) - role_lab) <= de:
+        return ': it holds the sRGB numbers; set srgb_to_linear(srgb), as toon_prop does'
+    return ''
 
 
 def is_cutout(mat, tex):
@@ -120,7 +170,7 @@ def read_image(img, side):
 
 
 def mesh_arrays(mesh, matrix):
-    """Per loop triangle: material index, world area, and UVs (n, 3, 2) or None."""
+    """Per loop triangle: material index, world area, UVs (n, 3, 2) or None, and world centre."""
     mesh.calc_loop_triangles()
     n = len(mesh.loop_triangles)
     co = np.empty(len(mesh.vertices) * 3, np.float32)
@@ -136,11 +186,11 @@ def mesh_arrays(mesh, matrix):
     p = co[tv.reshape(-1, 3)]
     area = np.linalg.norm(np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0]), axis=1) / 2
     uv = None
-    if mesh.uv_layers.active:
+    if len(mesh.uv_layers):         # the first layer: FBX writes it as UV0, the one Unity's _BaseMap reads
         u = np.empty(len(mesh.loops) * 2, np.float32)
-        mesh.uv_layers.active.data.foreach_get('uv', u)
+        mesh.uv_layers[0].data.foreach_get('uv', u)
         uv = u.reshape(-1, 2)[tl.reshape(-1, 3)]
-    return mi, area, uv
+    return mi, area, uv, p.mean(axis=1)
 
 
 def wpercentile(x, w, q):
@@ -149,43 +199,69 @@ def wpercentile(x, w, q):
     return np.interp(np.asarray(q) / 100.0, c / c[-1], x[o])
 
 
-def check_object(obj, style, fail, info):
+def check_object(obj, style, fail, info, others=()):
     """Every per-object rule on the mesh as exported; returns its triangles, world area and accent-coloured area."""
     eval_obj = obj.evaluated_get(bpy.context.evaluated_depsgraph_get())
     mesh = eval_obj.to_mesh()
     try:
-        return check_mesh(obj.name, mesh, obj.matrix_world, style, fail, info)
+        # through the object's slots: a slot linked to the object overrides the mesh's material, and FBX ships that one
+        return check_mesh(obj.name, mesh, [s.material for s in obj.material_slots], obj.matrix_world, style, fail,
+                          info, others)
     finally:
         eval_obj.to_mesh_clear()
 
 
-def check_mesh(name, mesh, matrix, style, fail, info):
+def check_mesh(name, mesh, mats, matrix, style, fail, info, others=()):
     pal = style.get('palette') or {}
     pal_lab = {r: srgb_to_lab(np.array(v['srgb'], float)) for r, v in pal.items()}
     accent_lab = [srgb_to_lab(np.array(a, float)) for a in style.get('accents', [])]
     allowed = list(pal_lab.items()) + [('accent', a) for a in accent_lab]
     de = float(style.get('palette_de', 6.0))
     lo, hi = style.get('value_range', [0.0, 100.0])
-    mi, area, uv = mesh_arrays(mesh, matrix)
+    mi, area, uv, centres = mesh_arrays(mesh, matrix)
     accent_area = 0.0
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.transform(matrix)
+    bm.normal_update()
+    bm.faces.index_update()
+    shared, find = loose_parts(bm)
+    # a triangle inside another closed part of the asset (a hoop's cap inside the barrel, in this mesh or another
+    # part) is never on screen: the accent share counts the surface the player sees, and the hidden rule the
+    # triangles the player never sees
+    own = closed_parts(bm, shared, find, matrix.determinant() < 0)
+    poly = np.empty(len(mi), np.int32)
+    mesh.loop_triangles.foreach_get('polygon_index', poly)
+    seen = np.ones(len(mi))
+    for k, c in enumerate(centres):
+        here = find(int(poly[k]))
+        if any(inside(c, p) for p in own if p[0] != here) or any(inside(c, p) for p in others):
+            seen[k] = 0.0
+    shown = area * seen
 
     for i in sorted(set(mi.tolist())):
         sel = mi == i
-        mat = mesh.materials[i] if i < len(mesh.materials) else None
+        mat = mats[i] if i < len(mats) else None
         if mat is None:
             fail(name, 'material', 'slot %d has no material' % i)
             continue
-        kind, val = base_colour(mat)
-        if kind == 'default' or re.match(r'^Material(\.\d+)?$', mat.name):
+        kind, val = base_colour(mat, style.get('shading') == 'toon')
+        if kind == 'default' or DEFAULT_NAME.match(mat.name):
             fail(name, 'material', '%s is the untouched default material' % mat.name)
+        elif kind == 'viewport':
+            fail(name, 'material', '%s has its colour only in the viewport colour, which FBX does not carry (Unity '
+                 'draws it grey): set the Principled Base Color' % mat.name)
         elif kind == 'nodes':
-            fail(name, 'material', '%s takes its base colour from node %s, which FBX does not carry: bake it to an '
-                 'image' % (mat.name, val))
+            fail(name, 'material', '%s takes its base colour from node %s, which FBX does not carry: link an Image '
+                 'Texture straight to Base Color (the export follows no Reroute or muted node), or bake the colour to '
+                 'an image' % (mat.name, val))
         elif kind == 'rgb':
             lab = srgb_to_lab(np.array(val))
             if lab[0] < 3 or lab[0] > 97:
                 fail(name, 'value', '%s is pure %s (L* %.0f)' % (mat.name, 'black' if lab[0] < 3 else 'white', lab[0]))
-            elif not lo <= lab[0] <= hi:
+            # a palette or accent colour was confirmed by eye: a bright accent the screenshots show in few pixels
+            # sits past the pooled p98 that value_range comes from
+            elif not lo <= lab[0] <= hi and not any(np.linalg.norm(lab - l) <= de for _, l in allowed):
                 fail(name, 'value', '%s L* %.0f outside value_range %s-%s' % (mat.name, lab[0], lo, hi))
             if allowed:
                 # M_Wood.001 (Blender's duplicate name) is still the Wood role
@@ -193,59 +269,53 @@ def check_mesh(name, mesh, matrix, style, fail, info):
                 if role in pal_lab:
                     d = float(np.linalg.norm(lab - pal_lab[role]))
                     if d > de:
-                        fail(name, 'palette', '%s is %.1f from its role %s (palette_de %.0f)' % (mat.name, d, role, de))
+                        fail(name, 'palette', '%s is %.1f from its role %s (palette_de %.0f)%s'
+                             % (mat.name, d, role, de, typed_srgb(val, pal_lab[role], de)))
                 else:
                     near, d = min(((r, float(np.linalg.norm(lab - l))) for r, l in allowed), key=lambda t: t[1])
                     if d > de:
-                        fail(name, 'palette', '%s is off-palette: nearest %s at %.1f (palette_de %.0f)'
-                             % (mat.name, near, d, de))
-                    elif near == 'accent':
-                        accent_area += float(area[sel].sum())
+                        fail(name, 'palette', '%s is off-palette: nearest %s at %.1f (palette_de %.0f)%s'
+                             % (mat.name, near, d, de, typed_srgb(val, dict(allowed)[near], de)))
+            # by colour, whatever the name: a palette role painted in an accent colour is accent surface too
+            if any(np.linalg.norm(lab - a) <= de for a in accent_lab):
+                accent_area += float(shown[sel].sum())
+        elif uv_changed(val, mesh):
+            fail(name, 'texture', '%s reads %s through node %s on its Vector input, which Unity\'s material does not '
+                 'take (it samples UV0 as is): bake the mapping into the UVs' % (
+                     mat.name, val.image.name, val.inputs['Vector'].links[0].from_node.name))
         else:
             accent_area += check_image(name, mat, val, area[sel], None if uv is None else uv[sel],
-                                       [a for _, a in allowed], len(pal_lab), de, lo, hi, style, fail, info)
+                                       [a for _, a in allowed], len(pal_lab), de, lo, hi, style, fail, info,
+                                       seen[sel])
 
-    bm = bmesh.new()
-    bm.from_mesh(mesh)
-    bm.transform(matrix)
-    bm.normal_update()
-    bm.faces.index_update()
-    # an Edge Split modifier or a hard-edge export cuts faces apart along edges: faces join where an edge's two end
-    # positions match (0.01 mm grid), which a part touching the body at one vertex does not
-    pos = {v: tuple(int(round(c * 1e5)) for c in v.co) for v in bm.verts}
-    shared = {}
-    for e in bm.edges:
-        shared.setdefault(frozenset((pos[e.verts[0]], pos[e.verts[1]])), []).extend(e.link_faces)
     floor = style.get('detail_floor_m')
     if floor:
-        part = list(range(len(bm.faces)))
-
-        def find(i):
-            while part[i] != i:
-                part[i] = part[part[i]]
-                i = part[i]
-            return i
-
-        for faces in shared.values():
-            for f in faces[1:]:
-                part[find(f.index)] = find(faces[0].index)
         co = {}
         for f in bm.faces:
             co.setdefault(find(f.index), []).extend(v.co for v in f.verts)
-        small = thin = 0
+        small, thin = [], []
         for c in co.values():
             c = np.array(c)
-            c -= c.mean(0)
+            mid = c.mean(0)
+            c -= mid
             # extents along the part's principal axes: longest, then across; a thin rod is long one way only (a
             # ring of wire reads wide both ways, so it errs low)
             ext = np.sort(np.ptp(c @ np.linalg.svd(c, full_matrices=False)[2].T, axis=0))[::-1]
-            small += ext[0] < floor
-            thin += ext[0] >= floor and len(ext) > 1 and ext[1] < floor
+            if ext[0] < floor:
+                small.append((mid, ext[0]))
+            elif len(ext) > 1 and ext[1] < floor:
+                thin.append((mid, ext[1]))
+
+        def where(parts):           # the first few, so the build script's line can be found
+            return '; '.join('at (%.2f, %.2f, %.2f) m, %.3f m' % (*m, s) for m, s in parts[:3]) + (
+                '; ...' if len(parts) > 3 else '')
+
         if small:
-            fail(name, 'detail', '%d loose part(s) smaller than detail_floor_m %.3f m' % (small, floor))
+            fail(name, 'detail', '%d loose part(s) smaller than detail_floor_m %.3f m: %s'
+                 % (len(small), floor, where(small)))
         if thin:
-            fail(name, 'detail', '%d loose part(s) thinner than detail_floor_m %.3f m across: a line that breaks up '
-                 'at game size' % (thin, floor))
+            fail(name, 'detail', '%d loose part(s) thinner than detail_floor_m %.3f m across, a line that breaks up '
+                 'at game size: %s' % (len(thin), floor, where(thin)))
     inner = [faces for faces in shared.values() if len(faces) == 2]
     hard = sum(1 for a, b in inner if a.normal.angle(b.normal, 0.0) > math.radians(80))
     share = hard / max(1, len(inner))
@@ -261,8 +331,60 @@ def check_mesh(name, mesh, matrix, style, fail, info):
     removable = flat_waste(mesh, bm)
     info(name, 'flat_waste', removable)
     bm.free()
-    return {'triangles': int(len(mi)), 'area': float(area.sum()), 'accent_area': accent_area, 'removable': removable,
-            'curve': around + straight, 'straight': straight}
+    return {'triangles': int(len(mi)), 'area': float(shown.sum()), 'accent_area': accent_area, 'removable': removable,
+            'curve': around + straight, 'straight': straight, 'hidden': int((seen == 0).sum()),
+            'materials': {mats[i].name for i in set(mi.tolist()) if i < len(mats) and mats[i] is not None}}
+
+
+def loose_parts(bm):
+    """bm's faces joined into loose parts: (shared, find). shared maps an edge's two end positions to its faces; find
+    gives a face index's part id. An Edge Split modifier or a hard-edge export cuts faces apart along edges: faces
+    join where an edge's two end positions match (0.01 mm grid), which a part touching the body at one vertex does
+    not."""
+    pos = {v: tuple(int(round(c * 1e5)) for c in v.co) for v in bm.verts}
+    shared = {}
+    for e in bm.edges:
+        shared.setdefault(frozenset((pos[e.verts[0]], pos[e.verts[1]])), []).extend(e.link_faces)
+    part = list(range(len(bm.faces)))
+
+    def find(i):
+        while part[i] != i:
+            part[i] = part[part[i]]
+            i = part[i]
+        return i
+
+    for faces in shared.values():
+        for f in faces[1:]:
+            part[find(f.index)] = find(faces[0].index)
+    return shared, find
+
+
+def closed_parts(bm, shared, find, mirrored):
+    """[(part id, BVH tree, box low, box high)] of bm's closed loose parts (world space), the only ones with an
+    inside: every edge of the part joins exactly two faces. A label plane or an open tube buries nothing. mirrored:
+    the matrix flipped the winding, so the faces are turned back to face outward."""
+    open_parts = {find(f.index) for faces in shared.values() if len(faces) != 2 for f in faces}
+    faces = {}
+    for f in bm.faces:
+        if find(f.index) not in open_parts:
+            faces.setdefault(find(f.index), []).append(f)
+    out = []
+    for pid, fs in faces.items():
+        verts = list({v for f in fs for v in f.verts})
+        at = {v: i for i, v in enumerate(verts)}
+        polys = [[at[v] for v in (list(f.verts)[::-1] if mirrored else f.verts)] for f in fs]
+        co = np.array([v.co for v in verts])
+        out.append((pid, BVHTree.FromPolygons([v.co.copy() for v in verts], polys), co.min(0), co.max(0)))
+    return out
+
+
+def inside(c, part):
+    """True when the point c lies inside the closed part: within its box, and behind its nearest face."""
+    _, tree, lo, hi = part
+    if (c < lo).any() or (c > hi).any():
+        return False
+    loc, normal, _, dist = tree.find_nearest(Vector(c))
+    return loc is not None and dist > 1e-4 and (Vector(c) - loc).dot(normal) < 0
 
 
 def corner_normals(mesh):
@@ -290,7 +412,7 @@ def curve_waste(mesh, bm, px_per_m):
     merge drops touches only such planes: all the triangles merging saves. A hard-capped cylinder's side fails the
     outline test (its rims tilt), so its height loops are not counted; that errs low."""
     if not len(mesh.polygons):
-        return 0
+        return 0, 0
     cn, start = corner_normals(mesh)
     flat = flat_faces(mesh, cn, start)
 
@@ -425,7 +547,19 @@ def flat_waste(mesh, bm):
     return before - sum(len(f.verts) - 2 for f in bm.faces)
 
 
-def check_image(name, mat, tex, area, uv, refs, n_pal, de, lo, hi, style, fail, info):
+def uv_changed(tex, mesh):
+    """True when the image node's Vector input is linked to anything but a UV Map node reading UV0 (the first layer,
+    or the render-active one when the node names none)."""
+    links = tex.inputs['Vector'].links
+    if not links:
+        return False
+    n = links[0].from_node
+    first = mesh.uv_layers[0] if len(mesh.uv_layers) else None
+    return not (n.type == 'UVMAP' and first is not None
+                and (n.uv_map == first.name or (n.uv_map == '' and first.active_render)))
+
+
+def check_image(name, mat, tex, area, uv, refs, n_pal, de, lo, hi, style, fail, info, seen=None):
     """The texture rules on the texels the mesh shows; returns the accent-coloured world area."""
     img = tex.image
     got = image_rgba(img)
@@ -433,8 +567,12 @@ def check_image(name, mat, tex, area, uv, refs, n_pal, de, lo, hi, style, fail, 
         fail(name, 'texture', '%s has no pixels (file missing and not packed)' % img.name)
         return 0.0
     rgb, alpha = got
+    if uv is None:
+        fail(name, 'texture', '%s is image-textured but the mesh has no UV map: Unity samples one texel for all of it'
+             % mat.name)
+        return 0.0
     uv_area = None
-    if uv is not None and len(uv):
+    if len(uv):
         e1, e2 = uv[:, 1] - uv[:, 0], uv[:, 2] - uv[:, 0]
         uv_area = np.abs(e1[:, 0] * e2[:, 1] - e1[:, 1] * e2[:, 0]) / 2
         h, w = alpha.shape
@@ -447,10 +585,9 @@ def check_image(name, mat, tex, area, uv, refs, n_pal, de, lo, hi, style, fail, 
         pts = np.einsum('nk,nkd->nd', np.stack([1 - s, s * (1 - r2), s * r2], axis=1), uv[tri])
         x = np.clip(np.floor((pts[:, 0] % 1.0) * w).astype(int), 0, w - 1)
         y = np.clip(np.floor((1.0 - pts[:, 1] % 1.0) * h).astype(int), 0, h - 1)
-        rgb, alpha, weight = rgb[y, x], alpha[y, x], (area / k)[tri]
-    else:                                                           # no UVs: the whole image stands in
-        rgb, alpha = rgb.reshape(-1, 3), alpha.ravel()
-        weight = np.full(len(alpha), area.sum() / max(1, len(alpha)))
+        rgb, alpha, weight = rgb[y, x], alpha[y, x], (area * (1.0 if seen is None else seen) / k)[tri]
+    else:
+        return 0.0
     if is_cutout(mat, tex):
         keep = alpha >= 0.5
         if not keep.any():
@@ -460,23 +597,28 @@ def check_image(name, mat, tex, area, uv, refs, n_pal, de, lo, hi, style, fail, 
     if weight.sum() <= 0:
         return 0.0
     lab = srgb_to_lab(rgb)
-    p2, p98 = wpercentile(lab[:, 0], weight, [2, 98])
-    if p2 < lo - 5 or p98 > hi + 5:
-        fail(name, 'texture', '%s L* p2-p98 %.0f-%.0f outside value_range %s-%s' % (img.name, p2, p98, lo, hi))
     accent_area = 0.0
+    d, da = np.full(len(lab), np.inf), np.full(len(lab), np.inf)
+    for k, r in enumerate(refs):            # a running minimum: N x refs x 3 at once is hundreds of MB
+        dk = np.linalg.norm(lab - r, axis=1)
+        d = np.minimum(d, dk)
+        if k >= n_pal:                      # an accent: counted by colour, even where a palette role ties with it
+            da = np.minimum(da, dk)
+    # as for a flat colour, a texel within palette_de of a role was confirmed by eye: only the others meet value_range
+    off_role = d > de
+    if weight[off_role].sum() > 0:
+        p2, p98 = wpercentile(lab[off_role, 0], weight[off_role], [2, 98])
+        if p2 < lo - 5 or p98 > hi + 5:
+            fail(name, 'texture', '%s L* p2-p98 %.0f-%.0f of its off-role texels outside value_range %s-%s'
+                 % (img.name, p2, p98, lo, hi))
     if refs:
-        d, nearest = np.full(len(lab), np.inf), np.zeros(len(lab), int)
-        for k, r in enumerate(refs):        # a running minimum: N x refs x 3 at once is hundreds of MB
-            dk = np.linalg.norm(lab - r, axis=1)
-            nearest = np.where(dk < d, k, nearest)
-            d = np.minimum(d, dk)
         off = float(weight[d > de].sum() / weight.sum())
         info(name, 'texture_off_palette', round(off, 3))
         limit = style.get('texture_off_palette_max')
         if limit is not None and off > limit:
             fail(name, 'texture', '%s: %.0f%% of the shown texels off-palette (max %.0f%%)'
                  % (img.name, off * 100, limit * 100))
-        accent_area = float(weight[(nearest >= n_pal) & (d <= de)].sum())
+        accent_area = float(weight[da <= de].sum())
     target = style.get('texel_density')
     if isinstance(target, (int, float)) and uv_area is not None:
         density = math.sqrt(uv_area.sum() * img.size[0] * img.size[1] / area.sum()) if area.sum() > 0 else 0.0
@@ -497,10 +639,48 @@ def root_of(obj):
     return classed[-1] if classed else [o for o in chain if o.type == 'MESH'][-1]
 
 
+def boolean_cutters():
+    cutters = set()
+    for o in bpy.data.objects:
+        for m in o.modifiers:
+            if m.type == 'BOOLEAN':
+                cutters |= {m.object} if m.operand_type == 'OBJECT' else set(m.collection.all_objects if m.collection
+                                                                            else [])
+    return cutters
+
+
+def exported(o, cutters):
+    """An export takes o: a mesh, not a Boolean cutter, a COL_ proxy or a _LOD1+ child, and rendered, or a part under
+    a classed asset root (unity-export exports by selection, which ships a part hidden from render too)."""
+    return (o.type == 'MESH' and o not in cutters and not o.name.startswith('COL_') and not LOD_CHILD.search(o.name)
+            and (not o.hide_render or (o.parent is not None and root_of(o).get('style_class') is not None)))
+
+
 def parts_of(root):
-    """The mesh objects the gate sums into root's asset (COL_ proxies and LOD1+ children left out)."""
-    return [o for o in [root, *root.children_recursive] if o.type == 'MESH' and not o.name.startswith('COL_')
-            and not LOD_CHILD.search(o.name) and root_of(o) == root]
+    """The mesh objects the gate sums into root's asset."""
+    cutters = boolean_cutters()
+    return [o for o in [root, *root.children_recursive] if exported(o, cutters) and root_of(o) == root]
+
+
+def exported_meshes():
+    """The mesh objects an export of the scene takes (exported), in the view layer (its collection not excluded).
+    Ceiling: a parent collection's own render switch is not followed; name the parts with --objects then."""
+    bpy.context.view_layer.update()     # objects linked by a script since the last update are not listed before it
+    cutters = boolean_cutters()
+    return [o for o in bpy.context.view_layer.objects if exported(o, cutters)]
+
+
+def named_meshes(arg):
+    """The mesh objects a comma-separated --objects names; exits on a name that is missing or not a mesh."""
+    names = arg.split(',')
+    missing = [n for n in names if n not in bpy.data.objects]
+    if missing:
+        raise SystemExit('no such object(s): %s' % ', '.join(missing))
+    objs = [bpy.data.objects[n] for n in names]
+    not_mesh = [o.name for o in objs if o.type != 'MESH']
+    if not_mesh:
+        raise SystemExit('not mesh object(s): %s (name the mesh parts, not their root)' % ', '.join(not_mesh))
+    return objs
 
 
 def gate(objs, style, cls=None):
@@ -514,16 +694,54 @@ def gate(objs, style, cls=None):
     def info(o, k, v):
         facts.setdefault(o, {})[k] = v
 
+    # instances (geometry nodes without Realize Instances, particles, vertex instancing) are exported but are not in
+    # the object's own mesh, so every count below would miss them
+    instanced = {}
+    for i in bpy.context.evaluated_depsgraph_get().object_instances:
+        if i.is_instance and i.parent is not None:
+            instanced[i.parent.original.name] = instanced.get(i.parent.original.name, 0) + 1
+    # each part's other parts: their closed loose parts can bury its faces (world space, as exported)
+    parts, trees = {}, {}
     for obj in objs:
-        got = check_object(obj, style, fail, info)
+        parts.setdefault(root_of(obj).name, []).append(obj)
+    for group in parts.values():
+        for o in group if len(group) > 1 else ():
+            ev = o.evaluated_get(bpy.context.evaluated_depsgraph_get())
+            bm = bmesh.new()
+            bm.from_mesh(ev.to_mesh())
+            ev.to_mesh_clear()
+            bm.transform(o.matrix_world)
+            bm.faces.index_update()
+            trees[o.name] = closed_parts(bm, *loose_parts(bm), o.matrix_world.determinant() < 0)
+            bm.free()
+    for obj in objs:
+        if obj.name in instanced:
+            fail(obj.name, 'instances', '%d instance(s) the gate cannot count: realize them (Realize Instances, or '
+                 'apply the modifier) before the check' % instanced[obj.name])
+        got = check_object(obj, style, fail, info,
+                           [p for o in parts[root_of(obj).name] if o is not obj for p in trees.get(o.name, ())])
         info(obj.name, 'triangles', got['triangles'])
         root = root_of(obj)
         a = assets.setdefault(root.name, {'cls': None, 'triangles': 0, 'area': 0.0, 'accent_area': 0.0, 'removable': 0,
-                                          'curve': 0, 'straight': 0})
+                                          'curve': 0, 'straight': 0, 'hidden': 0, 'materials': set()})
         a['cls'] = a['cls'] or cls or root.get('style_class') or obj.get('style_class')
-        for k in ('triangles', 'area', 'accent_area', 'removable', 'curve', 'straight'):
+        for k in ('triangles', 'area', 'accent_area', 'removable', 'curve', 'straight', 'hidden'):
             a[k] += got[k]
+        a['materials'] |= got['materials']
+        if got['curve']:
+            a.setdefault('curve_parts', []).append((got['curve'], obj.name))
 
+    # a curve, text or metaball part renders in Blender, but the FBX export takes meshes only: Unity never gets it
+    for name in assets:
+        root = bpy.data.objects[name]
+        for o in [root, *root.children_recursive]:
+            if o.type in NON_MESH and not o.hide_render:
+                fail(name, 'mesh', '%s is a %s, which the FBX export drops: convert it to a mesh in the build script'
+                     % (o.name, o.type.lower()))
+            # an Empty instancing a collection exports its meshes, which no count above sees
+            if o.name in instanced and o not in objs:
+                fail(name, 'instances', '%s instances %d object(s) the gate cannot count: make them real (Make '
+                     'Instances Real, then apply) before the check' % (o.name, instanced[o.name]))
     bands = style.get('triangles') or {}
     limit = style.get('accent_max_share')
     checked = {o.name for o in objs}
@@ -537,8 +755,12 @@ def gate(objs, style, cls=None):
                 fail(name, 'triangles', 'no class: pass --class or set "style_class" on the asset root to one of %s'
                      % ', '.join(sorted(bands)))
             elif not bands[a['cls']][0] <= a['triangles'] <= bands[a['cls']][1]:
-                fail(name, 'triangles', '%d triangles outside the %s band %d-%d'
-                     % (a['triangles'], a['cls'], *bands[a['cls']]))
+                low = a['triangles'] < bands[a['cls']][0]
+                fail(name, 'triangles', '%d triangles %s the %s band %d-%d: %s'
+                     % (a['triangles'], 'under' if low else 'over', a['cls'], *bands[a['cls']],
+                        'add the detail the references show at asset_px (bevels, rims, planks, a trim), not cuts on '
+                        'flat faces or extra segments' if low else 'remove detail the game size cannot show, '
+                        'starting with what the detail and curve rules name'))
         share = a['accent_area'] / a['area'] if a['area'] > 0 else 0.0
         info(name, 'accent_share', round(share, 3))
         if limit is not None and share > limit:
@@ -548,8 +770,25 @@ def gate(objs, style, cls=None):
         info(name, 'flat_waste_share', round(waste, 3))
         if style.get('flat_waste_max_share') is not None and waste > style['flat_waste_max_share']:
             fail(name, 'waste', '%d of %d triangles only split flat faces (%.0f%%, flat_waste_max_share %.0f%%): '
-                 'Limited Dissolve removes them with the look unchanged' % (a['removable'], a['triangles'], waste * 100,
-                                                                             style['flat_waste_max_share'] * 100))
+                 'drop the cuts on flat faces in the build script (no subdivide or loop cut where nothing bends), or '
+                 'call style_gate.flat_waste on the bmesh; a bare Limited Dissolve is not the same (it also drops the '
+                 'edge midpoints the outline needs, warps a 9-slice UV and leaves n-gons)'
+                 % (a['removable'], a['triangles'], waste * 100, style['flat_waste_max_share'] * 100))
+        hidden = a['hidden'] / max(1, a['triangles'])
+        info(name, 'hidden_share', round(hidden, 3))
+        if style.get('hidden_max_share') is not None and hidden > style['hidden_max_share']:
+            fail(name, 'hidden', '%d of %d triangles (%.0f%%, hidden_max_share %.0f%%) sit inside another closed part '
+                 'of the asset, where the player never sees them (a cap buried in the body, overlapping parts): leave '
+                 'the buried faces out (an open band, cap_ends=False) or trim the part' % (
+                     a['hidden'], a['triangles'], hidden * 100, style['hidden_max_share'] * 100))
+        info(name, 'materials', len(a['materials']))
+        most = style.get('materials_max')
+        most = most.get(a['cls']) if isinstance(most, dict) else most
+        if most is not None and len(a['materials']) > most:
+            fail(name, 'materials', '%d materials (%s), materials_max %d for %s: each is a submesh, drawn twice under '
+                 '__GAME__/Toon with its outline (ForwardLit + Outline pass); merge roles that read the same at game '
+                 'size%s' % (len(a['materials']), ', '.join(sorted(a['materials'])), most, a['cls'],
+                             ', or use the palette atlas' if style.get('texel_density') == 'atlas' else ''))
         curve = a['curve'] / max(1, a['triangles'])
         info(name, 'curve_waste_share', round(curve, 3))
         curve_max = style.get('curve_waste_max_share')
@@ -557,9 +796,11 @@ def gate(objs, style, cls=None):
         if curve_max is not None and curve > curve_max:
             fail(name, 'curve', 'about %d of %d triangles (%.0f%%, curve_waste_max_share %.0f%%) look the same at game '
                  'size without: %d refine smooth curves past %.2f px of chord error at asset_px (fewer segments), %d '
-                 'cut a smooth side along its straight way (drop those loops)'
+                 'cut a smooth side along its straight way (drop those loops); a round part takes ceil(pi / acos(1 - '
+                 '%.2f / r_px)) segments around, worst parts: %s'
                  % (a['curve'], a['triangles'], curve * 100, curve_max * 100, a['curve'] - a['straight'], CHORD_PX,
-                    a['straight']))
+                    a['straight'], CHORD_PX,
+                    ', '.join('%s (%d)' % (p, n) for n, p in sorted(a['curve_parts'], reverse=True)[:3])))
     return failures, facts
 
 
@@ -573,18 +814,11 @@ def main():
     args = ap.parse_args(argv)
     with open(args.style, encoding='utf-8') as f:
         style = json.load(f)
-    if args.objects:
-        names = args.objects.split(',')
-        missing = [n for n in names if n not in bpy.data.objects]
-        if missing:
-            raise SystemExit('no such object(s): %s' % ', '.join(missing))
-        objs = [bpy.data.objects[n] for n in names]
-        not_mesh = [o.name for o in objs if o.type != 'MESH']
-        if not_mesh:
-            raise SystemExit('not mesh object(s): %s (name the mesh parts, not their root)' % ', '.join(not_mesh))
-    else:
-        objs = [o for o in bpy.data.objects if o.type == 'MESH' and not o.name.startswith('COL_')
-                and not LOD_CHILD.search(o.name)]
+    for role, v in (style.get('palette') or {}).items():
+        if not (isinstance(v.get('srgb'), list) and len(v['srgb']) == 3):
+            raise SystemExit('%s: palette.%s.srgb is %r: write 3 numbers 0-1 (style_metrics.json\'s toon_albedo_srgb '
+                             'or srgb), not a hex' % (args.style, role, v.get('srgb')))
+    objs = named_meshes(args.objects) if args.objects else exported_meshes()
     if not objs:
         raise SystemExit('no mesh objects to check')
     failures, facts = gate(objs, style, args.cls)

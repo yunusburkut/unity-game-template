@@ -119,6 +119,7 @@ InitTestScene*.unity*
 /Tools/Blender/**/__pycache__/
 /Tools/Blender/**/checks/
 /Tools/Blender/**/review/
+/Tools/Blender/Style/reference/
 
 # iOS archives
 *.ipa

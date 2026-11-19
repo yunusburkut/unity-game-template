@@ -2,7 +2,8 @@
 # bundled numpy and OpenImageIO only (this machine has no system Python):
 #
 #   blender --background --factory-startup --python-exit-code 1 --python extract_style.py -- \
-#       --images <dir or files...> [--crops crops.json] [--k 12] --out style_metrics.json [--swatches palette.png]
+#       --images <dir or files...> [--crops crops.json] [--k 12] --out style_metrics.json [--swatches palette.png] \
+#       [--style style.json]
 #
 # crops.json: [{"file": "a.png", "rect": [x, y, w, h], "note": "flat-lit wall, mid distance"}, ...]; rect in pixels
 # from the top left. A file listed without rect is used whole; with --crops only the listed regions are measured.
@@ -13,7 +14,9 @@
 # Output per crop and pooled: palette (k-means in CIELAB, swatches by share), L* percentiles 2/50/98, mean chroma,
 # accent_share (pixels with C* > 60), detail_energy (mean |grad L*|) and dark_edge_share (pixels with L* < 15 on a
 # strong edge: a proxy for drawn outlines). Every shot is measured as if 1080 px tall (SCREEN_H), the scale
-# camera.asset_px is given at, so the last two compare with contact_sheet's game tile.
+# camera.asset_px is given at, so the last two compare with contact_sheet's game tile. Each swatch's toon_albedo is
+# the base colour Toon.shader's lit band draws as it, under style.json "light" when --style is given (as the sheet
+# draws), else Unity's defaults; "toon_lit" in the output is that light.
 
 import argparse
 import json
@@ -28,7 +31,13 @@ SCREEN_H = 1080          # screenshots are measured as if 1080 px tall: the scal
                          # game tile of contact_sheet and a crop compare on detail_energy and dark_edge_share
 POOL_MAX = 200000        # pixels per crop in the pooled numbers: 20 full 1080p shots would be over 1 GB of CIELAB
 ACCENT_CHROMA = 60.0
+TOON_LIT = 1 + 0.5 * 0.18    # Toon.shader's lit band: albedo x (1 + SH ambient 0.5 x _AmbientStrength 0.18)
 EXTS = ('.png', '.jpg', '.jpeg', '.webp', '.tga', '.bmp', '.exr', '.tif', '.tiff')
+
+
+def srgb_to_linear(c):
+    c = np.asarray(c, float)
+    return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
 
 
 def linear_to_srgb(c):
@@ -80,7 +89,7 @@ def read_rgb(path, rect=None, **kw):
 
 def srgb_to_lab(rgb):
     """CIELAB (D65) of sRGB 0..1 values, any leading shape."""
-    lin = np.where(rgb <= 0.04045, rgb / 12.92, ((rgb + 0.055) / 1.055) ** 2.4)
+    lin = srgb_to_linear(rgb)
     m = np.array([[0.4124, 0.3576, 0.1805], [0.2126, 0.7152, 0.0722], [0.0193, 0.1192, 0.9505]])
     xyz = lin @ m.T / np.array([0.95047, 1.0, 1.08883])
     f = np.where(xyz > 216 / 24389, np.cbrt(xyz), (24389 / 27 * xyz + 16) / 116)
@@ -132,8 +141,15 @@ def pixels(rgb, mask=None):
     return lab[sel], np.hypot(gx, gy)[sel]
 
 
-def metrics(flat, g, k=12):
-    """The numbers for a set of pixels from pixels(), one image or several pooled."""
+def toon_lit(light):
+    """Toon.shader's lit band factor (linear, per channel) under style.json light, as contact_sheet's toon_params
+    reads it: main light colour x intensity + the scene's SH level light.ambient x light.ambient_strength."""
+    return (srgb_to_linear(light.get('color', [1.0, 1.0, 1.0])) * float(light.get('intensity', 1.0))
+            + float(light.get('ambient', 0.5)) * float(light.get('ambient_strength', 0.18)))
+
+
+def metrics(flat, g, k=12, lit=TOON_LIT):
+    """The numbers for a set of pixels from pixels(), one image or several pooled; lit is toon_lit()."""
     if len(flat) == 0:
         raise ValueError('no pixels to measure')
     chroma = np.hypot(flat[:, 1], flat[:, 2])
@@ -150,8 +166,8 @@ def metrics(flat, g, k=12):
         'accent_share': round(float((chroma > ACCENT_CHROMA).mean()), 3),
         'detail_energy': round(float(g.mean()), 2),
         'dark_edge_share': round(float(((flat[:, 0] < 15) & (g > 8)).mean()), 3),
-        'palette': swatches(centres, shares, 0.005),
-        'accents': swatches(*accents, 0.0),     # share = of the accent pixels, not of the image
+        'palette': swatches(centres, shares, 0.005, lit),
+        'accents': swatches(*accents, 0.0, lit),     # share = of the accent pixels, not of the image
     }
 
 
@@ -168,17 +184,28 @@ def merge(centres, shares, de=5.0):
     return np.array(keep_c).reshape(-1, 3), np.array(keep_s)
 
 
-def swatches(centres, shares, floor):
+def swatches(centres, shares, floor, lit=TOON_LIT):
+    """toon_albedo: the base colour Toon.shader's lit band draws as this swatch (the frame shows the lit colour)."""
     return [{'srgb': [round(float(c), 3) for c in s], 'hex': hexcode(s), 'lab': [round(float(c), 1) for c in l],
-             'share': round(float(sh), 3)}
+             'share': round(float(sh), 3), 'toon_albedo': hexcode(toon_albedo(s, lit)),
+             'toon_albedo_srgb': [round(float(c), 3) for c in toon_albedo(s, lit)]}   # style.json's palette takes this
             for l, s, sh in zip(centres, lab_to_srgb(centres), shares) if sh >= floor]
 
 
-def write_swatches(palette, path, cell=64):
-    """A strip of the pooled swatches, widest share first, for the decision page."""
-    strip = np.zeros((cell, cell * len(palette), 3), np.float32)
-    for i, sw in enumerate(palette):
-        strip[:, i * cell:(i + 1) * cell] = sw['srgb']
+def toon_albedo(s, lit=TOON_LIT):
+    return linear_to_srgb(srgb_to_linear(s) / lit)
+
+
+def write_swatches(palette, accents, path, cell=64):
+    """A strip for the decision page: the pooled palette (widest share first), a white gap, then the accents, each in
+    style_metrics.json's order; the run prints every cell's number and hex."""
+    gap = cell // 4 if accents else 0
+    strip = np.ones((cell, cell * (len(palette) + len(accents)) + gap, 3), np.float32)
+    for i, sw in enumerate(palette + accents):
+        x = i * cell + (gap if i >= len(palette) else 0)
+        strip[:, x:x + cell] = sw['srgb']
+        print('SWATCH %d %s %s toon_albedo %s'
+              % (i + 1, 'accent' if i >= len(palette) else 'palette', sw['hex'], sw['toon_albedo']))
     buf = oiio.ImageBuf(oiio.ImageSpec(strip.shape[1], cell, 3, oiio.UINT8))
     buf.set_pixels(oiio.ROI(), strip)
     if not buf.write(path):
@@ -210,23 +237,29 @@ def main():
     ap.add_argument('--k', type=int, default=12)
     ap.add_argument('--out', required=True)
     ap.add_argument('--swatches')
+    ap.add_argument('--style')
     args = ap.parse_args(argv)
+    lit = TOON_LIT
+    if args.style:
+        with open(args.style, encoding='utf-8') as f:
+            lit = toon_lit(json.load(f).get('light', {}))
     per, pooled = [], []
     rng = np.random.default_rng(7)
     for path, rect, note in jobs(args):
         lab, g = pixels(read_rgb(path, rect, screen_h=SCREEN_H))
-        per.append({'file': os.path.basename(path), 'rect': rect, 'note': note, **metrics(lab, g, args.k)})
+        per.append({'file': os.path.basename(path), 'rect': rect, 'note': note, **metrics(lab, g, args.k, lit)})
         keep = rng.choice(len(lab), POOL_MAX, replace=False) if len(lab) > POOL_MAX else slice(None)
         pooled.append((lab[keep], g[keep]))
     if not per:
         raise SystemExit('no images: pass --images <dir or files> or --crops crops.json')
-    result = {'pooled': metrics(np.concatenate([p[0] for p in pooled]), np.concatenate([p[1] for p in pooled]), args.k),
-              'crops': per,
+    result = {'pooled': metrics(np.concatenate([p[0] for p in pooled]), np.concatenate([p[1] for p in pooled]), args.k,
+                                lit),
+              'crops': per, 'toon_lit': [round(float(c), 4) for c in np.broadcast_to(lit, 3)],
               'note': 'L* 0-100 (CIELAB D65); colours are the graded frame, not albedo: check the swatches by eye'}
     with open(args.out, 'w', encoding='utf-8', newline='\n') as f:
         json.dump(result, f, indent=1)
     if args.swatches:
-        write_swatches(result['pooled']['palette'] + result['pooled']['accents'], args.swatches)
+        write_swatches(result['pooled']['palette'], result['pooled']['accents'], args.swatches)
     p = result['pooled']
     print('STYLE %d crops: L* %.0f-%.0f, accent %.3f, detail %.1f, %d swatches -> %s'
           % (len(per), p['L_p2'], p['L_p98'], p['accent_share'], p['detail_energy'], len(p['palette']), args.out))

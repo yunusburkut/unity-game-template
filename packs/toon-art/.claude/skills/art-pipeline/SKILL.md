@@ -40,9 +40,16 @@ Examples live only in the template, never in a game: `C:\GitHub\unity-game-templ
   builds, checks (triangle budget, palette roles, pivot, identity transform) and exports with the `unity-export`
   preset into `Game/Art/Models/`, and writes the manifest; the C# file pins the import and rebuilds the materials and
   prefab in place. With a style bible (`Tools/Blender/Style/style.json`,
-  `${CLAUDE_PLUGIN_ROOT}/skills/genre-defaults/references/style-bible.md`) it takes the palette and the triangle band
-  from there, tags the root's `style_class` and saves `Tools/Blender/checks/<Thing>.blend`; run that bible's
-  `style_gate.py` and `contact_sheet.py` on it before the user sees the asset.
+  the `genre-defaults` skill's references/style-bible.md) it takes the palette, the triangle band, the outline and
+  `bevel_m` from there, drops segments two at a time until the triangles fit the band, tags the root's `style_class`
+  and saves `Tools/Blender/checks/<Thing>.blend` without exporting; run that bible's `style_gate.py` and
+  `contact_sheet.py` on it before the user sees the asset, and rerun the script with `-- <project> --export` after
+  the user's yes (`--style <file>` builds a decision-page reading, `checks/<Thing>_<stem>.blend`, and never exports).
+  It builds one mesh: parts parented under it fail the check (join them). Its barrel (one closed surface turned from
+  a profile, hoops stepped out of it) is wiring only: `build()` is written anew from each asset's brief. Each
+  material is a submesh under `__GAME__/Toon`, drawn twice when outlined (lit and outline), so keep the roles few.
+  No `style.json` yet and DESIGN.md's Look names games: make the bible first (that reference, section 1); no named
+  games: offer it in one line.
 - `kit_common.py` (Mixtrol): a large real kit module for a modular level kit (pieces, hosts, colliders, walk heights,
   a palette atlas). Read it for those patterns only: it imports Mixtrol's `kit_palette.py` (not included, so it does
   not run here), its paths are Mixtrol's (`Art/LevelKit`, `Game/Art/LevelKit`, outside the folder that gets outline
