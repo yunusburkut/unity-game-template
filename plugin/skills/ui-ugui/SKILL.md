@@ -274,6 +274,8 @@ what Back does. Empty = one image from the game's art, one line, one action.
 - Mouse targets at least 32 screen px at the smallest supported window, so 32 / (that window's CanvasScaler scale)
   reference px: 64 px at the 1080 reference when a 960x540 WebGL canvas is supported, 32 px when 1920x1080 is the
   smallest; touch targets per `platform-targets`. A swipe never starts in a system gesture edge.
+- Colours, type scale, radius and border come from the game's UI style bible when it has one
+  (`player-clarity` `references/ui-style-bible.md`): each screen is captured and gated against it.
 <!-- END HOUSE -->
 
 ## Understanding

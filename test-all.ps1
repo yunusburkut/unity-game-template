@@ -32,7 +32,7 @@
     toon_prop.py exports a prop and a manifest whose collider signs hold for an off-centre copy too, with a style
     bible built by its own formulas saves a .blend style_gate passes, under that bible's band stops with the remedy, and
     a --style reading that is no file stops without exporting,
-    blender-image-to-3d's test_pack_mask.py and genre-defaults' test_style_bible.py pass, and its validate, export_delivery and roundtrip --manifest exit 0
+    blender-image-to-3d's test_pack_mask.py and genre-defaults' test_style_bible.py and player-clarity's test_ui_style_bible.py pass, and its validate, export_delivery and roundtrip --manifest exit 0
     on the local _asset-samples\PR_Anvil or, without it, a fixture with a packed mask built headless; every --background
     line in those user-level skills carries --factory-startup; the Blender MCP
     extension's copies keep their stdin=DEVNULL patch (README.md, Blender step 5) and the active copy's run_blender_cli
@@ -674,6 +674,11 @@ sys.exit(1 if bad else 0)
     $res = cmd /c "`"$blender`" --background --factory-startup --python-exit-code 1 --python `"$PSScriptRoot\plugin\skills\genre-defaults\evals\test_style_bible.py`" -- --out `"$styleOut`" 2>&1"
     Check 'style bible: extract_style, style_gate and contact_sheet on their fixture (test_style_bible.py)' ($LASTEXITCODE -eq 0 -and ($res -match 'STYLE BIBLE PASS')) (($res | Select-Object -Last 3) -join ' ')
     if (Test-Path -LiteralPath $styleOut) { Remove-Item -LiteralPath $styleOut -Recurse -Force -ErrorAction SilentlyContinue }
+    # The UI twin: ui_style.py extract, gate and sheet on synthetic menu screens (player-clarity)
+    $uiOut = Join-Path $env:TEMP "gk-test-ui-style-bible-$PID"
+    $res = cmd /c "`"$blender`" --background --factory-startup --python-exit-code 1 --python `"$PSScriptRoot\plugin\skills\player-clarity\evals\test_ui_style_bible.py`" -- --out `"$uiOut`" 2>&1"
+    Check 'UI style bible: ui_style.py extract, gate and sheet on their fixture (test_ui_style_bible.py)' ($LASTEXITCODE -eq 0 -and ($res -match 'UI STYLE BIBLE PASS')) (($res | Select-Object -Last 3) -join ' ')
+    if (Test-Path -LiteralPath $uiOut) { Remove-Item -LiteralPath $uiOut -Recurse -Force -ErrorAction SilentlyContinue }
     # the delivery half of the PR_Anvil gate runner (blender-image-to-3d SKILL.md), about 15 s: validate, export_delivery
     # --format FBX and roundtrip --manifest, written to %TEMP% so the source stays as it is. The source is the local,
     # untracked _asset-samples\PR_Anvil baked file when present; otherwise a fixture built headless here: a 0.8 m UV'd

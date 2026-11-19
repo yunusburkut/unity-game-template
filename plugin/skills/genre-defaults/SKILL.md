@@ -102,7 +102,8 @@ that game's genre. No sheet fits: take the nearest one and say which in the Assu
   `references/online.md` and record its level or its device warning in DESIGN.md Platforms.
 - **Look:** the user said nothing about the look: read `references/art-directions.md` and mark the pick *guessed*.
   The Look names games to look like, or Blender assets are about to start: `references/style-bible.md` makes the
-  game's numeric style bible first and gates every asset against it.
+  game's numeric style bible first and gates every asset against it; its UI twin for menus, HUD and popups is
+  `${CLAUDE_PLUGIN_ROOT}/skills/player-clarity/references/ui-style-bible.md`.
 - **In a game that already has a DESIGN.md** (a card on one core system, such as the jump or the idle economy): read
   only the sheet's Defaults, Feel and Variants lines for that system. DESIGN.md Decisions win; a line they do not
   decide goes on the card as an Assumption in the form above. Leave the pitch choices, the opening paragraph, the Look

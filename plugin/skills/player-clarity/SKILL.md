@@ -75,7 +75,9 @@ write it on the spec card's `Assumptions` line, and add the HUD placement as an 
 ## Building it
 
 - **Chrome:** uGUI on a Canvas with Scale With Screen Size, under a `SafeAreaFitter` (`ui-ugui`, `platform-targets`).
-  Put the shared look (font, sizes, colours, outline) in one place and reuse it; never style per view.
+  Put the shared look (font, sizes, colours, outline) in one place and reuse it; never style per view. When DESIGN.md
+  Look names games to look like, or before the first screen, `references/ui-style-bible.md` makes the game's numeric
+  UI style bible and gates every screen against it.
 - **A label pinned to a world object:** project its position to the screen on each frame the object or the camera
   moves, clamp it a margin inside the safe area, and use outlined, backgroundless text that reads over any background.
   A projected point with z <= 0 is behind the camera and comes back mirrored: hide the label then, and when the object
