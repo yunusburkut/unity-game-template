@@ -114,10 +114,11 @@ Every call is `blender --background --factory-startup --python-exit-code 1 [<ass
      foreshortens height). `triangles` from them: prop about 3-6 x `asset_px` (64 px: 200-400, 128 px: 400-800),
      hero 3x prop, kit 0 to 0.75x the prop's top (floor 0: a level instances flat tiles and wall panels by the
      hundred). A low-poly or faceted look draws with fewer: count the faces of a reference object crop at game size
-     and set the band round that count, or put the two bands on the decision page. The band's top is a ceiling, not a target: `band_top_share` in the gate's
-     `STYLE FACTS` line (the asset's triangles over the top) shows a build parked at it. The floor is for an asset
-     of `asset_m`: the gate and the starter hold a smaller one to `ceil(floor x min(1, size / asset_m))`, `size` its
-     largest bounding-box side in metres (band 400-800, `asset_m` 1: a 0.5 m prop needs 200); the top stays.
+     and set the band round that count, or put the two bands on the decision page. The band's top is a ceiling, not
+     a target: `band_top_share` in the gate's `STYLE FACTS` line (the asset's triangles over the top) shows a build
+     parked at it. The floor is for an asset of `asset_m`: the gate and the starter hold a smaller one to
+     `ceil(floor x min(1, size / asset_m))`, `size` its largest bounding-box side in metres (band 400-800, `asset_m`
+     1: a 0.5 m prop needs 200); the top stays.
    - `detail_floor_m`: 2 pixels at game size, 2 x `asset_m` / `asset_px` (128 px, 1 m: 0.016). The gate takes a
      loose part's widths along its face normals, so a 12 mm cube reads 12 mm however it is turned: under the floor
      on its longest side, or thinner across (a rod), fails `detail`.
@@ -370,10 +371,10 @@ axis, so the game row shows the assets side by side; the front, right and back r
 assets hide each other: in a lineup they are not meant to be read. The look pass draws cast shadows as the game
 does, so in the row an asset's shadow can fall on its neighbour: a shade patch shaped like the neighbour is that
 shadow, not colour drift (widen the gap, `0.5 * asset_m` in the script, when it covers what is compared). A lineup's
-sheet usually passes 2000 px a side,
-and an image that large is shrunk when it is read: the run prints `SHEET NOTE: the sheet is <w>x<h> px ... judge
-pixel detail on <stem>_game.png`. Give the reviewers that file too (`lineup_sheet_game.png`, the game row's look
-tile alone at 1 x): they judge pixel detail (a bevel, the line's width) on it, not on the sheet.
+sheet usually passes 2000 px a side, and an image that large is shrunk when it is read: the run prints `SHEET NOTE:
+the sheet is <w>x<h> px ... judge pixel detail on <stem>_game.png`. Give the reviewers that file too
+(`lineup_sheet_game.png`, the game row's look tile alone at 1 x): they judge pixel detail (a bevel, the line's
+width) on it, not on the sheet.
 ```python
 import json, math, os, bpy
 from mathutils import Vector

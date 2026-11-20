@@ -283,7 +283,7 @@ def check_mesh(name, mesh, mats, matrix, style, fail, info, others=(), outlined=
         t = corners[here == p[0]].astype(float)
         t -= t.mean((0, 1))
         if np.einsum('ij,ij->', t[:, 0], np.cross(t[:, 1], t[:, 2])) * (-1 if mirrored else 1) < -1e-12:
-            fail(name, 'mesh', 'mesh: faces wound inside out, recalc normals (bmesh.ops.recalc_face_normals(bm, '
+            fail(name, 'mesh', 'faces wound inside out, recalc normals (bmesh.ops.recalc_face_normals(bm, '
                  'faces=bm.faces[:]) in the build script; by hand Mesh > Normals > Recalculate Outside)')
             break
     # the volume test passes a part with a few faces flipped (a crate with one side turned still has a positive
