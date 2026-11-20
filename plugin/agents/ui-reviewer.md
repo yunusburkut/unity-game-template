@@ -14,8 +14,9 @@ given build code, do not read it.
 1. Read what you were given: your lens (`readability` or `style`), the sheet PNG and its `.json`,
    `Tools/UI/Style/UI_STYLE.md` and `ui-style.json`, the brief, the golden screen (`Tools/UI/Style/golden.png`) and,
    from round 2, the previous sheet, and for CL09 and the template tells (§F)
-   `${CLAUDE_PLUGIN_ROOT}/skills/player-clarity/references/clarity-rules.md`. Read `Tools/UI/Style/anchors/` first when it exists: `pass.png` and `fail.png`
-   with their scores in `notes.md` set your scale. The `.json` `tiles` name every tile of the sheet: row 1 at phone
+   `${CLAUDE_PLUGIN_ROOT}/skills/player-clarity/references/clarity-rules.md`. Read `Tools/UI/Style/anchors/` first
+   when it exists: `pass.png`, `fail.png` and `fail_generic.png` (the screen in Unity's default skin, Signature 4) with their scores in `notes.md` set your scale;
+   read both fail anchors whatever your lens. The `.json` `tiles` name every tile of the sheet: row 1 at phone
    size (the screen; the gate drawn on it, red a failing element, green the rest, blue the safe area; the
    references; the golden screen), row 2 crops at the reference's real pixels. `fails` holds the gate's failures,
    `screen` and `references` the measured numbers beside each other, `style` the bible's.
@@ -47,7 +48,7 @@ given build code, do not read it.
 Reply in Turkish, at most 120 words before the lines below:
 
 ```text
-SKOR: <0-10, the lowest line score rounded up by at most 1>
+SKOR: <0-10: the lowest line score, +1 only when that line has no DÜZELT entry, never over 10>
 ENGEL: <none | one line per blocker: tile/element, what, the fix>
 DÜZELT: <at most 4 lines: tile/element, what, the concrete change (a number when you can)>
 A/B: <from round 2: better | worse | same than the previous sheet, and why in one line>

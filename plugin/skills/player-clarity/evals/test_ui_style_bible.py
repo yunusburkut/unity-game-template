@@ -11,7 +11,9 @@
 # 3. sheet draws the phone-size tiles and the 1:1 crops, marks the failing element red, and writes its .json.
 # Prints UI STYLE BIBLE PASS; any failed assert exits 1.
 
+import contextlib
 import copy
+import io
 import json
 import os
 import sys
@@ -208,6 +210,18 @@ def main():
     _, path = save(img, layout, OUT, 'menu_tray')
     sc = ui_style.Screen(ui_style.load_layouts(path)[0])
     assert [m['size'] for m in sc.elements if m['id'] == 'buy'] == [[320, 136]], sc.elements
+    # a HUD button over a busy game view: the picture's colour steps are no edge, its corners and border read true
+    img, layout = menu()
+    noise = np.random.default_rng(3).random((90, 130, 3)).astype(np.float32)
+    img[700:1060, 1380:1900] = np.repeat(np.repeat(noise, 4, 0), 4, 1)
+    rrect(img, (1440, 840, 320, 136), 24, PRIMARY, 4)
+    layout['elements'].append({'id': 'view', 'kind': 'art', 'rect': [1380, 700, 520, 360]})
+    for rect in ([1440, 840, 320, 136], [1443, 843, 314, 130]):          # exact, and drawn by eye 3 px inside
+        lay = copy.deepcopy(layout)
+        lay['elements'].append({'id': 'hud', 'kind': 'button', 'rect': rect})
+        _, path = save(img, lay, OUT, 'menu_hud')
+        m = [m for m in ui_style.Screen(ui_style.load_layouts(path)[0]).elements if m['id'] == 'hud'][0]
+        assert m['size'] == [320, 136] and abs(m['radius'] - 24) <= 3 and abs(m['stroke'] - 4) <= 1, (rect, m)
     # an off-palette bar in the last 24 px (1080 is no multiple of the 32 px cells) is found, not a crash
     img, layout = menu()
     img[1058:1080, 0:1920] = (0.20, 0.80, 0.30)
@@ -225,6 +239,23 @@ def main():
         raise AssertionError('a text rect over a whole button was measured')
     except SystemExit as e:
         assert 'textBounds' in str(e), e
+    # an empty text rect is one layout error, not a 0 px font and a 1:1 contrast
+    img, layout = menu()
+    layout['elements'].append({'id': 'empty', 'kind': 'text', 'rect': [616, 440, 300, 48], 'px': 32})
+    _, path = save(img, layout, OUT, 'menu_empty')
+    try:
+        ui_style.Screen(ui_style.load_layouts(path)[0])
+        raise AssertionError('an empty text rect was measured')
+    except SystemExit as e:
+        assert 'no ink' in str(e), e
+    # an icon that fills its rect (a plate with a glyph) reads against what is outside it, not its own plate
+    img, layout = menu()
+    img[216:312, 1400:1496] = PRIMARY
+    img[248:280, 1432:1464] = INK
+    layout['elements'].append({'id': 'badge', 'kind': 'icon', 'rect': [1400, 216, 96, 96]})
+    _, path = save(img, layout, OUT, 'menu_badge')
+    m = [m for m in ui_style.Screen(ui_style.load_layouts(path)[0]).elements if m['id'] == 'badge'][0]
+    assert m['contrast'] >= 3.0, 'a full icon read %.2f:1 against itself' % m['contrast']
     # an element under a SafeAreaFitter ("safe": true) skips safe_inset on an Editor capture, but not a device's safe_area
     img, layout = menu('safe_area')
     for e in layout['elements']:
@@ -276,8 +307,11 @@ def main():
 
     # 3. sheet: phone tiles, gate overlay with the failing button red, 1:1 crops, json
     out = os.path.join(OUT, 'review', 'menu_sheet_r1.png')
-    ui_style.main(['sheet', '--style', style_path, '--layout', bad, '--refs', os.path.join(refs, 'ui_refs.json'),
-                   '--out', out, '--golden', os.path.join(OUT, 'golden.png')])
+    printed = io.StringIO()
+    with contextlib.redirect_stdout(printed):           # STYLE has no signature: the sheet warns
+        ui_style.main(['sheet', '--style', style_path, '--layout', bad, '--refs', os.path.join(refs, 'ui_refs.json'),
+                       '--out', out, '--golden', os.path.join(OUT, 'golden.png')])
+    assert 'UI SHEET WARNING' in printed.getvalue() and 'signature' in printed.getvalue(), printed.getvalue()
     with open(os.path.splitext(out)[0] + '.json', encoding='utf-8') as f:
         rep = json.load(f)
     labels = [t['label'] for t in rep['tiles']]

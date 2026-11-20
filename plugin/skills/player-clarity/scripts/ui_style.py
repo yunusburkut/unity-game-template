@@ -17,7 +17,8 @@
 # it ui-style.json "safe_inset" applies, except to an element marked "safe": true (under a SafeAreaFitter, which moves
 # it in on a phone; an Editor capture cannot show that). Button and panel rects snap to the outermost colour step within 8 reference
 # px (never more than half the way to a neighbouring button or panel), so one drawn by eye that close measures exact;
-# a text box is read 2 px larger than drawn and its rim is the background; an icon rect is its Image rect.
+# a text or icon rect (the Image rect) is read 2 px larger than drawn and that rim is its background. A step whose
+# inner line is not one colour along the edge (a game view under a HUD button) is no edge.
 #
 # Every number is read at the 1080 CanvasScaler reference: an image is scaled by 1080 / its short side, so a capture
 # must have the reference aspect (16:9 or 9:16) for sizes to match the Canvas. Contrast is WCAG 2 (relative luminance)
@@ -104,16 +105,18 @@ class Screen:
             b = self.snap(b)
         m['box'] = b
         m['size'] = [round((b[2] - b[0]) * self.s, 1), round((b[3] - b[1]) * self.s, 1)]
-        if e['kind'] == 'icon':
-            m.update(self.ink(b, e))
-        if e['kind'] == 'text':      # 2 px more, so ink that touches a tight box is not read as its background
-            # a label rect equal to or larger than its button (a padded one inside it reads the fill: harmless)
-            if any(o[0] >= b[0] and o[1] >= b[1] and o[2] <= b[2] and o[3] <= b[3] for o in self.drawn_buttons):
-                raise SystemExit('element %s: the text rect covers a whole button; take the ink box '
-                                 '(TMP_Text.textBounds), not the label\'s RectTransform, or one line of a paragraph'
-                                 % m['id'])
+        # a label rect equal to or larger than its button (a padded one inside it reads the fill: harmless)
+        if e['kind'] == 'text' and any(o[0] >= b[0] and o[1] >= b[1] and o[2] <= b[2] and o[3] <= b[3]
+                                       for o in self.drawn_buttons):
+            raise SystemExit('element %s: the text rect covers a whole button; take the ink box '
+                             '(TMP_Text.textBounds), not the label\'s RectTransform, or one line of a paragraph'
+                             % m['id'])
+        if e['kind'] in ('text', 'icon'):    # 2 px more, so ink that touches or fills its rect is not its background
             m['ink_box'] = (max(0, b[0] - 2), max(0, b[1] - 2), min(self.w, b[2] + 2), min(self.h, b[3] + 2))
             m.update(self.ink(m['ink_box'], e))
+            if e['kind'] == 'text' and m['ink'] is None:
+                raise SystemExit('element %s: no ink in the text rect %s: a wrong rect, or empty text (leave empty '
+                                 'text out of the layout)' % (m['id'], e['rect']))
         if e['kind'] in ('button', 'panel') and not self.full(b):
             m['radius'] = round(self.radius(b) * self.s, 1)
             m['stroke'] = round(self.stroke(b) * self.s, 1)
@@ -154,19 +157,25 @@ class Screen:
                 step(cols, x1, ya, yb, 1, r, reach[2]), step(self.lab, y1, xa, xb, 1, r, reach[3]))
 
     def radius(self, b):
-        """Corner radius from the area each corner cuts away, r^2 (1 - pi/4), averaged over the corners that have
-        an outside pixel to compare with."""
+        """Corner radius from the area each corner cuts away, r^2 (1 - pi/4): per row from the corner, the pixels
+        before the shape's own edge colour, so whatever is outside, flat or a busy game view, counts as cut away. The
+        edge colour is the median of a long side's middle third: a short side may be all arc (a pill)."""
         x0, y0, x1, y1 = b
         m = min(x1 - x0, y1 - y0) // 2
+        if x1 - x0 >= y1 - y0:
+            xa, xb = (2 * x0 + x1) // 3, (x0 + 2 * x1) // 3
+            first, last = np.median(self.lab[y0, xa:xb], 0), np.median(self.lab[y1 - 1, xa:xb], 0)
+            near = {(1, 1): first, (1, -1): first, (-1, 1): last, (-1, -1): last}        # (sy, sx): top or bottom
+        else:
+            ya, yb = (2 * y0 + y1) // 3, (y0 + 2 * y1) // 3
+            first, last = np.median(self.lab[ya:yb, x0], 0), np.median(self.lab[ya:yb, x1 - 1], 0)
+            near = {(1, 1): first, (-1, 1): first, (1, -1): last, (-1, -1): last}        # left or right
         areas = []
         for cy, cx, sy, sx in ((y0, x0, 1, 1), (y0, x1 - 1, 1, -1), (y1 - 1, x0, -1, 1), (y1 - 1, x1 - 1, -1, -1)):
-            oy, ox = cy - sy, cx - sx
-            if not (0 <= oy < self.h and 0 <= ox < self.w):
-                continue
             block = self.lab[np.ix_(cy + sy * np.arange(m), cx + sx * np.arange(m))]
-            same = np.linalg.norm(block - self.lab[oy, ox], axis=-1) < SAME_DE
-            areas.append(np.where(same.all(1), m, np.argmin(same, axis=1)).sum())
-        return math.sqrt(np.mean(areas) / (1 - math.pi / 4)) if areas else 0.0
+            shape = np.linalg.norm(block - near[(sy, sx)], axis=-1) < SAME_DE
+            areas.append(np.where(shape.any(1), np.argmax(shape, axis=1), m).sum())
+        return math.sqrt(np.mean(areas) / (1 - math.pi / 4))
 
     def stroke(self, b):
         """Width of the border: the run of non-fill pixels from each edge's middle inward. The fill is the largest colour
@@ -187,8 +196,8 @@ class Screen:
         return float(np.median(runs))
 
     def ink(self, b, e):
-        """Text or icon: its ink against what is behind it. The rect's 2 px rim is the background (its median colour);
-        the ink core is the inner pixels at least 3/4 of the way to the farthest colour from it. Contrast is the core's
+        """Text or icon in its rect grown by 2 px: its ink against what is behind it. The 2 px rim is the background
+        (its median colour); the ink core is the inner pixels at least 3/4 of the way to the farthest colour from it. Contrast is the core's
         median colour against the worst tenth of the rim: the whole rim for text (a line box has padding, so a busy
         picture behind it counts), the rim less the icon's own ink for an icon (its shape may touch its rect)."""
         x0, y0, x1, y1 = b
@@ -270,10 +279,20 @@ def step(lab, pos, a, b, outward, r, reach):
     if b - a < 2 or len(cs) == 0:
         return pos
     d = np.array([np.linalg.norm(lab[c, a:b] - lab[c - 1, a:b], axis=-1).mean() for c in cs])
-    if d.max() < SAME_DE:
+    # A step between two busy lines (the game view or an illustration under a HUD button) is the picture's, not the
+    # shape's: the shape's edge line is one colour along its middle, or else (a pill's short side, all arc) the
+    # outside is.
+    m0, m1 = (2 * a + b) // 3, (a + 2 * b) // 3 + 1
+    flat = np.array([min(off_share(lab[c, m0:m1]), off_share(lab[c - 1, m0:m1])) < 0.25 for c in cs])
+    strong = cs[(d >= SAME_DE) & flat]  # a border's outer step can be far weaker than its inner one: any step counts
+    if len(strong) == 0:
         return pos
-    strong = cs[d >= SAME_DE]          # a border's outer step can be far weaker than its inner one: any step counts
     return int(strong.min() if outward < 0 else strong.max())
+
+
+def off_share(line):
+    """The share of a line's pixels that are not its median colour: a few where an arc starts keep it one colour."""
+    return float((np.linalg.norm(line - np.median(line, axis=0), axis=-1) >= SAME_DE).mean())
 
 
 def run_lengths(row):
@@ -697,6 +716,9 @@ def run_sheet(args):
     refs = [Screen(l) for l in load_layouts(args.refs)] if args.refs else []
     fails = gate(sc, style)
     sheet(sc, fails, style, refs, args.golden if args.golden and os.path.exists(args.golden) else None, args.out)
+    if not style.get('signature'):
+        print('UI SHEET WARNING ui-style.json has no "signature" motif: the style lens scores Signature 4 or less '
+              '(ui-style-bible.md: take it from DESIGN.md Look Carriers)')
     if args.golden and not os.path.exists(args.golden):
         print('UI SHEET NOTE no golden screen at %s yet (the golden screen\'s own sheets have none)' % args.golden)
     print('UI SHEET %s: %d gate failures -> %s' % (os.path.basename(sc.layout['path']), len(fails), args.out))

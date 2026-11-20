@@ -52,7 +52,8 @@ A layout is one screen as a json beside its image; `ui_refs.json` is a list of t
   them to the real edge, never more than half the way to a neighbouring button or panel, or to the edge of the panel round it. `hit` is a raycast area
   larger than the drawn button; two buttons' hit areas must not overlap, and `touch_gap_px` is measured between the
   drawn buttons.
-- `icon`: its Image rect. `art`: the game view behind a HUD or an illustration; never measured.
+- `icon`: its Image rect; its contrast is read against a 2 px ring outside it, so an icon on its own plate counts.
+  `art`: the game view behind a HUD or an illustration; never measured.
 - `safe_area`: `Screen.safeArea` in image pixels, only for a capture from a device or the Device Simulator; without
   it `ui-style.json` `safe_inset` applies, except to elements marked `"safe": true` (under a `SafeAreaFitter`,
   which moves them in on the phone).
@@ -110,9 +111,10 @@ side, so a capture taken at the reference aspect (16:9 or 9:16) matches the Canv
    to the numbers: the two readings the user was unsure about in step 1 (two palettes, sharp or round, dense or airy;
    with none, the two closest reference games), both carrying the `signature`. The user approves one.
 6. Build the golden screen: the main menu through section 2. After the user's yes, copy its last capture to
-   `Tools/UI/Style/golden.png`. Keep two calibration anchors in `Tools/UI/Style/anchors/`: the golden sheet as
-   `pass.png` and one rejected sheet (an early round's `_r1`, or the screen in Unity's default UI skin) as
-   `fail.png`, each with its score and one line why in `anchors/notes.md`.
+   `Tools/UI/Style/golden.png`. Keep three calibration anchors in `Tools/UI/Style/anchors/`, each with its score and
+   one line why in `anchors/notes.md`: the golden sheet as `pass.png`; one rejected sheet (an early round's `_r1`) as
+   `fail.png`; and the same screen in Unity's default UI skin (Unity's default sprites and font, no `signature`) as
+   `fail_generic.png`, noted "Signature 4: swap test fails, no motif".
 
 Review sheets are working files: add `/Tools/UI/**/review/` to the game's `.gitignore` when it is missing.
 
@@ -133,7 +135,7 @@ Review sheets are working files: add `/Tools/UI/**/review/` to the game's `.giti
    both canvas modes; reading rects off the capture is the fallback. Per kind:
    - text: the ink, not the RectTransform (a button's label is often stretched over the whole button): after
      `text.ForceMeshUpdate()`, the corners of `TMP_Text.textBounds` through `text.transform.TransformPoint`, then the
-     same mapping. `px` is its `fontSize`. An empty text gets no entry.
+     same mapping. `px` is its `fontSize`. An empty text gets no entry (a text rect with no ink stops the script).
    - button: `rect` is the Button's `targetGraphic`; `hit` is a larger `raycastTarget` child Image, when it has one.
    - every element under a `GameKit.SafeAreaFitter` (`GetComponentInParent<SafeAreaFitter>() != null`) gets
      `"safe": true`.
@@ -217,7 +219,8 @@ looks for drift (a radius, a text size or a colour that differs between screens)
 | `icon` | `solid` (ink covers 40 % or more of the rect) or `line`, and a line icon's width | `icon` |
 | `density`, `safe_inset` | text, buttons and icons per screen and the empty share of the safe area; the safe area at the reference when a layout has none | `density`, `safe_area` |
 
-`font`, `references`, `signature` and `avoid` are for the build and the reviewers; no script measures them. A threshold is tuned on
+`font`, `references`, `signature` and `avoid` are for the build and the reviewers; no script measures them (the sheet
+prints `UI SHEET WARNING` when `signature` is empty). A threshold is tuned on
 the golden screen, then frozen; a later change re-runs the gate on every approved screen.
 
 ## UI_STYLE.md
@@ -237,7 +240,9 @@ phone beats density").
   fill and measures 0: check such a style by eye on the sheet.
 - A font is not identified from pixels, and a text size without `px` is an estimate; the reviewers hold the typeface.
 - Contrast is measured on the flat capture: a glow, a drop shadow or an outline counts only where it reaches the text
-  box's rim. Snap takes the outermost step within 8 px (less beside a neighbour), so a drop shadow counts as the
-  button's edge.
+  box's rim. Snap takes the outermost step within 8 px (less beside a neighbour) whose inner line is one colour along
+  the edge, so a drop shadow counts as the button's edge while a busy game view behind a HUD button does not. A
+  button whose own edge is a gradient or texture along its length finds no edge and keeps its drawn rect: give it an
+  exact rect.
 - A capture at another aspect than the reference scales by its short side, while a CanvasScaler at Match 0.5 does
   not; capture at the reference resolution, and judge other aspects in the Device Simulator.
