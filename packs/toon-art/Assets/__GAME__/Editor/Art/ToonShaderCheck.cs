@@ -34,6 +34,7 @@ namespace __GAME__.Editor.Art
                     "PROBE_VOLUMES_L1" },
             new[] { "_ADDITIONAL_LIGHTS_VERTEX" },
             MobileTier,
+            new[] { "_WEAR", "_MAIN_LIGHT_SHADOWS_CASCADE" },   // the painted wear (Toon.shader Wear)
         };
 
         // the variants compiled for each device API: what the Mobile tier runs, with and without its lights, and a
@@ -41,7 +42,7 @@ namespace __GAME__.Editor.Art
         // its uint cluster loop is the code most likely to hit a GLSL ES or Metal limit)
         static readonly string[][] DeviceKeywordSets =
         {
-            new string[0], MobileTier, new[] { "_ADDITIONAL_LIGHTS_VERTEX" },
+            new string[0], MobileTier, new[] { "_ADDITIONAL_LIGHTS_VERTEX" }, new[] { "_WEAR" },
             new[] { "_MAIN_LIGHT_SHADOWS", "_CLUSTER_LIGHT_LOOP", "LOD_FADE_CROSSFADE" },
         };
 

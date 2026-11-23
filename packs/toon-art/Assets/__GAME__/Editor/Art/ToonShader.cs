@@ -36,6 +36,29 @@ namespace __GAME__.Editor.Art
     }
 
     /// <summary>
+    /// Pins the import of the wear tile (Tools/Blender/wear_tile.py) that the Toon shader's _WEAR cuts: raw noise, so
+    /// linear, repeated, filtered and mipmapped. Turn wear on per material with the Painted Wear toggle (a builder sets
+    /// _WearOn and the _WEAR keyword together) and this texture in _WearMap; the base map's alpha is the amount.
+    /// </summary>
+    internal sealed class WearTilePostprocessor : AssetPostprocessor
+    {
+        const string Suffix = "/Game/Art/Textures/Wear.png";
+
+        void OnPreprocessTexture()
+        {
+            if (!assetPath.EndsWith(Suffix, System.StringComparison.Ordinal)) return;
+            var importer = (TextureImporter)assetImporter;
+            importer.textureType = TextureImporterType.Default;
+            importer.sRGBTexture = false;
+            importer.mipmapEnabled = true;
+            importer.filterMode = FilterMode.Bilinear;
+            importer.wrapMode = TextureWrapMode.Repeat;
+            importer.textureCompression = TextureImporterCompression.CompressedHQ;
+            importer.alphaSource = TextureImporterAlphaSource.FromInput;
+        }
+    }
+
+    /// <summary>
     /// The default Inspector, plus the outline toggle driving its pass. Unity calls ValidateMaterial after an Inspector
     /// change, an Undo, a preset, Copy/Paste values and a material import, so a material never keeps a stale pass state
     /// until someone opens it (URP's own shader GUIs set their keywords the same way).

@@ -113,7 +113,20 @@ the shader and keeps the colours.
 - Make or retarget a material only through `ToonShader.Apply(material, outline)`. The outline is a second pass; a
   material without it has the pass switched off so it costs no extra draw. On phones keep outlines for what the player
   must read (characters, carried things), not the whole level.
-- Outline width is in 1080p pixels, so it reads the same on a phone and a monitor.
+- Outline width is in 1080p pixels, so it reads the same on a phone and a monitor. Past
+  `_OutlineReferenceDistance` (default 100 m: a fixed width for most cameras) it thins with the object's projected
+  size; a first-person game sets about 1-6 m so a far crowd or heap does not turn to ink.
+- Painted wear without a bake: turn on the material's Painted Wear toggle (a builder sets `_WearOn` 1 and the `_WEAR`
+  local keyword together), put `Game/Art/Textures/Wear.png` in `_WearMap` (bake it once with
+  `Tools/Blender/wear_tile.py -- <project>`; `WearTilePostprocessor` pins it linear and repeated) and let the base map's
+  alpha say how much each role takes (0 none). It is a box projection in world space with rust colours `_WearDark`,
+  `_WearMid`, `_WearLight` and grime toward `_GroundY`; it suits boxes and buildings with no edges of their own. A
+  hero asset still bakes its wear into the base map.
+- Inner lines: the outline draws only the silhouette. `unity command art ink-lines` (or `__GAME__/Art/Add Ink Lines
+  (PC tier)`) adds `__GAME__/InkLines` as a full screen pass on `URP_PC_Renderer` for creases and overlaps; it reads
+  the depth and normals textures, so it stays off the Mobile tier.
+- Sky: `__GAME__/Sky` is a flat cel gradient with a stepped sun disc; a material with it goes in
+  `RenderSettings.skybox`, and the fog colour near its horizon colour hides the far edge.
 - A mesh outside `Game/Art/Models/` gets no smoothed normals; its outline may split at hard edges.
 - No cutouts: the shader has no alpha clip, so a card cut by its texture's alpha draws solid; model the shape. The lit
   pass culls back faces, so a part wound inside out, or single flipped faces, show the far inside. The style gate
@@ -121,7 +134,8 @@ the shader and keeps the colours.
   (`bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])`) and delete the inner faces.
 - Bake or paint only the base map for a toon asset (`bake_maps.py --maps basecolor`, or a palette atlas: one painted
   in memory is packed, `image.pack()`, or saved to a file before the `.blend` is saved, or the gate fails it);
-  Smoothness is a material value. No normal, AO or mask map: the shader samples none, and `OutlineNormalsPostprocessor`
+  Smoothness is a material value. No normal, AO or mask map: the shader samples none (the wear tile above is its own
+  world-space texture), and `OutlineNormalsPostprocessor`
   overwrites the tangents under `Game/Art/Models/`. The `unity-export` skill has the per-shader texture table.
 - Lighting it takes: the main light with its shadows (fading out at the shadow distance), point and spot lights in the
   same two bands (Forward and Forward+), light layers, fog, ambient from light probes or Adaptive Probe Volumes, SSAO

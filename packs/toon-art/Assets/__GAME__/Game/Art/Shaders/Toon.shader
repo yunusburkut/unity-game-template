@@ -3,8 +3,9 @@
 // on smooth surfaces, a little contact shading where things meet the ground, and an ink outline in a darker shade of
 // the surface's own color. Both bands scale with the main light (the shade tint is a ratio of the lit side), so dusk,
 // night and interiors darken as a whole. Smoothness drives the spot and the rim together, so 0 gives a matte ground and 0.6 a
-// plastic bag. The outline is an inverted hull pushed out by a fixed number of pixels (at 1080p, so it reads the same
-// on a phone and a monitor) along the smoothed normal OutlineNormalsPostprocessor bakes into the tangent, so
+// plastic bag. An optional painted wear (_WEAR: rust and grime in world space) roughens surfaces with no baked wear.
+// The outline is an inverted hull pushed out by a number of pixels (at 1080p, so it reads the same on a phone and a
+// monitor, thinning past _OutlineReferenceDistance) along the smoothed normal OutlineNormalsPostprocessor bakes into the tangent, so
 // hard-edged and skinned models get an unbroken line too. A material without an outline has that pass switched off
 // (ToonShader.Apply / the Outline toggle), so it pays no second draw. Merged from Pixel Volley (lighting) and Mixtrol
 // (outline).
@@ -44,10 +45,20 @@ Shader "__GAME__/Toon"
         _GroundY("Ground Height (world Y)", Float) = -0.06
         _ContactHeight("Contact Height", Float) = 0.25
 
+        [Header(Wear)]
+        [Toggle(_WEAR)] _WearOn("Painted Wear (amount in the base map's alpha)", Float) = 0
+        [NoScaleOffset] _WearMap("Wear Tile (R chips, G specks, B streaks, A spots)", 2D) = "gray" {}
+        _WearTile("Wear Tile Size, m", Float) = 2.5
+        _WearChips("Chips", Range(0, 1)) = 0.5
+        _WearDark("Rust Dark", Color) = (0.31, 0.165, 0.086, 1)
+        _WearMid("Rust Mid", Color) = (0.58, 0.314, 0.122, 1)
+        _WearLight("Rust Light", Color) = (0.753, 0.443, 0.184, 1)
+
         [Header(Outline)]
         [ToggleUI] _Outline("Outline", Float) = 1
         _OutlineColor("Outline Tint", Color) = (0.36, 0.3, 0.46, 1)
         _OutlineWidth("Outline Width, 1080p pixels", Range(0, 8)) = 1.5
+        _OutlineReferenceDistance("Outline Full Width Within, m", Range(0.1, 100)) = 100
     }
 
     SubShader
@@ -74,13 +85,21 @@ Shader "__GAME__/Toon"
             half _ContactShade;
             float _GroundY;
             float _ContactHeight;
+            float _WearTile;
+            half _WearChips;
+            half4 _WearDark;
+            half4 _WearMid;
+            half4 _WearLight;
             half _Outline;
             half4 _OutlineColor;
             float _OutlineWidth;
+            float _OutlineReferenceDistance;
         CBUFFER_END
 
         TEXTURE2D(_BaseMap);
         SAMPLER(sampler_BaseMap);
+        TEXTURE2D(_WearMap);
+        SAMPLER(sampler_WearMap);
         ENDHLSL
 
         Pass
@@ -101,6 +120,7 @@ Shader "__GAME__/Toon"
             // SSAO (any mode), DBuffer decals and Adaptive Probe Volumes; stripped when the URP asset has none of them
             #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
             #pragma multi_compile_fragment _ _DBUFFER_MRT1 _DBUFFER_MRT2 _DBUFFER_MRT3
+            #pragma shader_feature_local_fragment _WEAR
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ProbeVolumeVariants.hlsl"
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Fog.hlsl"
             #pragma multi_compile_instancing
@@ -160,13 +180,51 @@ Shader "__GAME__/Toon"
                 return albedo * light.color * (band * light.distanceAttenuation * light.shadowAttenuation);
             }
 
+            #if defined(_WEAR)
+            // Painted wear (rust chips, specks, run-off streaks, grime low down) laid on in world space, for surfaces
+            // with no baked wear of their own (kit boxes, buildings). The tile (Tools/Blender/wear_tile.py) holds raw
+            // noises cut here, so the edges stay crisp at any distance; the base map's alpha says how much a material
+            // takes (0 none). Ceiling: no edges or recesses to read, so chips scatter over a face (_WearChips) and
+            // grime comes from the height over _GroundY; the way up is a baked edge map in a second UV set. Ceiling:
+            // one axis per pixel, so the pattern cuts where a face's normal passes 45 deg (rotated rubble, a heap);
+            // the way up is a weighted triplanar blend (3 more samples).
+            half3 Wear(half3 albedo, half amount, float3 positionWS, half3 normalWS)
+            {
+                half3 n = abs(normalWS);
+                // a box projection on the dominant axis; on a wall v is world up, so the streaks run down
+                float2 uv = n.y > max(n.x, n.z) ? positionWS.xz
+                                                : float2(n.x > n.z ? positionWS.z : positionWS.x, positionWS.y);
+                half4 near = SAMPLE_TEXTURE2D(_WearMap, sampler_WearMap, uv / _WearTile);
+                // a second, larger and offset read moves the cut-offs by up to about +-0.06: worn and clean patches
+                // metres wide, so the tile's repeat does not line up
+                half4 far = SAMPLE_TEXTURE2D(_WearMap, sampler_WearMap, uv / (_WearTile * 3.7) + 0.31);
+                half patch = (far.a - 0.5) * 0.5;
+                half wall = 1 - n.y;
+                half chip = saturate(((near.r - 0.5 + patch) * 2.6 + _WearChips - 0.72) * 6);
+                half spots = max(saturate((near.a - 0.56 - patch) * 8), saturate((near.g - 0.68) * 10) * 0.85);
+                half streak = saturate((near.b - 0.52) * 3.5) * wall;
+                half low = saturate(1 - (positionWS.y - _GroundY) / 1.5);
+                half rust = saturate(max(max(chip, spots), streak * 0.8 + low * 0.2)) * amount;
+                half3 dirty = lerp(albedo, albedo * half3(0.32, 0.29, 0.26), (low * 0.45 + far.a * 0.12) * amount);
+                // the rust ramp: dark, mid, light by a fine noise
+                half t = near.g;
+                half3 rustColor = lerp(lerp(_WearDark.rgb, _WearMid.rgb, saturate((t - 0.32) / 0.18)),
+                                       _WearLight.rgb, saturate((t - 0.5) / 0.18));
+                return lerp(dirty, rustColor, rust);
+            }
+            #endif
+
             half4 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
                 #if defined(LOD_FADE_CROSSFADE)
                     LODFadeCrossFade(input.positionCS);
                 #endif
-                half3 albedo = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv).rgb * _BaseColor.rgb;
+                half4 baseMap = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv);
+                half3 albedo = baseMap.rgb * _BaseColor.rgb;
+                #if defined(_WEAR)
+                    albedo = Wear(albedo, baseMap.a, input.positionWS, normalize(input.normalWS));
+                #endif
                 #if defined(_DBUFFER)
                     ApplyDecalToBaseColor(input.positionCS, albedo);    // DBuffer decals tint the surface colour
                 #endif
@@ -298,12 +356,15 @@ Shader "__GAME__/Toon"
                 bool smoothed = abs(input.tangentOS.w) < 0.5 && dot(input.tangentOS.xyz, input.tangentOS.xyz) > 0.25;
                 float3 normalOS = smoothed ? input.tangentOS.xyz : input.normalOS;
 
-                // pushed out in screen space, a fixed number of 1080p pixels whatever the distance or resolution
+                // pushed out in screen space by _OutlineWidth 1080p pixels whatever the resolution, at full width
+                // within _OutlineReferenceDistance of the camera and thinning with the object's projected size past
+                // it, so a far crowd does not turn to ink (the default 100 m keeps the width fixed for most cameras;
+                // a first-person game sets about 1-6 m)
                 float4 positionCS = TransformObjectToHClip(input.positionOS.xyz);
                 float3 normalCS = mul((float3x3)UNITY_MATRIX_VP, TransformObjectToWorldNormal(normalOS));
                 float2 direction = normalize(normalCS.xy + 1e-5);
                 float2 pixel = float2(_ScreenParams.y / _ScreenParams.x, 1.0) * (2.0 / 1080.0);
-                positionCS.xy += direction * pixel * _OutlineWidth * positionCS.w;
+                positionCS.xy += direction * pixel * _OutlineWidth * min(positionCS.w, _OutlineReferenceDistance);
                 output.positionCS = positionCS;
                 output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
                 output.fogFactor = ComputeFogFactor(positionCS.z);
