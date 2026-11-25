@@ -154,9 +154,11 @@ Pause feedbacks), `PlayCount`, `InPreviewMode`.
 **Channel** — `MMF_ChannelMode`, `MMF_Channel` (0), `MMF_ChannelDefinition`.
 
 **Kill switch** — `static MMFeedbacks.GlobalMMFeedbacksActive` disables every player in the project.
-It is a Feel static with no reset, and domain reload is off: write it at startup from the saved setting (as with
+In Feel 6.1 it is a static with no reset, and domain reload is off: write it at startup from the saved setting (as with
 `Haptics.Enabled`, recipes §11) or reset it in a `SubsystemRegistration` method, or one Play session with it off
-leaves every later one silent. The same holds for each feedback's `static FeedbackTypeAuthorized`.
+leaves every later one silent. The same holds for each feedback's `static FeedbackTypeAuthorized`. Feel 6.4 marks
+both `[AutoStaticsCleanup]`, so Unity resets them to `true` on each Play; writing them at startup from the saved
+setting stays right in both (the version is the first `Feel v` line of `Assets/Feel/readme.txt`).
 
 **Events** — `Events` (`MMFeedbacksEvents`): `OnPlay`, `OnPause`, `OnResume`, `OnStop`,
 `OnComplete`, `OnChangeDirection`, `OnRestoreInitialValues`, `OnSkipToTheEnd`,

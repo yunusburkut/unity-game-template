@@ -16,8 +16,9 @@ yeni bir oturum başlatır. Elle kurmak için:
 
 1. `C:\GitHub\SkyHopper` oluşur, `__GAME__` her yerde `SkyHopper` olur.
 2. `-Packs` ile seçilen paketler eklenir.
-3. Feel, Assets\Feel'i olan ilk yerel repodan kopyalanır ve oyunun repo'suna commit edilir. Böylece klon ve CI
-   Asset Store'suz derlenir. Feel ücretli olduğu için oyun repo'su **private kalmalı**.
+3. Feel, en yeni Feel'i olan yerel repodan kopyalanır ve oyunun repo'suna commit edilir. Böylece klon ve CI
+   Asset Store'suz derlenir. Feel ücretli olduğu için oyun repo'su **private kalmalı**. Feel 6.2+ kendi agent
+   skill'lerini `Assets\Feel\Skills`'te getirir; `feel-authoring` onları oradan okur.
 4. Unity batch modda `ProjectSetup`'ı çalıştırır (ilk import birkaç dakika).
 5. `main` dalında ilk commit atılır; Unity Smart Merge sürücüsü ve `.meta` pre-commit hook'u açılır.
 

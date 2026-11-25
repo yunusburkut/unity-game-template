@@ -44,7 +44,7 @@ param(
     # Folders under packs\ to add on top of project\ (each pack's README.md and examples\ stay behind).
     [string[]]$Packs = @(),
 
-    # A project folder that has Assets\Feel. Default: the first folder under -Path that has one.
+    # A project folder that has Assets\Feel. Default: the folder under -Path with the newest Feel.
     [string]$FeelFrom,
 
     # Unity.exe. Default: the Hub install (its custom install folder, then the default one) that matches
@@ -247,8 +247,13 @@ if ($LocalGameKit) {
 
 Write-Host '3/6 Feel'
 if (-not $FeelFrom) {
+    # The newest Feel wins (its readme's "Feel vX.Y" line): 6.2+ carries Assets\Feel\Skills, which feel-authoring reads.
     $FeelFrom = Get-ChildItem -LiteralPath $Path -Directory -ErrorAction SilentlyContinue |
         Where-Object { $_.FullName -ne $dest -and (Test-Path (Join-Path $_.FullName 'Assets\Feel\MMFeedbacks')) } |
+        Sort-Object -Descending {
+            $m = Select-String -LiteralPath (Join-Path $_.FullName 'Assets\Feel\readme.txt') -Pattern '^Feel v(\d+(?:\.\d+)+)' -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($m) { [version]$m.Matches[0].Groups[1].Value } else { [version]'0.0' }
+        } |
         Select-Object -First 1 -ExpandProperty FullName
 }
 if ($FeelFrom -and (Test-Path (Join-Path $FeelFrom 'Assets\Feel'))) {

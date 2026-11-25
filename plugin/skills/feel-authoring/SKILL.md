@@ -27,6 +27,26 @@ use `MMF_CameraShake` with an `MMCameraShaker` instead. The define-by-define tab
 the manifest changes) is `references/feedback-catalog.md`, top section. Do not add a package to turn a family on
 without asking.
 
+## Feel's own skills
+
+Feel 6.2 and later ship agent skills in `Assets/Feel/Skills/feel-*/SKILL.md` (add-feedbacks, screen-shake,
+post-processing-effects, springs, sound-manager, sound-and-playlist-setup, custom-feedback, haptics), verified against
+the installed version (`asset-version` in each frontmatter). They are not linked into `.claude/skills`: that would hide
+the packs' skills and double every Feel trigger, so this skill stays the entry point. When a task goes past this file
+and `references/` (sequencing and completion callbacks, target acquisition, sound IDs, track control and playlists,
+spring commands and clamps, haptic clips and `HapticReceiver`, fade, flash, zoom and UI shake, custom feedbacks and
+shakers), Glob the folder and read the matching `SKILL.md` and its `references/`. No folder means Feel 6.1 or older:
+update it from Package Manager > My Assets.
+
+On a Feel API they outrank `references/`, which is written against 6.1. On this project's setup they do not:
+
+- "`Assembly-CSharp` compiles as-is": not here, Game needs the reference in Step zero.
+- Cinemachine impulse, PPv2 or HDRP routes, `Install All Dependencies`: none exist here (What compiles); use the
+  `MMCameraShaker` rig and the `_URP` variants.
+- `MMSoundManager` set up first, `AutoSave` on: plain mixer first, `AutoSave` and `AutoLoad` off (Music, below).
+- Their Editor steps (adding components, Automatic Shaker Setup, which edits the scene and the shared Volume profile)
+  go through `unity-editor-cli`; their code goes in `Assets/<Game>/Game`, never under `Assets/Feel`.
+
 ## Where the code goes
 
 The simulation does not know presentation exists (`unity-architecture`). The channel is the solver's one-step edge
@@ -89,7 +109,7 @@ Play session.
   is ignored in `Awake`. On a plain mixer write decibels,
   `mixer.SetFloat("MusicVolume", Mathf.Log10(Mathf.Max(v, 0.0001f)) * 20f)`; with MMSoundManager call
   `SetVolumeMusic(v)` and friends, and turn the settings SO's `AutoSave` and `AutoLoad` off: they write their own
-  file through `MMSaveLoadManager`'s BinaryFormatter, a second store and the format item 4 forbids.
+  file through `MMSaveLoadManager` (BinaryFormatter in Feel 6.1, Json in 6.4), a second store item 4 forbids.
 
 ## References
 

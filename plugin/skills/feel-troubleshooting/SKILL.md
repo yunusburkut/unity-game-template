@@ -73,8 +73,8 @@ Check, in this order:
    section 4).
 11. **`LimitPlayCount` / `MaxPlayCount`** — the feedback has used up its plays.
 12. **`MMFeedbacks.GlobalMMFeedbacksActive`** is false, or the feedback class's static
-   `FeedbackTypeAuthorized` is false. Both are global kill switches; with Play Mode reload disabled
-   they survive from a previous session (see below). `FeedbackTypeAuthorized` is written from the
+   `FeedbackTypeAuthorized` is false. Both are global kill switches; in Feel 6.1, with Play Mode reload
+   disabled, they survive from a previous session (see below). `FeedbackTypeAuthorized` is written from the
    toggles of an `MMFeedbacksAuthorizations` component when one exists: search the scenes and
    prefabs for it (a demo prefab carries one) before searching code.
 13. **`MMFeedbacksDirectionCondition`** is `OnlyWhenForwards`/`OnlyWhenBackwards` and the player is
@@ -198,8 +198,9 @@ object mid-sequence strands the target at whatever intermediate value it had rea
 ## It behaves differently on the second Play session
 
 **Play Mode domain and scene reload are both disabled in this project.** Every mutable static
-survives between sessions. That includes `MMFeedbacks.GlobalMMFeedbacksActive`, every feedback
-class's `FeedbackTypeAuthorized`, and any singleton instance Feel or our code holds.
+survives between sessions. That includes any singleton instance Feel or our code holds and, in Feel
+6.1, `MMFeedbacks.GlobalMMFeedbacksActive` and every feedback class's `FeedbackTypeAuthorized`
+(Feel 6.4 marks those two `[AutoStaticsCleanup]`; the version is in `Assets/Feel/readme.txt`).
 
 If a setting we wrote (an accessibility toggle, a debug kill switch) is not reset in a
 `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]` method, the first
